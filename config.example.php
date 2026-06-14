@@ -50,3 +50,6 @@ $FORCE_JOIN_CHANNEL = '';
 // Mini App theme defaults. Admin can change from bot panel.
 $DEFAULT_THEME_COLOR = '#1d9bf0';
 $BRAND_NAME = 'BlueGate';
+
+// Shop payment text shown under invoices. You can also edit it from admin panel.
+$PAYMENT_INSTRUCTIONS = 'شماره کارت/اطلاعات پرداخت را اینجا بنویسید. بعد از پرداخت، کاربر رسید را از دکمه ارسال رسید می‌فرستد.';
