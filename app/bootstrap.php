@@ -88,6 +88,8 @@ function migrate(): void {
     seed_setting('custom_code_min_referrals', app_config('CUSTOM_CODE_MIN_REFERRALS', 3));
     seed_setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0'));
     seed_setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
+    seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً مبلغ فاکتور را کارت‌به‌کارت کنید و سپس رسید پرداخت را از دکمه ارسال رسید بفرستید.'));
+    seed_shop_categories();
 }
 
 function setting(string $key, $default = null) {
@@ -360,6 +362,155 @@ function validate_theme_color(string $color): ?string {
     if (preg_match('/^#[0-9a-fA-F]{6}$/', $color)) return strtolower($color);
     $map = ['blue'=>'#1d9bf0','purple'=>'#8b5cf6','green'=>'#22c55e','red'=>'#ef4444','orange'=>'#f97316','pink'=>'#ec4899','cyan'=>'#06b6d4'];
     return $map[strtolower($color)] ?? null;
+}
+
+
+
+function seed_shop_categories(): void {
+    if (!table_exists('product_categories')) return;
+    $count = (int)db()->query('SELECT COUNT(*) c FROM product_categories')->fetch()['c'];
+    if ($count > 0) return;
+    $rows = [
+        ['🤖', 'هوش مصنوعی'], ['🎵', 'موزیک'], ['🎬', 'یوتیوب و استریم'],
+        ['🎨', 'طراحی'], ['🎮', 'گیم'], ['🔐', 'VPN'], ['⭐', 'تلگرام']
+    ];
+    $q = db()->prepare('INSERT INTO product_categories (emoji,title,sort_order) VALUES (?,?,?)');
+    foreach ($rows as $i => $r) $q->execute([$r[0], $r[1], $i + 1]);
+}
+
+function delivery_type_fa(string $type): string {
+    return [
+        'manual'=>'تحویل دستی', 'account'=>'اکانت / ایمیل و پسورد', 'vpn'=>'لینک ساب VPN',
+        'code'=>'کد / گیفت / لایسنس', 'file'=>'فایل یا متن آماده'
+    ][$type] ?? 'تحویل دستی';
+}
+function normalize_delivery_type(string $type): string {
+    $t = strtolower(trim($type));
+    $map = ['manual'=>'manual','دستی'=>'manual','account'=>'account','اکانت'=>'account','email'=>'account','vpn'=>'vpn','وپن'=>'vpn','sub'=>'vpn','code'=>'code','کد'=>'code','gift'=>'code','file'=>'file','فایل'=>'file'];
+    return $map[$t] ?? 'manual';
+}
+function order_status_fa(string $status): string {
+    return [
+        'pending_payment'=>'در انتظار پرداخت', 'pending_review'=>'در انتظار بررسی رسید', 'paid'=>'پرداخت تایید شده',
+        'delivered'=>'تحویل داده شده', 'rejected'=>'رد شده', 'canceled'=>'لغو شده'
+    ][$status] ?? $status;
+}
+function normalize_coupon_code(string $code): string { return strtoupper(preg_replace('/[^A-Za-z0-9_\-]/', '', trim($code))); }
+function shop_categories(bool $activeOnly=true): array {
+    $sql = 'SELECT * FROM product_categories'.($activeOnly?' WHERE is_active=1':'').' ORDER BY sort_order ASC, id ASC';
+    return db()->query($sql)->fetchAll();
+}
+function shop_products(?int $categoryId=null, bool $activeOnly=true): array {
+    $where=[]; $params=[];
+    if ($activeOnly) $where[]='p.is_active=1';
+    if ($categoryId) { $where[]='p.category_id=?'; $params[]=$categoryId; }
+    $sql='SELECT p.*, c.title category_title, c.emoji category_emoji FROM products p LEFT JOIN product_categories c ON c.id=p.category_id';
+    if ($where) $sql .= ' WHERE '.implode(' AND ', $where);
+    $sql .= ' ORDER BY p.id DESC LIMIT 50';
+    $q=db()->prepare($sql); $q->execute($params); return $q->fetchAll();
+}
+function shop_product(int $id) {
+    $q=db()->prepare('SELECT p.*, c.title category_title, c.emoji category_emoji FROM products p LEFT JOIN product_categories c ON c.id=p.category_id WHERE p.id=?');
+    $q->execute([$id]); return $q->fetch();
+}
+function find_or_create_category(string $title, string $emoji='🛒'): int {
+    $title=trim($title); if ($title==='') $title='عمومی';
+    if (ctype_digit($title)) return (int)$title;
+    $q=db()->prepare('SELECT id FROM product_categories WHERE title=? LIMIT 1'); $q->execute([$title]); $row=$q->fetch();
+    if ($row) return (int)$row['id'];
+    db()->prepare('INSERT INTO product_categories (title,emoji,sort_order) VALUES (?,?,99)')->execute([$title,$emoji]);
+    return (int)db()->lastInsertId();
+}
+function product_commission_text(array $p): string {
+    if (($p['commission_type'] ?? 'none') === 'percent') return ((int)$p['commission_value']).'٪';
+    if (($p['commission_type'] ?? 'none') === 'fixed') return money((int)$p['commission_value']);
+    return 'بدون پورسانت';
+}
+function create_shop_order(int $userId, int $productId): array {
+    $p = shop_product($productId);
+    if (!$p || (int)$p['is_active'] !== 1) throw new RuntimeException('PRODUCT_NOT_FOUND');
+    $amount=(int)$p['price'];
+    db()->prepare('INSERT INTO orders (user_id, product_id, amount, final_amount, status) VALUES (?,?,?,?,?)')->execute([$userId,$productId,$amount,$amount,'pending_payment']);
+    return order_by_id((int)db()->lastInsertId());
+}
+function order_by_id(int $id) {
+    $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type, p.commission_type, p.commission_value, p.short_description, u.telegram_id, u.username, u.referrer_id FROM orders o JOIN products p ON p.id=o.product_id JOIN users u ON u.id=o.user_id WHERE o.id=?');
+    $q->execute([$id]); return $q->fetch();
+}
+function user_orders(int $userId, int $limit=10): array {
+    $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type FROM orders o JOIN products p ON p.id=o.product_id WHERE o.user_id=? ORDER BY o.id DESC LIMIT ?');
+    $q->bindValue(1,$userId,PDO::PARAM_INT); $q->bindValue(2,$limit,PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
+}
+function admin_orders(?string $status=null, int $limit=20): array {
+    $sql='SELECT o.*, p.name product_name, p.delivery_type, u.telegram_id, u.username FROM orders o JOIN products p ON p.id=o.product_id JOIN users u ON u.id=o.user_id';
+    $params=[]; if ($status) { $sql.=' WHERE o.status=?'; $params[]=$status; }
+    $sql.=' ORDER BY o.id DESC LIMIT '.(int)$limit;
+    $q=db()->prepare($sql); $q->execute($params); return $q->fetchAll();
+}
+function coupon_by_code(string $code) {
+    $code=normalize_coupon_code($code); if ($code==='') return false;
+    $q=db()->prepare('SELECT * FROM coupons WHERE code=?'); $q->execute([$code]); return $q->fetch();
+}
+function calculate_coupon_discount(array $coupon, int $amount): int {
+    if (!(int)$coupon['is_active']) return 0;
+    if ((int)$coupon['max_uses'] > 0 && (int)$coupon['used_count'] >= (int)$coupon['max_uses']) return 0;
+    if (!empty($coupon['expires_at']) && strtotime($coupon['expires_at']) < time()) return 0;
+    if ($coupon['type'] === 'fixed') return min($amount, max(0, (int)$coupon['value']));
+    return min($amount, (int)floor($amount * max(0, (int)$coupon['value']) / 100));
+}
+function apply_coupon_to_order(int $orderId, int $userId, string $code): array {
+    $order=order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    if ($order['status'] !== 'pending_payment') throw new RuntimeException('ORDER_LOCKED');
+    $coupon=coupon_by_code($code); if (!$coupon) throw new RuntimeException('COUPON_NOT_FOUND');
+    $discount=calculate_coupon_discount($coupon, (int)$order['amount']);
+    if ($discount <= 0) throw new RuntimeException('COUPON_INVALID');
+    $final=max(0, (int)$order['amount'] - $discount);
+    db()->prepare('UPDATE orders SET coupon_code=?, discount_amount=?, final_amount=? WHERE id=?')->execute([$coupon['code'],$discount,$final,$orderId]);
+    db()->prepare('UPDATE coupons SET used_count=used_count+1 WHERE id=?')->execute([$coupon['id']]);
+    return order_by_id($orderId);
+}
+function submit_order_receipt(int $orderId, int $userId, string $note='', ?string $fileId=null): array {
+    $order=order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    if (!in_array($order['status'], ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
+    db()->prepare('UPDATE orders SET status="pending_review", payment_note=?, receipt_file_id=? WHERE id=?')->execute([$note,$fileId,$orderId]);
+    return order_by_id($orderId);
+}
+function reject_order(int $orderId, string $note=''): ?array {
+    $order=order_by_id($orderId); if (!$order) return null;
+    db()->prepare('UPDATE orders SET status="rejected", admin_note=? WHERE id=?')->execute([$note,$orderId]);
+    return order_by_id($orderId);
+}
+function mark_order_paid(int $orderId): ?array {
+    $order=order_by_id($orderId); if (!$order) return null;
+    db()->prepare('UPDATE orders SET status="paid" WHERE id=?')->execute([$orderId]);
+    return order_by_id($orderId);
+}
+function deliver_order(int $orderId, string $deliveryText): ?array {
+    $order=order_by_id($orderId); if (!$order) return null;
+    if ($order['status'] === 'delivered') return $order;
+    $reward=0;
+    if (!empty($order['referrer_id']) && (int)$order['referrer_reward_amount'] === 0) {
+        $ref=get_user_by_id((int)$order['referrer_id']);
+        if ($ref) {
+            $base = ($order['commission_type'] === 'percent') ? (int)floor((int)$order['final_amount'] * (int)$order['commission_value'] / 100) : (($order['commission_type'] === 'fixed') ? (int)$order['commission_value'] : 0);
+            if ($base > 0) {
+                $vip=vip_info((int)$ref['referrals_count']); $reward=(int)round($base * (float)$vip['multiplier']);
+                add_balance((int)$ref['id'], $reward, 'shop_commission', 'پورسانت سفارش #'.$orderId, (int)$order['user_id']);
+                send_msg((int)$ref['telegram_id'], "🎁 زیرمجموعه شما خرید انجام داد و سفارش تحویل شد.\nپورسانت: <b>".money($reward)."</b>\nسفارش: <code>#{$orderId}</code>", main_menu_keyboard(is_admin((int)$ref['telegram_id'])));
+            }
+        }
+    }
+    db()->prepare('UPDATE orders SET status="delivered", delivery_text=?, referrer_reward_amount=? WHERE id=?')->execute([$deliveryText,$reward,$orderId]);
+    return order_by_id($orderId);
+}
+function order_public_payload(array $o): array {
+    return [
+        'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
+        'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'], 'status'=>$o['status'], 'status_fa'=>order_status_fa($o['status']),
+        'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'], 'created_at'=>$o['created_at']
+    ];
 }
 
 function verify_webapp_init_data(string $initData): array|false {

@@ -44,7 +44,7 @@ function handle_message(array $message): void {
 
     // No public command flow. Any free text is interpreted only when a button has opened an input step.
     if (!empty($user['step'])) {
-        handle_step_input($chat_id, $user, $text);
+        handle_step_message($chat_id, $user, $message);
         return;
     }
 
@@ -80,8 +80,8 @@ function handle_callback(array $cb): void {
     $user = get_user_by_tid($chat_id);
 
     if ($data === 'main') { clear_step($chat_id); send_or_edit($chat_id, $message_id, main_text($user), main_menu_keyboard(is_admin($chat_id))); return; }
-    if (str_starts_with($data, 'u_')) { handle_user_callback($chat_id, $message_id, $user, $data); return; }
-    if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_')) {
+    if (str_starts_with($data, 'u_') || str_starts_with($data, 'shop_') || str_starts_with($data, 'order_')) { handle_user_callback($chat_id, $message_id, $user, $data); return; }
+    if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_') || str_starts_with($data, 'prod_') || str_starts_with($data, 'cat_') || str_starts_with($data, 'coupon_') || str_starts_with($data, 'ord_')) {
         if (!is_admin($chat_id)) { send_msg($chat_id, 'دسترسی ادمین ندارید.'); return; }
         handle_admin_callback($chat_id, $message_id, $user, $data); return;
     }
@@ -170,6 +170,48 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
         set_step($chat_id, 'withdraw_card');
         send_msg($chat_id, "شماره کارت/شبا و نام صاحب حساب را در یک پیام بفرست.\nمبلغ قابل برداشت: <b>".money($user['balance'])."</b>", back_main_keyboard()); return;
     }
+
+    if ($data === 'u_shop') { show_shop_home($chat_id, $message_id); return; }
+    if ($data === 'u_orders') { show_user_orders($chat_id, $message_id, (int)$user['id']); return; }
+    if (str_starts_with($data, 'shop_cat_')) { show_shop_category($chat_id, $message_id, (int)substr($data, 9)); return; }
+    if (str_starts_with($data, 'shop_prod_')) { show_shop_product($chat_id, $message_id, (int)substr($data, 10)); return; }
+    if (str_starts_with($data, 'shop_buy_')) {
+        try {
+            $order = create_shop_order((int)$user['id'], (int)substr($data, 9));
+            show_order_invoice($chat_id, $message_id, $order);
+            notify_admins("🧾 سفارش جدید ثبت شد\nسفارش: <code>#{$order['id']}</code>\nکاربر: <code>{$chat_id}</code>\nمحصول: <b>".h($order['product_name'])."</b>\nمبلغ: <b>".money($order['final_amount'])."</b>");
+        } catch (Throwable $e) { send_or_edit($chat_id, $message_id, 'محصول پیدا نشد یا غیرفعال است.', back_main_keyboard()); }
+        return;
+    }
+    if (str_starts_with($data, 'order_view_')) {
+        $order = order_by_id((int)substr($data, 11));
+        if (!$order || (int)$order['user_id'] !== (int)$user['id']) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', back_main_keyboard()); return; }
+        show_order_invoice($chat_id, $message_id, $order); return;
+    }
+    if (str_starts_with($data, 'order_receipt_')) {
+        $oid = (int)substr($data, 14);
+        $order = order_by_id($oid);
+        if (!$order || (int)$order['user_id'] !== (int)$user['id']) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', back_main_keyboard()); return; }
+        set_step($chat_id, 'order_receipt', (string)$oid);
+        send_msg($chat_id, "رسید پرداخت سفارش <code>#{$oid}</code> را بفرست.\nمی‌تواند متن، توضیح پرداخت یا عکس رسید باشد.", back_main_keyboard()); return;
+    }
+    if (str_starts_with($data, 'order_coupon_')) {
+        $oid = (int)substr($data, 13);
+        $order = order_by_id($oid);
+        if (!$order || (int)$order['user_id'] !== (int)$user['id'] || $order['status'] !== 'pending_payment') { send_or_edit($chat_id, $message_id, 'برای این سفارش نمی‌شود کد تخفیف ثبت کرد.', back_main_keyboard()); return; }
+        set_step($chat_id, 'order_coupon', (string)$oid);
+        send_msg($chat_id, "کد تخفیف سفارش <code>#{$oid}</code> را بفرست.", back_main_keyboard()); return;
+    }
+    if (str_starts_with($data, 'order_cancel_')) {
+        $oid = (int)substr($data, 13);
+        $order = order_by_id($oid);
+        if ($order && (int)$order['user_id'] === (int)$user['id'] && $order['status'] === 'pending_payment') {
+            db()->prepare('UPDATE orders SET status="canceled" WHERE id=?')->execute([$oid]);
+            send_or_edit($chat_id, $message_id, "سفارش <code>#{$oid}</code> لغو شد.", back_main_keyboard()); return;
+        }
+        send_or_edit($chat_id, $message_id, 'امکان لغو این سفارش نیست.', back_main_keyboard()); return;
+    }
+
     if ($data === 'u_support') {
         $support = app_config('SUPPORT_USERNAME', 'BlueGateSupport');
         send_or_edit($chat_id, $message_id, "📞 پشتیبانی: @{$support}", back_main_keyboard()); return;
@@ -203,6 +245,23 @@ function handle_admin_callback(int $chat_id, $message_id, array $user, string $d
         if (!$rows) $out .= 'هنوز داده‌ای نداریم.';
         send_or_edit($chat_id, $message_id, $out, admin_keyboard()); return;
     }
+
+    if ($data === 'adm_shop') { show_admin_shop_home($chat_id, $message_id); return; }
+    if ($data === 'adm_products') { show_admin_products($chat_id, $message_id); return; }
+    if ($data === 'adm_add_product') { set_step($chat_id, 'admin_add_product'); send_msg($chat_id, "➕ افزودن محصول\nهر مورد را در یک خط بفرست:\n\n<code>نام محصول\nقیمت تومان\nدسته‌بندی یا ID دسته\nنوع تحویل: manual/account/vpn/code/file\nپورسانت: none یا fixed:20000 یا percent:10\nتوضیح کوتاه\nتوضیح کامل اختیاری</code>", admin_shop_keyboard()); return; }
+    if ($data === 'adm_categories') { show_admin_categories($chat_id, $message_id); return; }
+    if ($data === 'adm_add_category') { set_step($chat_id, 'admin_add_category'); send_msg($chat_id, "نام دسته را بفرست. مثال:\n<code>🤖 هوش مصنوعی</code>", admin_shop_keyboard()); return; }
+    if ($data === 'adm_coupons') { show_admin_coupons($chat_id, $message_id); return; }
+    if ($data === 'adm_add_coupon') { set_step($chat_id, 'admin_add_coupon'); send_msg($chat_id, "🎟 افزودن کد تخفیف\nهر مورد را در یک خط بفرست:\n\n<code>BLUE10\npercent\n10\n100</code>\n\nخط چهارم حداکثر استفاده است؛ 0 یعنی نامحدود. برای تخفیف مبلغی به جای percent بنویس fixed.", admin_shop_keyboard()); return; }
+    if ($data === 'adm_orders') { show_admin_order_filters($chat_id, $message_id); return; }
+    if (str_starts_with($data, 'adm_orders_')) { show_admin_orders($chat_id, $message_id, substr($data, 11)); return; }
+    if ($data === 'adm_payment') { set_step($chat_id, 'admin_payment_instructions'); send_msg($chat_id, "متن راهنمای پرداخت را بفرست. این متن زیر فاکتور خرید نمایش داده می‌شود.", admin_shop_keyboard()); return; }
+    if (str_starts_with($data, 'prod_toggle_')) { $pid=(int)substr($data,12); db()->prepare('UPDATE products SET is_active=1-is_active WHERE id=?')->execute([$pid]); show_admin_products($chat_id, $message_id); return; }
+    if (str_starts_with($data, 'prod_delete_')) { $pid=(int)substr($data,12); db()->prepare('UPDATE products SET is_active=0 WHERE id=?')->execute([$pid]); send_msg($chat_id, "محصول #{$pid} غیرفعال شد.", admin_shop_keyboard()); return; }
+    if (str_starts_with($data, 'ord_paid_')) { $oid=(int)substr($data,9); $o=mark_order_paid($oid); if ($o) { send_msg($o['telegram_id'], "✅ پرداخت سفارش <code>#{$oid}</code> تایید شد.\nبعد از آماده شدن، اطلاعات تحویل برای شما ارسال می‌شود.", main_menu_keyboard(is_admin($o['telegram_id']))); send_msg($chat_id, "✅ سفارش #{$oid} تایید شد.", admin_order_keyboard($oid)); } return; }
+    if (str_starts_with($data, 'ord_reject_')) { $oid=(int)substr($data,11); $o=reject_order($oid); if ($o) { send_msg($o['telegram_id'], "❌ سفارش <code>#{$oid}</code> رد شد. برای پیگیری با پشتیبانی ارتباط بگیر.", main_menu_keyboard(is_admin($o['telegram_id']))); send_msg($chat_id, "❌ سفارش #{$oid} رد شد.", admin_shop_keyboard()); } return; }
+    if (str_starts_with($data, 'ord_deliver_')) { $oid=(int)substr($data,12); set_step($chat_id, 'admin_deliver_order', (string)$oid); send_msg($chat_id, "📩 متن تحویل سفارش <code>#{$oid}</code> را بفرست.\nمثلاً ایمیل/پسورد، لینک ساب VPN، کد گیفت یا توضیحات تحویل.", admin_shop_keyboard()); return; }
+
     if ($data === 'adm_settings') {
         $txt = "⚙️ <b>تنظیمات پاداش‌ها</b>\n\nپاداش دعوت: <b>".money(setting_int('start_reward', 2000))."</b>\nحداقل برداشت: <b>".money(setting_int('min_withdraw', 50000))."</b>\nپاداش پایه خرید: <b>".money(setting_int('purchase_reward', 10000))."</b>\nهر چند دعوت یک گردونه: <b>".setting_int('spin_referrals_per_chance', 5)."</b>\nحداقل دعوت برای کد اختصاصی: <b>".setting_int('custom_code_min_referrals', 3)."</b>";
         $kb = json_markup(['inline_keyboard'=>[
@@ -262,6 +321,33 @@ function handle_admin_callback(int $chat_id, $message_id, array $user, string $d
     }
 }
 
+
+function handle_step_message(int $chat_id, array $user, array $message): void {
+    $step = (string)($user['step'] ?? '');
+    if ($step === 'order_receipt') {
+        $oid = (int)$user['step_payload'];
+        $note = trim((string)($message['caption'] ?? $message['text'] ?? ''));
+        $fileId = null;
+        if (!empty($message['photo']) && is_array($message['photo'])) {
+            $last = end($message['photo']);
+            $fileId = $last['file_id'] ?? null;
+        }
+        if ($note === '' && !$fileId) { send_msg($chat_id, 'لطفاً متن رسید یا عکس رسید را ارسال کن.', back_main_keyboard()); return; }
+        try {
+            $order = submit_order_receipt($oid, (int)$user['id'], $note, $fileId);
+            clear_step($chat_id);
+            send_msg($chat_id, "✅ رسید سفارش <code>#{$oid}</code> ثبت شد.\nوضعیت: <b>".order_status_fa($order['status'])."</b>\nبعد از بررسی ادمین اطلاع داده می‌شود.", main_menu_keyboard(is_admin($chat_id)));
+            $msg = order_admin_card($order) . "\n\nرسید/توضیح پرداخت:\n" . h($note ?: 'عکس رسید ارسال شده است.');
+            foreach (app_config('ADMIN_IDS', []) as $aid) {
+                if ($fileId) tg('sendPhoto', ['chat_id'=>$aid, 'photo'=>$fileId, 'caption'=>$msg, 'parse_mode'=>'HTML', 'reply_markup'=>admin_order_keyboard((int)$order['id'])]);
+                else send_msg($aid, $msg, admin_order_keyboard((int)$order['id']));
+            }
+        } catch (Throwable $e) { clear_step($chat_id); send_msg($chat_id, 'ثبت رسید ممکن نشد. سفارش پیدا نشد یا قابل پرداخت نیست.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+    handle_step_input($chat_id, $user, trim((string)($message['text'] ?? '')));
+}
+
 function handle_step_input(int $chat_id, array $user, string $text): void {
     $step = $user['step'];
     if ($text === '' && $step !== 'admin_broadcast') { send_msg($chat_id, 'لطفاً متن معتبر بفرست.', main_menu_keyboard(is_admin($chat_id))); return; }
@@ -285,6 +371,17 @@ function handle_step_input(int $chat_id, array $user, string $text): void {
         db()->prepare('UPDATE users SET ref_code=? WHERE id=?')->execute([$code, $user['id']]);
         clear_step($chat_id); $user = get_user_by_tid($chat_id);
         send_msg($chat_id, "✅ کد اختصاصی ثبت شد.\nلینک جدید شما:\n<code>".referral_link($user)."</code>", main_menu_keyboard(is_admin($chat_id))); return;
+    }
+
+
+    if ($step === 'order_coupon') {
+        $oid = (int)$user['step_payload'];
+        try {
+            $order = apply_coupon_to_order($oid, (int)$user['id'], $text);
+            clear_step($chat_id);
+            send_msg($chat_id, "✅ کد تخفیف اعمال شد.\nتخفیف: <b>".money($order['discount_amount'])."</b>\nمبلغ نهایی: <b>".money($order['final_amount'])."</b>", order_user_keyboard($order));
+        } catch (Throwable $e) { send_msg($chat_id, 'کد تخفیف معتبر نیست یا برای این سفارش قابل استفاده نیست.', back_main_keyboard()); }
+        return;
     }
 
     if (!is_admin($chat_id)) { clear_step($chat_id); send_msg($chat_id, 'این مرحله فقط برای ادمین است.', main_menu_keyboard(false)); return; }
@@ -315,6 +412,46 @@ function handle_step_input(int $chat_id, array $user, string $text): void {
         send_msg($referrer['telegram_id'], "🎁 زیرمجموعه شما خرید انجام داد.\nپورسانت: <b>".money($amount)."</b>\nسطح: {$vip['emoji']} {$vip['fa']}", main_menu_keyboard(is_admin($referrer['telegram_id'])));
         return;
     }
+
+    if ($step === 'admin_add_category') {
+        $line = trim($text); $emoji='🛒'; $title=$line;
+        if (preg_match('/^(.{1,4})\s+(.+)$/u', $line, $m)) { $emoji=$m[1]; $title=$m[2]; }
+        db()->prepare('INSERT INTO product_categories (emoji,title,sort_order) VALUES (?,?,99)')->execute([$emoji,$title]);
+        clear_step($chat_id); send_msg($chat_id, '✅ دسته اضافه شد.', admin_shop_keyboard()); return;
+    }
+    if ($step === 'admin_add_coupon') {
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $text))));
+        if (count($lines) < 3) { send_msg($chat_id, 'فرمت کافی نیست. کد، نوع، مقدار و حداکثر استفاده را خط‌به‌خط بفرست.', admin_shop_keyboard()); return; }
+        $code=normalize_coupon_code($lines[0]); $type=strtolower($lines[1])==='fixed'?'fixed':'percent'; $value=max(0,(int)$lines[2]); $max=max(0,(int)($lines[3] ?? 0));
+        if ($code==='' || $value<=0) { send_msg($chat_id, 'کد یا مقدار تخفیف معتبر نیست.', admin_shop_keyboard()); return; }
+        db()->prepare('INSERT INTO coupons (code,type,value,max_uses) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE type=VALUES(type), value=VALUES(value), max_uses=VALUES(max_uses), is_active=1')->execute([$code,$type,$value,$max]);
+        clear_step($chat_id); send_msg($chat_id, "✅ کد تخفیف <code>{$code}</code> ذخیره شد.", admin_shop_keyboard()); return;
+    }
+    if ($step === 'admin_add_product') {
+        $lines = array_map('trim', preg_split('/\R/', $text));
+        $lines = array_values(array_filter($lines, fn($v)=>$v!==''));
+        if (count($lines) < 6) { send_msg($chat_id, 'فرمت محصول کامل نیست. حداقل ۶ خط لازم است.', admin_shop_keyboard()); return; }
+        $name=$lines[0]; $price=max(0,(int)preg_replace('/\D/','',$lines[1])); $catId=find_or_create_category($lines[2]); $delivery=normalize_delivery_type($lines[3]);
+        $commission='none'; $commissionValue=0; $c=strtolower($lines[4]);
+        if (str_starts_with($c,'fixed:')) { $commission='fixed'; $commissionValue=max(0,(int)preg_replace('/\D/','',substr($c,6))); }
+        elseif (str_starts_with($c,'percent:')) { $commission='percent'; $commissionValue=max(0,min(100,(int)preg_replace('/\D/','',substr($c,8)))); }
+        $short=$lines[5]; $full=$lines[6] ?? $short;
+        db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,delivery_type,commission_type,commission_value) VALUES (?,?,?,?,?,?,?,?)')->execute([$catId,$name,$price,$short,$full,$delivery,$commission,$commissionValue]);
+        clear_step($chat_id); send_msg($chat_id, "✅ محصول اضافه شد.\nنام: <b>".h($name)."</b>\nقیمت: <b>".money($price)."</b>", admin_shop_keyboard()); return;
+    }
+    if ($step === 'admin_deliver_order') {
+        $oid=(int)$user['step_payload'];
+        $order=deliver_order($oid, $text);
+        clear_step($chat_id);
+        if (!$order) { send_msg($chat_id, 'سفارش پیدا نشد.', admin_shop_keyboard()); return; }
+        send_msg($order['telegram_id'], "📦 سفارش شما تحویل داده شد.\nسفارش: <code>#{$oid}</code>\nمحصول: <b>".h($order['product_name'])."</b>\n\nاطلاعات تحویل:\n<code>".h($text)."</code>", main_menu_keyboard(is_admin($order['telegram_id'])));
+        send_msg($chat_id, "✅ سفارش #{$oid} تحویل شد.\nپورسانت معرف: <b>".money($order['referrer_reward_amount'])."</b>", admin_shop_keyboard()); return;
+    }
+    if ($step === 'admin_payment_instructions') {
+        set_setting('payment_instructions', $text);
+        clear_step($chat_id); send_msg($chat_id, '✅ متن پرداخت ذخیره شد.', admin_shop_keyboard()); return;
+    }
+
     if ($step === 'admin_broadcast') {
         clear_step($chat_id);
         $ids = db()->query('SELECT telegram_id FROM users')->fetchAll(PDO::FETCH_COLUMN);
