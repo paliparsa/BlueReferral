@@ -3,6 +3,17 @@ require_once __DIR__ . '/../app/bot_logic.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function api_out(array $data, int $code = 200): void { http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
+set_exception_handler(function(Throwable $e){
+    error_log('[BlueReferral API] '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+    if (!headers_sent()) api_out(['ok'=>false,'error'=>'SERVER_ERROR','message'=>'خطای داخلی سرور؛ لاگ را بررسی کن.'], 500);
+});
+register_shutdown_function(function(){
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR], true) && !headers_sent()) {
+        http_response_code(500);
+        echo json_encode(['ok'=>false,'error'=>'FATAL_ERROR','message'=>'خطای داخلی سرور؛ لاگ را بررسی کن.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+});
 function request_json(): array { $raw = file_get_contents('php://input'); $data = json_decode($raw ?: '{}', true); return is_array($data) ? $data : []; }
 function webapp_auth_user(string $initData): array {
     $validated = verify_webapp_init_data($initData);
@@ -122,7 +133,30 @@ if ($action === 'clear_canceled_orders') { $count=hide_user_cleanup_orders((int)
 
 // Admin Mini Panel actions
 if ($action === 'admin_summary') { require_admin($user); api_out(admin_payload()); }
-if ($action === 'admin_save_settings') { require_admin($user); if(isset($input['theme_color'])){ $c=validate_theme_color((string)$input['theme_color']); if($c) set_setting('theme_color',$c); } if(isset($input['button_colors_enabled'])) set_setting('button_colors_enabled', bool_input($input['button_colors_enabled'])?'1':'0'); if(isset($input['button_colors']) && is_array($input['button_colors'])){ $clean=[]; foreach(['primary','secondary','danger','success','warning'] as $k){ $c=validate_theme_color((string)($input['button_colors'][$k]??'')); if($c) $clean[$k]=$c; } set_setting('button_colors', array_merge(button_colors(), $clean)); } if(isset($input['payment_instructions'])) set_setting('payment_instructions',(string)$input['payment_instructions']); if(isset($input['payment_methods_enabled']) && is_array($input['payment_methods_enabled'])) set_payment_methods_enabled($input['payment_methods_enabled']); if(isset($input['card_accounts_text'])) set_setting('card_accounts', (string)$input['card_accounts_text']); if(isset($input['stars_rate_toman'])) set_setting('stars_rate_toman', max(1,(int)$input['stars_rate_toman'])); if(isset($input['crypto_wallets_text'])) set_crypto_wallets_lines((string)$input['crypto_wallets_text']); if(isset($input['crypto_manual_rates_text'])) set_crypto_manual_rates_lines((string)$input['crypto_manual_rates_text']); if(isset($input['crypto_rate_source'])) set_setting('crypto_rate_source', in_array((string)$input['crypto_rate_source'], ['nobitex','manual'], true) ? (string)$input['crypto_rate_source'] : 'nobitex'); if(isset($input['crypto_rate_markup_percent'])) set_setting('crypto_rate_markup_percent', (string)max(0,(float)$input['crypto_rate_markup_percent'])); if(isset($input['crypto_notify_rate_fail'])) set_setting('crypto_notify_rate_fail', bool_input($input['crypto_notify_rate_fail'])?'1':'0'); if(isset($input['require_contact_auth'])) set_setting('require_contact_auth', bool_input($input['require_contact_auth'])?'1':'0'); if(isset($input['notify_new_user'])) set_setting('notify_new_user', bool_input($input['notify_new_user'])?'1':'0'); if(isset($input['spin_referrals_per_chance'])) set_setting('spin_referrals_per_chance', max(1,(int)$input['spin_referrals_per_chance'])); if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text'])); api_out(admin_payload()); }
+if ($action === 'admin_save_settings') {
+    require_admin($user);
+    if(isset($input['theme_color'])){ $c=validate_theme_color((string)$input['theme_color']); if($c) set_setting('theme_color',$c); }
+    if(isset($input['button_colors_enabled'])) set_setting('button_colors_enabled', bool_input($input['button_colors_enabled'])?'1':'0');
+    if(isset($input['button_colors']) && is_array($input['button_colors'])){
+        $clean=[];
+        foreach(['primary','secondary','danger','success','warning'] as $k){ $c=validate_theme_color((string)($input['button_colors'][$k]??'')); if($c) $clean[$k]=$c; }
+        set_setting('button_colors', array_merge(button_colors(), $clean));
+    }
+    if(isset($input['payment_instructions'])) set_setting('payment_instructions',(string)$input['payment_instructions']);
+    if(isset($input['payment_methods_enabled']) && is_array($input['payment_methods_enabled'])) set_payment_methods_enabled($input['payment_methods_enabled']);
+    if(isset($input['card_accounts_text']) && trim((string)$input['card_accounts_text']) !== '') set_setting('card_accounts', (string)$input['card_accounts_text']);
+    if(isset($input['stars_rate_toman'])) set_setting('stars_rate_toman', max(1,(int)$input['stars_rate_toman']));
+    if(isset($input['crypto_wallets_text']) && trim((string)$input['crypto_wallets_text']) !== '') set_crypto_wallets_lines((string)$input['crypto_wallets_text']);
+    if(isset($input['crypto_manual_rates_text']) && trim((string)$input['crypto_manual_rates_text']) !== '') set_crypto_manual_rates_lines((string)$input['crypto_manual_rates_text']);
+    if(isset($input['crypto_rate_source'])) set_setting('crypto_rate_source', in_array((string)$input['crypto_rate_source'], ['nobitex','manual'], true) ? (string)$input['crypto_rate_source'] : 'nobitex');
+    if(isset($input['crypto_rate_markup_percent'])) set_setting('crypto_rate_markup_percent', (string)max(0,(float)$input['crypto_rate_markup_percent']));
+    if(isset($input['crypto_notify_rate_fail'])) set_setting('crypto_notify_rate_fail', bool_input($input['crypto_notify_rate_fail'])?'1':'0');
+    if(isset($input['require_contact_auth'])) set_setting('require_contact_auth', bool_input($input['require_contact_auth'])?'1':'0');
+    if(isset($input['notify_new_user'])) set_setting('notify_new_user', bool_input($input['notify_new_user'])?'1':'0');
+    if(isset($input['spin_referrals_per_chance'])) set_setting('spin_referrals_per_chance', max(1,(int)$input['spin_referrals_per_chance']));
+    if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text']));
+    api_out(admin_payload());
+}
 
 if ($action === 'admin_add_product') { require_admin($user); $name=trim((string)($input['name']??'')); $price=max(0,(int)($input['price']??0)); if($name===''||$price<=0) api_out(['ok'=>false,'message'=>'نام و قیمت الزامی است.'],400); $catId=!empty($input['category_id']) ? (int)$input['category_id'] : null; $delivery=normalize_delivery_type((string)($input['delivery_type']??'manual')); $commissionType=in_array(($input['commission_type']??'none'),['none','fixed','percent'],true)?$input['commission_type']:'none'; $commissionValue=max(0,(int)($input['commission_value']??0)); db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$catId ?: null,$name,$price,(string)($input['short_description']??''),(string)($input['full_description']??''),trim((string)($input['image_url']??'')) ?: null,$delivery,$commissionType,$commissionValue,max(0,(int)($input['duration_days']??0)),!empty($input['is_featured'])?1:0,1]); api_out(admin_payload()); }
 if ($action === 'admin_update_product') { require_admin($user); $id=(int)($input['product_id']??0); foreach(['category_id','name','price','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured'] as $f){ if(array_key_exists($f,$input)) update_product_field($id,$f,$input[$f]); } api_out(admin_payload()); }
