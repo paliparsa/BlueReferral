@@ -638,47 +638,27 @@ Set Telegram webhook
 Status / diagnostics
 ```
 
-## Update: Auth UI & Mini App launch refresh
+## Update: AuthNote UI
 
-This version keeps the previous shop/referral/wallet structure and adds:
+این نسخه چند اصلاح کوچک و مهم دارد:
 
-- Mini App button moved out of Telegram Reply Keyboard.
-  - Users now open Mini App from an inline button under the welcome message.
-  - Reply Keyboard stays for normal bot navigation only.
-- Optional phone authentication using Telegram Share Contact.
-  - Admin can enable/disable it from bot settings or Admin Mini Panel.
-  - When enabled, normal users must share their own contact before using the bot.
-- Admin start notifications.
-  - Every `/start` can notify admins with user ID, username, name, phone, ref code, referrer, balance and created date.
-  - Toggle is available in admin settings.
-- Mini App UI refresh.
-  - Profile/wallet details are more visible.
-  - Phone status is shown on the home/profile card.
-  - More colorful cards, sections, buttons and shop layout.
-- Terminal installer UI refresh.
-  - Same installer features, nicer terminal menu, colored status markers, and clearer sections.
+- دکمه Mini App از Reply Keyboard حذف شده و فقط به صورت دکمه امن WebApp زیر پیام صفحه اول نمایش داده می‌شود.
+- در همه برگشت‌ها به صفحه اصلی، دکمه Mini App زیر همان پیام قرار می‌گیرد.
+- احراز شماره موبایل با Share Contact به صورت اختیاری/اجباری از تنظیمات ادمین قابل کنترل است.
+- اعلان عضو جدید فقط یک بار برای هر کاربر ارسال می‌شود.
+- مشتری بعد از ارسال رسید، همیشه می‌تواند برای سفارش یادداشت/اطلاعات اکانت مثل ایمیل، رمز یا یوزرنیم ثبت کند.
+- توضیحات کامل محصول در Mini App با خط جدید و فاصله مناسب نمایش داده می‌شود.
+- UI مینی‌اپ با انیمیشن‌ها، کارت‌های زنده‌تر، ریسپانسیو بهتر و صفحه محصول تمیزتر ارتقا داده شد.
 
-After pushing this version to GitHub, run on VPS:
+بعد از آپدیت روی VPS، مثل همیشه Migration را اجرا کنید:
 
 ```bash
 sudo blue-ref
 ```
 
-Then run:
+سپس:
 
 1. Update project from GitHub
-2. Run database migrations
+2. Run database migration
 3. Set Telegram webhook
 4. Status / diagnostics
-
-The migration adds these user fields if missing:
-
-- `phone_number`
-- `contact_first_name`
-- `contact_last_name`
-- `contact_shared_at`
-
-And these settings:
-
-- `auth_contact_required`
-- `notify_admin_on_start`
