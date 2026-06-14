@@ -115,6 +115,8 @@ function migrate(): void {
     add_column_if_missing('orders', 'delivered_at', 'DATETIME NULL AFTER prepared_at');
     add_column_if_missing('orders', 'rejected_at', 'DATETIME NULL AFTER delivered_at');
     add_column_if_missing('orders', 'canceled_at', 'DATETIME NULL AFTER rejected_at');
+    add_column_if_missing('orders', 'user_hidden', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER admin_note');
+    add_column_if_missing('orders', 'archived_at', 'DATETIME NULL AFTER user_hidden');
 
     seed_shop_categories();
 }
@@ -391,6 +393,9 @@ function order_user_keyboard(array $order): string {
         $rows[] = [['text'=>'📤 ارسال مجدد رسید', 'callback_data'=>'order_receipt_'.$order['id']]];
     }
     $rows[] = [['text'=>'📝 یادداشت سفارش / اطلاعات اکانت', 'callback_data'=>'order_note_'.$order['id']], ['text'=>'🧾 تایم‌لاین سفارش', 'callback_data'=>'order_timeline_'.$order['id']]];
+    if (is_cleanup_order_status($status)) {
+        $rows[] = [['text'=>'🗑 حذف از لیست من', 'callback_data'=>'order_hide_'.$order['id']]];
+    }
     $rows[] = [['text'=>'🧾 سفارش‌های من', 'callback_data'=>'u_orders'], ['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop']];
     $rows[] = [['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
     return json_markup(['inline_keyboard'=>$rows]);
@@ -403,6 +408,7 @@ function admin_shop_keyboard(): string {
         [['text'=>'➕ پلن مرحله‌ای', 'callback_data'=>'adm_add_variant_manual'], ['text'=>'🧩 مدیریت پلن‌ها', 'callback_data'=>'adm_variants']],
         [['text'=>'➕ انبار مرحله‌ای', 'callback_data'=>'adm_add_inventory'], ['text'=>'📥 مدیریت انبار دستی', 'callback_data'=>'adm_inventory']],
         [['text'=>'🧾 سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🔎 جستجوی سفارش', 'callback_data'=>'adm_order_search']],
+        [['text'=>'🧹 پاکسازی لغو/رد شده‌ها', 'callback_data'=>'adm_cleanup_orders']],
         [['text'=>'🎟 کدهای تخفیف', 'callback_data'=>'adm_coupons'], ['text'=>'📊 گزارش فروش', 'callback_data'=>'adm_sales_report']],
         [['text'=>'💳 متن پرداخت', 'callback_data'=>'adm_payment']],
     ];
@@ -416,6 +422,7 @@ function admin_order_keyboard(int $orderId): string {
         [['text'=>'📦 آماده‌سازی', 'callback_data'=>'ord_prepare_'.$orderId], ['text'=>'⚡️ تحویل از انبار', 'callback_data'=>'ord_auto_deliver_'.$orderId]],
         [['text'=>'📩 تحویل دستی', 'callback_data'=>'ord_deliver_'.$orderId], ['text'=>'📝 یادداشت داخلی', 'callback_data'=>'ord_note_'.$orderId]],
         [['text'=>'🧾 تایم‌لاین', 'callback_data'=>'ord_timeline_'.$orderId], ['text'=>'❌ رد سفارش', 'callback_data'=>'ord_reject_'.$orderId]],
+        [['text'=>'📦 آرشیو', 'callback_data'=>'ord_archive_'.$orderId], ['text'=>'🗑 حذف کامل', 'callback_data'=>'ord_delete_'.$orderId]],
         [['text'=>'🧾 سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🛒 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
     ]]);
 }
@@ -467,12 +474,15 @@ function show_user_orders(int $chat_id, $message_id, int $userId): void {
     $orders = user_orders($userId, 15);
     $rows = [];
     $txt = "🧾 <b>سفارش‌های من</b>\n\n";
-    if (!$orders) $txt .= "هنوز سفارشی ثبت نکردی.";
+    if (!$orders) $txt .= "فعلاً سفارش فعالی در لیستت نیست.";
     foreach ($orders as $o) {
         $name = $o['product_name'].(!empty($o['variant_title']) ? ' - '.$o['variant_title'] : '');
-        $txt .= "#{$o['id']} | ".h($name)." | <b>".money($o['final_amount'])."</b> | ".order_status_emoji($o['status']).' '.order_status_fa($o['status'])."\n";
-        $rows[] = [['text'=>'مشاهده سفارش #'.$o['id'], 'callback_data'=>'order_view_'.$o['id']], ['text'=>'تایم‌لاین #'.$o['id'], 'callback_data'=>'order_timeline_'.$o['id']]];
+        $txt .= order_status_emoji($o['status'])." <code>#{$o['id']}</code> | <b>".h($name)."</b> | ".money($o['final_amount'])."\n";
+        $row = [['text'=>order_status_emoji($o['status']).' سفارش #'.$o['id'], 'callback_data'=>'order_view_'.$o['id']]];
+        if (is_cleanup_order_status($o['status'])) $row[] = ['text'=>'🗑 حذف از لیست', 'callback_data'=>'order_hide_'.$o['id']];
+        $rows[] = $row;
     }
+    $rows[] = [['text'=>'🧹 پاکسازی لغو/رد شده‌های من', 'callback_data'=>'order_clear_canceled']];
     $rows[] = [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
 }
@@ -559,12 +569,15 @@ function show_admin_coupons(int $chat_id, $message_id=null): void {
     ]]));
 }
 function show_admin_order_filters(int $chat_id, $message_id=null): void {
-    $txt = "🧾 <b>مدیریت سفارش‌ها</b>\n\nکدام سفارش‌ها را می‌خواهی ببینی؟";
+    $cleanup = cleanup_orders_count();
+    $archived = archived_orders_count();
+    $txt = "🧾 <b>مدیریت سفارش‌ها</b>\n\nکدام سفارش‌ها را می‌خواهی ببینی؟\n\n🧹 قابل پاکسازی: <b>{$cleanup}</b> سفارش\n📦 آرشیوشده: <b>{$archived}</b> سفارش";
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
         [['text'=>'⏳ در انتظار پرداخت', 'callback_data'=>'adm_orders_pending_payment'], ['text'=>'📤 رسید ارسال شده', 'callback_data'=>'adm_orders_receipt_submitted']],
         [['text'=>'👀 در حال بررسی', 'callback_data'=>'adm_orders_reviewing'], ['text'=>'✅ تایید پرداخت', 'callback_data'=>'adm_orders_payment_confirmed']],
         [['text'=>'📦 آماده‌سازی', 'callback_data'=>'adm_orders_preparing'], ['text'=>'📩 تحویل‌شده', 'callback_data'=>'adm_orders_delivered']],
         [['text'=>'❌ رد/لغو شده', 'callback_data'=>'adm_orders_rejected'], ['text'=>'📋 همه', 'callback_data'=>'adm_orders_all']],
+        [['text'=>'📦 آرشیوشده‌ها', 'callback_data'=>'adm_orders_archived'], ['text'=>'🧹 پاکسازی لغو/رد شده‌ها', 'callback_data'=>'adm_cleanup_orders']],
         [['text'=>'🔎 جستجوی سفارش', 'callback_data'=>'adm_order_search'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
     ]]));
 }
@@ -587,19 +600,21 @@ function show_admin_orders(int $chat_id, $message_id, string $filter='all'): voi
         'paid'=>'payment_confirmed','payment_confirmed'=>'payment_confirmed','preparing'=>'preparing','delivered'=>'delivered',
         'rejected'=>['rejected','canceled','refunded'],'canceled'=>'canceled'
     ];
-    $status = $filter === 'all' ? null : ($map[$filter] ?? $filter);
-    $orders = admin_orders($status, 25);
-    $title = is_array($status) ? 'رد/لغو شده' : ($status ? order_status_fa($status) : 'همه سفارش‌ها');
-    $txt = "🧾 <b>{$title}</b>\n\n";
-    $rows = [];
-    if (!$orders) $txt .= "سفارشی پیدا نشد.";
-    foreach ($orders as $o) {
-        $name = $o['product_name'].(!empty($o['variant_title']) ? ' - '.$o['variant_title'] : '');
-        $txt .= "#{$o['id']} | @".h($o['username'] ?: '---')." | <b>".h($name)."</b> | ".money($o['final_amount'])." | ".order_status_emoji($o['status']).' '.order_status_fa($o['status'])."\n";
-        $rows[] = [['text'=>'مدیریت #'.$o['id'], 'callback_data'=>'ord_view_'.$o['id']], ['text'=>'تحویل #'.$o['id'], 'callback_data'=>'ord_deliver_'.$o['id']]];
+    $archived = $filter === 'archived';
+    $status = $map[$filter] ?? null;
+    $orders = admin_orders($status, 20, '', $archived);
+    $rows=[]; $txt="🧾 <b>سفارش‌ها</b>\n\n";
+    if (!$orders) $txt .= 'سفارشی در این بخش نیست.';
+    foreach($orders as $o){
+        $name=$o['product_name'].(!empty($o['variant_title'])?' - '.$o['variant_title']:'');
+        $txt .= order_status_emoji($o['status'])." <code>#{$o['id']}</code> | @".h($o['username'] ?: '---')." | ".h($name)." | ".money($o['final_amount'])."\n";
+        $row=[['text'=>'#'.$o['id'].' '.order_status_fa($o['status']), 'callback_data'=>'ord_view_'.$o['id']]];
+        if (is_cleanup_order_status($o['status'])) $row[]=['text'=>'🗑 حذف', 'callback_data'=>'ord_delete_'.$o['id']];
+        $rows[]=$row;
     }
-    $rows[] = [['text'=>'🔙 فیلتر سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🛒 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
-    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+    if ($filter === 'rejected') $rows[] = [['text'=>'🧹 حذف همه رد/لغو شده‌ها', 'callback_data'=>'adm_cleanup_orders']];
+    $rows[]=[['text'=>'🔙 فیلتر سفارش‌ها','callback_data'=>'adm_orders'], ['text'=>'🛒 فروشگاه ادمین','callback_data'=>'adm_shop']];
+    send_or_edit($chat_id,$message_id,$txt,json_markup(['inline_keyboard'=>$rows]));
 }
 function show_admin_inventory(int $chat_id, $message_id=null): void {
     $rows = inventory_items_for_admin(60);
@@ -823,16 +838,18 @@ function order_by_id(int $id) {
         WHERE o.id=?');
     $q->execute([$id]); return $q->fetch();
 }
-function user_orders(int $userId, int $limit=10): array {
-    $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title
+function user_orders(int $userId, int $limit=10, bool $includeHidden=false): array {
+    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title
         FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id
-        WHERE o.user_id=? ORDER BY o.id DESC LIMIT ?');
+        WHERE o.user_id=?'.($includeHidden?'':' AND o.user_hidden=0').' ORDER BY o.id DESC LIMIT ?';
+    $q=db()->prepare($sql);
     $q->bindValue(1,$userId,PDO::PARAM_INT); $q->bindValue(2,$limit,PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
 }
-function admin_orders($status=null, int $limit=20, string $search=''): array {
-    $sql='SELECT o.*, p.name product_name, p.delivery_type, v.title variant_title, u.telegram_id, u.username
+function admin_orders($status=null, int $limit=20, string $search='', bool $archived=false): array {
+    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title, u.telegram_id, u.username
         FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id JOIN users u ON u.id=o.user_id';
     $where=[]; $params=[];
+    $where[] = $archived ? 'o.archived_at IS NOT NULL' : 'o.archived_at IS NULL';
     if ($status) {
         $statuses = is_array($status) ? $status : [$status];
         $statuses = array_map('normalize_order_status', $statuses);
@@ -909,6 +926,51 @@ function cancel_order(int $orderId, string $note=''): ?array {
     update_order_status($orderId, 'canceled', 'سفارش لغو شد', $note, true);
     return order_by_id($orderId);
 }
+function cleanup_order_statuses(): array { return ['rejected','canceled','refunded']; }
+function is_cleanup_order_status(string $status): bool { return in_array(normalize_order_status($status), cleanup_order_statuses(), true); }
+function hide_user_order(int $orderId, int $userId): bool {
+    $order = order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== $userId || !is_cleanup_order_status((string)$order['status'])) return false;
+    db()->prepare('UPDATE orders SET user_hidden=1 WHERE id=?')->execute([$orderId]);
+    return true;
+}
+function hide_user_cleanup_orders(int $userId): int {
+    $statuses = cleanup_order_statuses();
+    $q = db()->prepare('UPDATE orders SET user_hidden=1 WHERE user_id=? AND user_hidden=0 AND status IN ('.implode(',', array_fill(0, count($statuses), '?')).')');
+    $q->execute(array_merge([$userId], $statuses));
+    return $q->rowCount();
+}
+function archive_order(int $orderId): ?array {
+    $order = order_by_id($orderId); if (!$order) return null;
+    db()->prepare('UPDATE orders SET archived_at=COALESCE(archived_at,NOW()) WHERE id=?')->execute([$orderId]);
+    add_order_event($orderId, $order['status'], 'سفارش آرشیو شد', '', false);
+    return order_by_id($orderId);
+}
+function cleanup_orders_count(?int $olderDays=null): int {
+    $statuses = cleanup_order_statuses();
+    $params = $statuses;
+    $sql = 'SELECT COUNT(*) c FROM orders WHERE status IN ('.implode(',', array_fill(0, count($statuses), '?')).')';
+    if ($olderDays !== null) { $sql .= ' AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)'; $params[] = $olderDays; }
+    $q=db()->prepare($sql); $q->execute($params); return (int)$q->fetch()['c'];
+}
+function archived_orders_count(): int { $r=db()->query('SELECT COUNT(*) c FROM orders WHERE archived_at IS NOT NULL')->fetch(); return (int)($r['c'] ?? 0); }
+function hard_delete_order(int $orderId, bool $cleanupOnly=true): bool {
+    $order = order_by_id($orderId);
+    if (!$order) return false;
+    if ($cleanupOnly && !is_cleanup_order_status((string)$order['status'])) return false;
+    db()->prepare('UPDATE inventory_items SET order_id=NULL WHERE order_id=?')->execute([$orderId]);
+    db()->prepare('DELETE FROM orders WHERE id=?')->execute([$orderId]);
+    return true;
+}
+function hard_delete_cleanup_orders(?int $olderDays=null): int {
+    $statuses = cleanup_order_statuses();
+    $params = $statuses;
+    $sql = 'SELECT id FROM orders WHERE status IN ('.implode(',', array_fill(0, count($statuses), '?')).')';
+    if ($olderDays !== null) { $sql .= ' AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)'; $params[] = $olderDays; }
+    $q=db()->prepare($sql); $q->execute($params); $ids=$q->fetchAll(PDO::FETCH_COLUMN);
+    $count=0; foreach($ids as $id) if(hard_delete_order((int)$id, true)) $count++;
+    return $count;
+}
 function mark_order_paid(int $orderId): ?array {
     $order=order_by_id($orderId); if (!$order) return null;
     return update_order_status($orderId, 'payment_confirmed', 'پرداخت تایید شد', '', true);
@@ -981,7 +1043,7 @@ function order_public_payload(array $o): array {
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
-        'created_at'=>$o['created_at']
+        'user_hidden'=>(int)($o['user_hidden'] ?? 0), 'archived_at'=>$o['archived_at'] ?? null, 'created_at'=>$o['created_at']
     ];
 }
 function customer_stats(int $userId): array {

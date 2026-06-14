@@ -307,7 +307,17 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
         }
         send_or_edit($chat_id, $message_id, 'امکان لغو این سفارش نیست.', back_main_keyboard()); return;
     }
-
+    if (str_starts_with($data, 'order_hide_')) {
+        $oid = (int)substr($data, 11);
+        if (hide_user_order($oid, (int)$user['id'])) { show_user_orders($chat_id, $message_id, (int)$user['id']); return; }
+        send_or_edit($chat_id, $message_id, 'فقط سفارش‌های لغوشده، ردشده یا مرجوع‌شده قابل حذف از لیست هستند.', back_main_keyboard()); return;
+    }
+    if ($data === 'order_clear_canceled') {
+        $count = hide_user_cleanup_orders((int)$user['id']);
+        show_user_orders($chat_id, $message_id, (int)$user['id']);
+        send_msg($chat_id, "🧹 {$count} سفارش لغوشده/ردشده از لیست شما مخفی شد.", main_menu_keyboard(is_admin($chat_id)));
+        return;
+    }
 
     if (str_starts_with($data, 'order_timeline_')) {
         $oid = (int)substr($data, 15);
@@ -392,12 +402,19 @@ email2@test.com | pass2</code>", admin_shop_keyboard()); return; }
     if ($data === 'adm_coupons') { show_admin_coupons($chat_id, $message_id); return; }
     if ($data === 'adm_add_coupon') { set_step($chat_id, 'admin_add_coupon'); send_msg($chat_id, "🎟 افزودن کد تخفیف\nهر مورد را در یک خط بفرست:\n\n<code>BLUE10\npercent\n10\n100</code>\n\nخط چهارم حداکثر استفاده است؛ 0 یعنی نامحدود. برای تخفیف مبلغی به جای percent بنویس fixed.", admin_shop_keyboard()); return; }
     if ($data === 'adm_orders') { show_admin_order_filters($chat_id, $message_id); return; }
+    if ($data === 'adm_cleanup_orders') { show_admin_cleanup_confirm($chat_id, $message_id); return; }
+    if ($data === 'adm_cleanup_delete_all') { $count=hard_delete_cleanup_orders(); send_or_edit($chat_id, $message_id, "✅ {$count} سفارش لغو/رد/مرجوع‌شده کامل حذف شد.", admin_shop_keyboard()); return; }
+    if ($data === 'adm_cleanup_delete_7') { $count=hard_delete_cleanup_orders(7); send_or_edit($chat_id, $message_id, "✅ {$count} سفارش قدیمی‌تر از ۷ روز حذف شد.", admin_shop_keyboard()); return; }
+    if ($data === 'adm_cleanup_delete_30') { $count=hard_delete_cleanup_orders(30); send_or_edit($chat_id, $message_id, "✅ {$count} سفارش قدیمی‌تر از ۳۰ روز حذف شد.", admin_shop_keyboard()); return; }
     if (str_starts_with($data, 'adm_orders_')) { show_admin_orders($chat_id, $message_id, substr($data, 11)); return; }
     if ($data === 'adm_payment') { set_step($chat_id, 'admin_payment_instructions'); send_msg($chat_id, "متن راهنمای پرداخت را بفرست. این متن زیر فاکتور خرید نمایش داده می‌شود.", admin_shop_keyboard()); return; }
     if (str_starts_with($data, 'adm_add_variant_')) { $pid=(int)substr($data,16); set_step($chat_id, 'admin_add_variant', (string)$pid); send_msg($chat_id, "🧩 پلن جدید برای محصول #{$pid}\nنام پلن، قیمت و مدت را خط‌به‌خط بفرست:\n\n<code>10GB - 30 روزه\n150000\n30</code>", admin_shop_keyboard()); return; }
     if (str_starts_with($data, 'prod_toggle_')) { $pid=(int)substr($data,12); db()->prepare('UPDATE products SET is_active=1-is_active WHERE id=?')->execute([$pid]); show_admin_products($chat_id, $message_id); return; }
     if (str_starts_with($data, 'ord_view_')) { show_admin_order($chat_id, $message_id, (int)substr($data,9)); return; }
     if (str_starts_with($data, 'prod_delete_')) { $pid=(int)substr($data,12); db()->prepare('UPDATE products SET is_active=0 WHERE id=?')->execute([$pid]); send_msg($chat_id, "محصول #{$pid} غیرفعال شد.", admin_shop_keyboard()); return; }
+    if (str_starts_with($data, 'ord_archive_')) { $oid=(int)substr($data,12); $o=archive_order($oid); if ($o) send_or_edit($chat_id,$message_id,"📦 سفارش #{$oid} آرشیو شد.",admin_shop_keyboard()); else send_or_edit($chat_id,$message_id,'سفارش پیدا نشد.',admin_shop_keyboard()); return; }
+    if (str_starts_with($data, 'ord_delete_')) { $oid=(int)substr($data,11); $o=order_by_id($oid); if (!$o) { send_or_edit($chat_id,$message_id,'سفارش پیدا نشد.',admin_shop_keyboard()); return; } if (!is_cleanup_order_status($o['status'])) { send_or_edit($chat_id,$message_id,'حذف کامل فقط برای سفارش‌های لغو/رد/مرجوع‌شده مجاز است.',admin_order_keyboard($oid)); return; } send_or_edit($chat_id,$message_id,"⚠️ سفارش <code>#{$oid}</code> کامل حذف شود؟ این عملیات قابل برگشت نیست.", json_markup(['inline_keyboard'=>[[['text'=>'✅ بله، حذف کامل', 'callback_data'=>'ord_confirm_delete_'.$oid]],[['text'=>'❌ لغو', 'callback_data'=>'ord_view_'.$oid]]]])); return; }
+    if (str_starts_with($data, 'ord_confirm_delete_')) { $oid=(int)substr($data,19); if (hard_delete_order($oid,true)) send_or_edit($chat_id,$message_id,"✅ سفارش #{$oid} کامل حذف شد.",admin_shop_keyboard()); else send_or_edit($chat_id,$message_id,'حذف انجام نشد. فقط سفارش‌های لغو/رد/مرجوع‌شده قابل حذف کامل هستند.',admin_shop_keyboard()); return; }
     if (str_starts_with($data, 'ord_review_')) { $oid=(int)substr($data,11); $o=update_order_status($oid, 'reviewing', 'سفارش در حال بررسی است'); if ($o) { send_msg($o['telegram_id'], "👀 سفارش <code>#{$oid}</code> در حال بررسی است.", main_menu_keyboard(is_admin($o['telegram_id']))); show_admin_order($chat_id, $message_id, $oid); } return; }
     if (str_starts_with($data, 'ord_paid_')) { $oid=(int)substr($data,9); $o=mark_order_paid($oid); if ($o) { send_msg($o['telegram_id'], "✅ پرداخت سفارش <code>#{$oid}</code> تایید شد.
 بعد از آماده شدن، اطلاعات تحویل برای شما ارسال می‌شود.", main_menu_keyboard(is_admin($o['telegram_id']))); show_admin_order($chat_id, $message_id, $oid); } return; }
@@ -702,6 +719,22 @@ function handle_step_input(int $chat_id, array $user, string $text): void {
 
     clear_step($chat_id);
     send_msg($chat_id, 'مرحله ناشناخته بود؛ به منوی اصلی برگشتیم.', main_menu_keyboard(is_admin($chat_id)));
+}
+
+function show_admin_cleanup_confirm(int $chat_id, $message_id=null): void {
+    $all = cleanup_orders_count();
+    $d7 = cleanup_orders_count(7);
+    $d30 = cleanup_orders_count(30);
+    $txt = "🧹 <b>پاکسازی سفارش‌های لغو/رد شده</b>\n\n".
+        "قابل حذف کامل: <b>{$all}</b> سفارش\n".
+        "قدیمی‌تر از ۷ روز: <b>{$d7}</b> سفارش\n".
+        "قدیمی‌تر از ۳۰ روز: <b>{$d30}</b> سفارش\n\n".
+        "⚠️ حذف کامل قابل برگشت نیست. سفارش‌های تحویل‌شده، پرداخت‌شده یا درحال بررسی حذف نمی‌شوند.";
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
+        [['text'=>'🧹 حذف همه لغو/رد شده‌ها', 'callback_data'=>'adm_cleanup_delete_all']],
+        [['text'=>'حذف قدیمی‌تر از ۷ روز', 'callback_data'=>'adm_cleanup_delete_7'], ['text'=>'حذف قدیمی‌تر از ۳۰ روز', 'callback_data'=>'adm_cleanup_delete_30']],
+        [['text'=>'🔙 سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🛒 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
+    ]]));
 }
 
 function handle_shop_admin_v2_callback(int $chat_id, $message_id, array $user, string $data): bool {
