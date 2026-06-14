@@ -1,3 +1,7 @@
+# BlueReferral – Manual Crypto TXID build
+
+> وضعیت فعلی پرداخت رمزارز: SwapWallet کنار گذاشته شده و پرداخت رمزارز با **کیف پول دستی ادمین + ارسال TXID توسط کاربر + بررسی خودکار cron** انجام می‌شود. نرخ لحظه‌ای از نوبیتکس فقط توسط `public/cron_crypto.php` گرفته و cache می‌شود؛ Mini App و webhook هنگام باز شدن هیچ درخواست خارجی به نوبیتکس/Tron/Ton نمی‌زنند.
+
 # BlueReferral — Referral Wallet + Shop + Mini App
 
 ربات همکاری در فروش، کیف پول، فروشگاه دستی و Mini App مدرن تلگرام با نصب تعاملی روی سرور.
@@ -990,4 +994,58 @@ If invoice creation fails, inspect:
 
 ```bash
 sudo mysql -D YOUR_DB -e "SELECT id, order_id, status, fail_reason, request_url, LEFT(request_body,300) req, LEFT(raw_response,500) raw FROM swapwallet_invoices ORDER BY id DESC LIMIT 5;"
+```
+
+### SwapWallet V2 CronFix
+
+`public/cron_crypto.php` now explicitly runs only the SwapWallet V2 temporary-wallet invoice checker. It does not run migrations and does not call legacy Nobitex / Tron / TON checks.
+
+Health check:
+
+```bash
+curl "https://YOUR_DOMAIN/cron_crypto.php?secret=WEBHOOK_SECRET&health=1"
+```
+
+Manual run:
+
+```bash
+php /var/www/bluereferral/public/cron_crypto.php
+```
+
+## SwapWallet Final Debug Fix
+
+این نسخه فقط مسیر SwapWallet را اصلاح و شفاف کرده است:
+
+- ساخت invoice فقط با endpoint جدید `POST /v2/payment/{username}/invoices/temporary-wallet` انجام می‌شود.
+- fallback قدیمی `v1/payment/{username}/invoice` حذف شد تا خطای واقعی پشت v1 گم نشود.
+- اگر همه درخواست‌ها 404 شوند، خطا با پیام واضح `SWAPWALLET_USERNAME_NOT_FOUND_OR_SWAPPAY_INACTIVE` ذخیره می‌شود؛ یعنی مقدار Username/Slug درست نیست یا SwapPay برای آن حساب فعال نشده است.
+- در Mini Panel ادمین دکمه `تست اتصال SwapWallet` اضافه شد.
+- جزئیات HTTP، status code و body خطا در `raw_response` ذخیره می‌شود.
+- هیچ درخواست Nobitex/Tron/Ton هنگام باز شدن Mini App اجرا نمی‌شود.
+
+فایل‌های مهم این نسخه:
+
+```text
+app/bootstrap.php
+public/api.php
+public/miniapp/app.js
+README.md
+```
+
+اگر بعد از این نسخه هم خطای 404 دیدی، مقدار `SwapWallet Username / Slug` باید از پشتیبانی SwapWallet گرفته شود؛ API Key به‌تنهایی کافی نیست.
+
+
+## Manual Crypto Payments restored
+
+این نسخه پرداخت رمزارز را از SwapWallet به ساختار کیف پول دستی + TXID برگردانده است.
+
+- ادمین کیف پول‌ها را از Mini Panel اضافه می‌کند.
+- کاربر کیف پول را انتخاب می‌کند، مبلغ رمزارز و آدرس را می‌بیند و TXID را می‌فرستد.
+- `public/cron_crypto.php` هر دقیقه نرخ نوبیتکس را cache می‌کند و TXIDهای pending را بررسی می‌کند.
+- Mini App و webhook هیچ درخواست مستقیم به Nobitex/Tron/Ton نمی‌زنند تا کند نشوند.
+
+فایل cron پیشنهادی:
+
+```bash
+* * * * * php /var/www/bluereferral/public/cron_crypto.php >/dev/null 2>&1
 ```

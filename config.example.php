@@ -61,20 +61,9 @@ $CARD_ACCOUNTS = [
 $STARS_RATE_TOMAN = 3200; // value of 1 Telegram Star in Toman for invoice conversion.
 
 // Crypto payments - optional. Admin can configure wallets/rates inside Mini App.
-$CRYPTO_RATE_SOURCE = 'manual'; // legacy raw crypto is deprecated; SwapWallet uses SWAPPAY_USDT_RATE_TOMAN
-$CRYPTO_RATE_MARKUP_PERCENT = 1; // legacy raw crypto only
+$CRYPTO_RATE_SOURCE = 'nobitex'; // nobitex or manual; cron refreshes Nobitex rates so Mini App stays fast
+$CRYPTO_RATE_MARKUP_PERCENT = 1; // safety/fee markup percent
 $CRYPTO_MANUAL_RATES = ['USDT' => 0, 'TRX' => 0, 'TON' => 0];
 $TRONSCAN_API_KEY = ''; // optional, recommended for higher Tronscan API limits
 $TONCENTER_API_KEY = ''; // optional, recommended for TON checks
 
-
-// SwapWallet / SwapPay payments - recommended crypto gateway.
-// Get these from SwapWallet merchant panel later and set them in Mini App admin panel or here.
-$SWAPPAY_API_KEY = '';
-$SWAPPAY_APPLICATION = ''; // legacy name; same as SWAPPAY_USERNAME
-$SWAPPAY_USERNAME = ''; // SwapWallet username/merchant slug used in /v2/payment/{username}/...
-$SWAPPAY_BASE_URL = 'https://swapwallet.app/api';
-$SWAPPAY_AUTO_CONVERSION_TOKEN = 'USDT';
-$SWAPPAY_USDT_RATE_TOMAN = 0; // manual fallback: 1 USDT/USD in Toman. Required for Toman -> USD invoice conversion.
-$SWAPPAY_RATE_MARKUP_PERCENT = 1;
-$SWAPPAY_TTL_MINUTES = 30;
