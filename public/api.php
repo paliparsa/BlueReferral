@@ -96,7 +96,7 @@ function admin_payload(): array {
         'categories'=>array_map('category_payload', shop_categories(false)),
         'inventory'=>inventory_items_for_admin(150),
         'variants'=>db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 150')->fetchAll(),
-        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','nobitex'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_cache'=>crypto_rate_cache(), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines()]
+        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','nobitex'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_refresh_interval_seconds'=>setting_int('crypto_rate_refresh_interval_seconds', 60), 'crypto_rate_cache'=>crypto_rate_cache(), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines()]
     ];
 }
 function bool_input($v): int { return in_array(strtolower((string)$v), ['1','true','yes','on'], true) ? 1 : 0; }
@@ -151,11 +151,23 @@ if ($action === 'admin_save_settings') {
     if(isset($input['crypto_rate_source'])) set_setting('crypto_rate_source', in_array((string)$input['crypto_rate_source'], ['nobitex','manual'], true) ? (string)$input['crypto_rate_source'] : 'nobitex');
     if(isset($input['crypto_rate_markup_percent'])) set_setting('crypto_rate_markup_percent', (string)max(0,(float)$input['crypto_rate_markup_percent']));
     if(isset($input['crypto_notify_rate_fail'])) set_setting('crypto_notify_rate_fail', bool_input($input['crypto_notify_rate_fail'])?'1':'0');
+    if(isset($input['crypto_rate_refresh_interval_seconds'])) set_setting('crypto_rate_refresh_interval_seconds', (string)max(30,(int)$input['crypto_rate_refresh_interval_seconds']));
     if(isset($input['require_contact_auth'])) set_setting('require_contact_auth', bool_input($input['require_contact_auth'])?'1':'0');
     if(isset($input['notify_new_user'])) set_setting('notify_new_user', bool_input($input['notify_new_user'])?'1':'0');
     if(isset($input['spin_referrals_per_chance'])) set_setting('spin_referrals_per_chance', max(1,(int)$input['spin_referrals_per_chance']));
     if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text']));
     api_out(admin_payload());
+}
+
+
+if ($action === 'admin_refresh_crypto_rates') {
+    require_admin($user);
+    try {
+        $result = crypto_refresh_rates_from_nobitex(true);
+        api_out(admin_payload() + ['rate_refresh'=>$result, 'message'=>'نرخ‌ها از نوبیتکس رفرش شدند.']);
+    } catch (Throwable $e) {
+        api_out(admin_payload() + ['ok'=>false, 'error'=>$e->getMessage(), 'message'=>'رفرش نرخ نوبیتکس انجام نشد؛ نرخ cache یا دستی استفاده می‌شود.'], 400);
+    }
 }
 
 if ($action === 'admin_add_product') { require_admin($user); $name=trim((string)($input['name']??'')); $price=max(0,(int)($input['price']??0)); if($name===''||$price<=0) api_out(['ok'=>false,'message'=>'نام و قیمت الزامی است.'],400); $catId=!empty($input['category_id']) ? (int)$input['category_id'] : null; $delivery=normalize_delivery_type((string)($input['delivery_type']??'manual')); $commissionType=in_array(($input['commission_type']??'none'),['none','fixed','percent'],true)?$input['commission_type']:'none'; $commissionValue=max(0,(int)($input['commission_value']??0)); db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$catId ?: null,$name,$price,(string)($input['short_description']??''),(string)($input['full_description']??''),trim((string)($input['image_url']??'')) ?: null,$delivery,$commissionType,$commissionValue,max(0,(int)($input['duration_days']??0)),!empty($input['is_featured'])?1:0,1]); api_out(admin_payload()); }
