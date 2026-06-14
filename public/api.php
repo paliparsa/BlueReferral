@@ -26,6 +26,43 @@ function product_payload(array $p, bool $activeVariants=true): array {
     ];
 }
 function category_payload(array $c): array { return ['id'=>(int)$c['id'],'title'=>$c['title'],'emoji'=>$c['emoji'],'image_url'=>$c['image_url'] ?? null,'sort_order'=>(int)($c['sort_order'] ?? 0),'is_active'=>(int)$c['is_active']]; }
+
+function spin_rewards_public(): array {
+    $items = setting_json('spin_rewards', app_config('SPIN_REWARDS', []));
+    $out = [];
+    foreach ($items as $i => $r) {
+        $out[] = [
+            'id' => $i,
+            'title' => (string)($r['title'] ?? 'جایزه گردونه'),
+            'amount' => (int)($r['amount'] ?? 0),
+            'weight' => max(1, (int)($r['weight'] ?? 1)),
+            'notify_admin' => !empty($r['notify_admin']) ? 1 : 0,
+        ];
+    }
+    if (!$out) $out[] = ['id'=>0,'title'=>'💰 ۵,۰۰۰ تومان اعتبار کیف پول','amount'=>5000,'weight'=>1,'notify_admin'=>0];
+    return $out;
+}
+function spin_rewards_lines(): string {
+    return implode("\n", array_map(function($r){
+        return ($r['title'] ?? 'جایزه') . '|' . (int)($r['amount'] ?? 0) . '|' . max(1,(int)($r['weight'] ?? 1)) . '|' . (!empty($r['notify_admin']) ? '1' : '0');
+    }, spin_rewards_public()));
+}
+function parse_spin_rewards_lines(string $text): array {
+    $rows = array_values(array_filter(array_map('trim', preg_split('/\R/u', $text))));
+    $out = [];
+    foreach ($rows as $row) {
+        $parts = array_map('trim', explode('|', $row));
+        $title = $parts[0] ?? '';
+        if ($title === '') continue;
+        $out[] = [
+            'title' => $title,
+            'amount' => max(0, (int)($parts[1] ?? 0)),
+            'weight' => max(1, (int)($parts[2] ?? 1)),
+            'notify_admin' => !empty($parts[3]) && !in_array(strtolower((string)$parts[3]), ['0','false','no','off'], true),
+        ];
+    }
+    return $out ?: app_config('SPIN_REWARDS', []);
+}
 function user_payload(array $user): array {
     $vip = vip_info((int)$user['referrals_count']); $today = today_referrals((int)$user['id']); $customer = customer_stats((int)$user['id']);
     return ['telegram_id'=>(int)$user['telegram_id'], 'username'=>$user['username'], 'first_name'=>$user['first_name'], 'last_name'=>$user['last_name'] ?? null, 'phone_number'=>$user['phone_number'] ?? null, 'phone_verified_at'=>$user['phone_verified_at'] ?? null, 'ref_code'=>$user['ref_code'], 'referral_link'=>referral_link($user), 'balance'=>(int)$user['balance'], 'total_earned'=>(int)$user['total_earned'], 'total_withdrawn'=>(int)$user['total_withdrawn'], 'referrals_count'=>(int)$user['referrals_count'], 'today_referrals'=>$today, 'spin_balance'=>(int)$user['spin_balance'], 'vip'=>$vip, 'customer'=>$customer];
@@ -36,7 +73,7 @@ function dashboard_payload(array $user): array {
     $tx = db()->prepare('SELECT type, amount, description, created_at FROM transactions WHERE user_id=? ORDER BY id DESC LIMIT 15'); $tx->execute([$user['id']]);
     $wd = db()->prepare('SELECT amount, status, created_at FROM withdrawals WHERE user_id=? ORDER BY id DESC LIMIT 10'); $wd->execute([$user['id']]);
     $products = array_map(fn($p)=>product_payload($p, true), shop_products(null, true));
-    return ['ok'=>true, 'brand'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'theme_color'=>setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0')), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'start_reward'=>setting_int('start_reward', 2000), 'min_withdraw'=>setting_int('min_withdraw', 50000), 'spin_every'=>setting_int('spin_referrals_per_chance', 5), 'support_username'=>app_config('SUPPORT_USERNAME', 'BlueGateSupport'), 'custom_code_min'=>setting_int('custom_code_min_referrals', 3), 'is_admin'=>is_admin((int)$user['telegram_id']), 'user'=>user_payload($user), 'missions'=>$missions, 'leaderboard'=>array_map(function($r){ return ['name'=>strip_tags(display_name($r)), 'referrals'=>(int)$r['referrals_count'], 'earned'=>(int)$r['total_earned']]; }, top_users(10)), 'transactions'=>$tx->fetchAll(), 'withdrawals'=>$wd->fetchAll(), 'shop_categories'=>array_map('category_payload', shop_categories(true)), 'shop_products'=>$products, 'orders'=>array_map('order_public_payload', user_orders((int)$user['id'], 20)), 'payment_instructions'=>setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.')];
+    return ['ok'=>true, 'brand'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'theme_color'=>setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0')), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'start_reward'=>setting_int('start_reward', 2000), 'min_withdraw'=>setting_int('min_withdraw', 50000), 'spin_every'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards'=>spin_rewards_public(), 'support_username'=>app_config('SUPPORT_USERNAME', 'BlueGateSupport'), 'custom_code_min'=>setting_int('custom_code_min_referrals', 3), 'is_admin'=>is_admin((int)$user['telegram_id']), 'user'=>user_payload($user), 'missions'=>$missions, 'leaderboard'=>array_map(function($r){ return ['name'=>strip_tags(display_name($r)), 'referrals'=>(int)$r['referrals_count'], 'earned'=>(int)$r['total_earned']]; }, top_users(10)), 'transactions'=>$tx->fetchAll(), 'withdrawals'=>$wd->fetchAll(), 'shop_categories'=>array_map('category_payload', shop_categories(true)), 'shop_products'=>$products, 'orders'=>array_map('order_public_payload', user_orders((int)$user['id'], 20)), 'payment_instructions'=>setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.')];
 }
 function require_admin(array $user): void { if (!is_admin((int)$user['telegram_id'])) api_out(['ok'=>false,'error'=>'ADMIN_ONLY','message'=>'دسترسی ادمین لازم است.'], 403); }
 function admin_payload(): array {
@@ -48,7 +85,7 @@ function admin_payload(): array {
         'categories'=>array_map('category_payload', shop_categories(false)),
         'inventory'=>inventory_items_for_admin(150),
         'variants'=>db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 150')->fetchAll(),
-        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true)]
+        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines()]
     ];
 }
 function bool_input($v): int { return in_array(strtolower((string)$v), ['1','true','yes','on'], true) ? 1 : 0; }
@@ -57,7 +94,7 @@ $input = request_json(); $action = $input['action'] ?? ($_GET['action'] ?? 'me')
 
 if ($action === 'me') api_out(dashboard_payload($user));
 if ($action === 'claim_missions') { [$count, $claimed] = claim_available_missions($user); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['claimed'=>$claimed, 'today_count'=>$count]); }
-if ($action === 'spin') { $user=get_user_by_tid((int)$user['telegram_id']); if ((int)$user['spin_balance']<=0) api_out(['ok'=>false,'error'=>'NO_SPIN_BALANCE','message'=>'فعلاً شانس گردونه نداری.'],400); $reward=weighted_spin_reward(); $title=$reward['title']??'جایزه گردونه'; $amount=(int)($reward['amount']??0); db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]); db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'],$title,$amount]); if($amount>0)add_balance($user['id'],$amount,'spin_reward',$title,null); if(!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>{$user['telegram_id']}</code>\nجایزه: <b>".h($title)."</b>"); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['prize'=>['title'=>$title,'amount'=>$amount]]); }
+if ($action === 'spin') { $user=get_user_by_tid((int)$user['telegram_id']); if ((int)$user['spin_balance']<=0) api_out(['ok'=>false,'error'=>'NO_SPIN_BALANCE','message'=>'فعلاً شانس گردونه نداری.'],400); $rewards=spin_rewards_public(); $reward=weighted_spin_reward(); $title=$reward['title']??'جایزه گردونه'; $amount=(int)($reward['amount']??0); $idx=0; foreach($rewards as $i=>$r){ if(($r['title']??'')===$title && (int)($r['amount']??0)===$amount){ $idx=$i; break; } } db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]); db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'],$title,$amount]); if($amount>0)add_balance($user['id'],$amount,'spin_reward',$title,null); if(!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>{$user['telegram_id']}</code>\nجایزه: <b>".h($title)."</b>"); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['prize'=>['title'=>$title,'amount'=>$amount,'index'=>$idx]]); }
 if ($action === 'withdraw') { $user=get_user_by_tid((int)$user['telegram_id']); $card=trim((string)($input['card_info']??'')); if(mb_strlen($card)<8) api_out(['ok'=>false,'error'=>'INVALID_CARD_INFO','message'=>'اطلاعات کارت/شبا کامل نیست.'],400); $min=setting_int('min_withdraw',50000); if((int)$user['balance']<$min) api_out(['ok'=>false,'error'=>'LOW_BALANCE','message'=>'موجودی به حداقل برداشت نمی‌رسد.'],400); $pending=db()->prepare('SELECT COUNT(*) c FROM withdrawals WHERE user_id=? AND status="pending"'); $pending->execute([$user['id']]); if((int)$pending->fetch()['c']>0) api_out(['ok'=>false,'error'=>'PENDING_WITHDRAWAL','message'=>'یک برداشت در انتظار دارید.'],400); $amount=(int)$user['balance']; db()->prepare('INSERT INTO withdrawals (user_id, amount, card_info) VALUES (?,?,?)')->execute([$user['id'],$amount,$card]); db()->prepare('UPDATE users SET balance=0 WHERE id=?')->execute([$user['id']]); notify_admins("🏧 برداشت جدید از Mini App\nکاربر: <code>{$user['telegram_id']}</code>\nمبلغ: <b>".money($amount)."</b>\nاطلاعات:\n".h($card)); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['withdraw_amount'=>$amount]); }
 if ($action === 'custom_code') { $code=normalize_ref_code((string)($input['code']??'')); $min=setting_int('custom_code_min_referrals',3); if((int)$user['referrals_count']<$min) api_out(['ok'=>false,'error'=>'NOT_ENOUGH_REFERRALS','message'=>"حداقل {$min} زیرمجموعه لازم است."],400); if(strlen($code)<4||strlen($code)>20) api_out(['ok'=>false,'error'=>'INVALID_CODE','message'=>'کد باید ۴ تا ۲۰ کاراکتر باشد.'],400); $exists=get_user_by_ref($code); if($exists && (int)$exists['id'] !== (int)$user['id']) api_out(['ok'=>false,'error'=>'CODE_TAKEN','message'=>'این کد قبلاً گرفته شده.'],400); db()->prepare('UPDATE users SET ref_code=? WHERE id=?')->execute([$code,$user['id']]); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id']))); }
 
@@ -80,7 +117,7 @@ if ($action === 'clear_canceled_orders') { $count=hide_user_cleanup_orders((int)
 
 // Admin Mini Panel actions
 if ($action === 'admin_summary') { require_admin($user); api_out(admin_payload()); }
-if ($action === 'admin_save_settings') { require_admin($user); if(isset($input['theme_color'])){ $c=validate_theme_color((string)$input['theme_color']); if($c) set_setting('theme_color',$c); } if(isset($input['button_colors_enabled'])) set_setting('button_colors_enabled', bool_input($input['button_colors_enabled'])?'1':'0'); if(isset($input['button_colors']) && is_array($input['button_colors'])){ $clean=[]; foreach(['primary','secondary','danger','success','warning'] as $k){ $c=validate_theme_color((string)($input['button_colors'][$k]??'')); if($c) $clean[$k]=$c; } set_setting('button_colors', array_merge(button_colors(), $clean)); } if(isset($input['payment_instructions'])) set_setting('payment_instructions',(string)$input['payment_instructions']); if(isset($input['require_contact_auth'])) set_setting('require_contact_auth', bool_input($input['require_contact_auth'])?'1':'0'); if(isset($input['notify_new_user'])) set_setting('notify_new_user', bool_input($input['notify_new_user'])?'1':'0'); api_out(admin_payload()); }
+if ($action === 'admin_save_settings') { require_admin($user); if(isset($input['theme_color'])){ $c=validate_theme_color((string)$input['theme_color']); if($c) set_setting('theme_color',$c); } if(isset($input['button_colors_enabled'])) set_setting('button_colors_enabled', bool_input($input['button_colors_enabled'])?'1':'0'); if(isset($input['button_colors']) && is_array($input['button_colors'])){ $clean=[]; foreach(['primary','secondary','danger','success','warning'] as $k){ $c=validate_theme_color((string)($input['button_colors'][$k]??'')); if($c) $clean[$k]=$c; } set_setting('button_colors', array_merge(button_colors(), $clean)); } if(isset($input['payment_instructions'])) set_setting('payment_instructions',(string)$input['payment_instructions']); if(isset($input['require_contact_auth'])) set_setting('require_contact_auth', bool_input($input['require_contact_auth'])?'1':'0'); if(isset($input['notify_new_user'])) set_setting('notify_new_user', bool_input($input['notify_new_user'])?'1':'0'); if(isset($input['spin_referrals_per_chance'])) set_setting('spin_referrals_per_chance', max(1,(int)$input['spin_referrals_per_chance'])); if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text'])); api_out(admin_payload()); }
 
 if ($action === 'admin_add_product') { require_admin($user); $name=trim((string)($input['name']??'')); $price=max(0,(int)($input['price']??0)); if($name===''||$price<=0) api_out(['ok'=>false,'message'=>'نام و قیمت الزامی است.'],400); $catId=!empty($input['category_id']) ? (int)$input['category_id'] : null; $delivery=normalize_delivery_type((string)($input['delivery_type']??'manual')); $commissionType=in_array(($input['commission_type']??'none'),['none','fixed','percent'],true)?$input['commission_type']:'none'; $commissionValue=max(0,(int)($input['commission_value']??0)); db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$catId ?: null,$name,$price,(string)($input['short_description']??''),(string)($input['full_description']??''),trim((string)($input['image_url']??'')) ?: null,$delivery,$commissionType,$commissionValue,max(0,(int)($input['duration_days']??0)),!empty($input['is_featured'])?1:0,1]); api_out(admin_payload()); }
 if ($action === 'admin_update_product') { require_admin($user); $id=(int)($input['product_id']??0); foreach(['category_id','name','price','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured'] as $f){ if(array_key_exists($f,$input)) update_product_field($id,$f,$input[$f]); } api_out(admin_payload()); }
