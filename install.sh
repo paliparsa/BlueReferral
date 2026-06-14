@@ -215,6 +215,7 @@ step_repo() {
   [[ -n "$REPO_URL" ]] || { fail "REPO_URL is empty. Run setup wizard first."; return 1; }
   [[ -n "$APP_DIR" ]] || { fail "APP_DIR is empty. Run setup wizard first."; return 1; }
   mkdir -p "$(dirname "$APP_DIR")" || return 1
+  git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
   if [[ -d "$APP_DIR/.git" ]]; then
     info "Updating existing repository in $APP_DIR"
     git -C "$APP_DIR" fetch --all --prune || return 1
