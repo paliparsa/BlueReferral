@@ -893,3 +893,26 @@ sudo -u www-data php /var/www/bluereferral/public/cron_crypto.php
 - TRON/TRC20 checking uses TronScan API. A TronScan API key is optional but recommended for stable rate limits.
 - TON checking uses Toncenter API. A Toncenter API key is optional but recommended.
 - If automatic verification cannot confirm a transaction, the admin can still manually approve the order from the admin panel.
+
+## Update: Payment Admin Form UX
+
+این نسخه تنظیمات پرداخت را از حالت textarea خطی خارج می‌کند:
+
+- کارت‌های کارت‌به‌کارت با دکمه «افزودن کارت جدید» و فرم جداگانه ثبت می‌شوند.
+- کیف پول‌های رمزارز با دکمه «افزودن ولت جدید» و فیلدهای جداگانه ثبت می‌شوند.
+- نرخ‌های دستی fallback با فرم جداگانه اضافه/ویرایش/حذف می‌شوند.
+- پالت رنگ Mini App برای ادمین و کاربر به color picker مجهز شد.
+- ذخیره کیف پول رمزارز دیگر باعث ساخت ردیف‌های تکراری برای ولت‌های موجود نمی‌شود؛ سیستم بر اساس شبکه + ارز + آدرس، رکورد موجود را به‌روزرسانی می‌کند.
+- دریافت نرخ نوبیتکس کمی مقاوم‌تر شد و چند شکل پاسخ/نماد رایج را بررسی می‌کند.
+
+فایل‌های تغییرکرده در این آپدیت:
+
+```text
+app/bootstrap.php
+public/miniapp/index.html
+public/miniapp/style.css
+public/miniapp/app.js
+README.md
+```
+
+Migration جدید لازم نیست.
