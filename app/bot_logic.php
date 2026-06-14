@@ -322,6 +322,43 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
         catch (Throwable $e) { send_msg($chat_id, 'امکان پرداخت با Stars برای این سفارش نیست.', main_menu_keyboard(is_admin($chat_id))); }
         return;
     }
+    if (str_starts_with($data, 'order_pay_crypto_')) {
+        $oid=(int)substr($data, 17);
+        $order=order_by_id($oid);
+        if (!$order || (int)$order['user_id'] !== (int)$user['id']) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', back_main_keyboard()); return; }
+        $wallets=crypto_wallets(true);
+        if (!$wallets) { send_or_edit($chat_id, $message_id, 'فعلاً کیف پول رمزارز فعالی تعریف نشده است.', order_user_keyboard($order)); return; }
+        $rows=[];
+        foreach($wallets as $w){
+            $pay=crypto_wallet_payload($w, (int)$order['final_amount']);
+            $label='🪙 '.$pay['title'].' — '.($pay['estimated_amount'] ? $pay['estimated_amount'].' '.$pay['asset'] : $pay['asset']);
+            $rows[]=[['text'=>$label, 'callback_data'=>'order_crypto_'.$oid.'_'.$pay['id']]];
+        }
+        $rows[]=[['text'=>'🔙 بازگشت به فاکتور', 'callback_data'=>'order_view_'.$oid]];
+        send_or_edit($chat_id, $message_id, "🪙 <b>انتخاب کیف پول رمزارز</b>
+
+یکی از شبکه‌ها/ارزهای زیر را انتخاب کن.", json_markup(['inline_keyboard'=>$rows]));
+        return;
+    }
+    if (preg_match('/^order_crypto_(\d+)_(\d+)$/', $data, $m)) {
+        $oid=(int)$m[1]; $wid=(int)$m[2];
+        try { $order=start_crypto_payment($oid, (int)$user['id'], $wid); show_order_invoice($chat_id, $message_id, $order); }
+        catch(Throwable $e){ send_msg($chat_id, 'امکان ساخت پرداخت رمزارز نیست. نرخ یا کیف پول را بررسی کن.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+    if (str_starts_with($data, 'order_crypto_hash_')) {
+        $oid=(int)substr($data, 18);
+        $order=order_by_id($oid);
+        if (!$order || (int)$order['user_id'] !== (int)$user['id']) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', back_main_keyboard()); return; }
+        set_step($chat_id, 'order_crypto_hash', (string)$oid);
+        send_msg($chat_id, "TXID / Hash پرداخت رمزارز سفارش <code>#{$oid}</code> را بفرست.", back_main_keyboard()); return;
+    }
+    if (str_starts_with($data, 'order_check_crypto_')) {
+        $oid=(int)substr($data, 19);
+        try { crypto_verify_order($oid); show_order_invoice($chat_id, $message_id, order_by_id($oid)); }
+        catch(Throwable $e){ send_msg($chat_id, 'بررسی پرداخت انجام نشد؛ کمی بعد دوباره امتحان کن.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
     if (str_starts_with($data, 'order_receipt_')) {
         $oid = (int)substr($data, 14);
         $order = order_by_id($oid);
@@ -554,6 +591,18 @@ function handle_step_message(int $chat_id, array $user, array $message): void {
             send_msg($chat_id, "✅ یادداشت سفارش <code>#{$oid}</code> ثبت شد.", main_menu_keyboard(is_admin($chat_id)));
             notify_admins("📝 یادداشت مشتری برای سفارش <code>#{$oid}</code>\nکاربر: <code>{$chat_id}</code>\n\n".h($note));
         } catch (Throwable $e) { clear_step($chat_id); send_msg($chat_id, 'ثبت یادداشت ممکن نشد. سفارش پیدا نشد.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+
+    if ($step === 'order_crypto_hash') {
+        $oid=(int)$user['step_payload'];
+        try {
+            $order=submit_crypto_hash($oid, (int)$user['id'], $text);
+            clear_step($chat_id);
+            show_order_invoice($chat_id, null, $order);
+        } catch(Throwable $e) {
+            send_msg($chat_id, 'هش قابل ثبت نیست یا قبلاً استفاده شده است. دوباره بررسی کن و بفرست.', back_main_keyboard());
+        }
         return;
     }
 

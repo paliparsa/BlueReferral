@@ -96,9 +96,13 @@ function migrate(): void {
     seed_setting('notify_new_user', '1');
     seed_setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
     seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً یکی از روش‌های پرداخت فعال را انتخاب کن. پرداخت کارت‌به‌کارت با ارسال رسید بررسی می‌شود.'));
-    seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false]);
+    seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
     seed_setting('card_accounts', app_config('CARD_ACCOUNTS', []));
     seed_setting('stars_rate_toman', app_config('STARS_RATE_TOMAN', 3200));
+    seed_setting('crypto_rate_source', app_config('CRYPTO_RATE_SOURCE', 'nobitex'));
+    seed_setting('crypto_manual_rates', app_config('CRYPTO_MANUAL_RATES', ['USDT'=>0,'TRX'=>0,'TON'=>0]));
+    seed_setting('crypto_rate_markup_percent', app_config('CRYPTO_RATE_MARKUP_PERCENT', 1));
+    seed_setting('crypto_notify_rate_fail', '1');
     seed_payment_methods();
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
     seed_setting('delivery_template_vpn', "🔐 سرویس VPN شما آماده شد\n\n{delivery}\n\nاگر نیاز به راهنما داشتی، به پشتیبانی پیام بده.");
@@ -125,6 +129,9 @@ function migrate(): void {
     add_column_if_missing('orders', 'payment_method', 'VARCHAR(32) NULL AFTER final_amount');
     add_column_if_missing('orders', 'payment_details', 'TEXT NULL AFTER payment_method');
     add_column_if_missing('orders', 'stars_amount', 'INT NOT NULL DEFAULT 0 AFTER payment_details');
+    add_column_if_missing('orders', 'crypto_amount', 'DECIMAL(24,8) NULL AFTER stars_amount');
+    add_column_if_missing('orders', 'crypto_asset', 'VARCHAR(32) NULL AFTER crypto_amount');
+    add_column_if_missing('orders', 'crypto_network', 'VARCHAR(32) NULL AFTER crypto_asset');
 
     seed_shop_categories();
 }
@@ -155,12 +162,13 @@ function seed_payment_methods(): void {
         ['wallet','کیف پول داخلی','wallet',1, ['description'=>'پرداخت از موجودی کیف پول کاربر'], 1],
         ['card','کارت به کارت','card',1, ['description'=>'پرداخت دستی با ارسال رسید'], 2],
         ['stars','Telegram Stars','stars',0, ['description'=>'پرداخت مستقیم با استار تلگرام'], 3],
+        ['crypto','پرداخت رمزارز','crypto',0, ['description'=>'پرداخت با هش تراکنش و بررسی خودکار'], 4],
     ];
     $q = db()->prepare('INSERT IGNORE INTO payment_methods (method_key,title,method_type,is_active,settings_json,sort_order) VALUES (?,?,?,?,?,?)');
     foreach ($defaults as $m) $q->execute([$m[0],$m[1],$m[2],$m[3],json_encode($m[4], JSON_UNESCAPED_UNICODE),$m[5]]);
 }
 function payment_enabled(string $method): bool {
-    $enabled = setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false]);
+    $enabled = setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
     if (array_key_exists($method, $enabled)) return (bool)$enabled[$method];
     try {
         if (table_exists('payment_methods')) {
@@ -208,20 +216,248 @@ function payment_methods_public(?array $user=null): array {
         'wallet'=>['enabled'=>payment_enabled('wallet'), 'title'=>'کیف پول داخلی', 'balance'=>$user?(int)($user['balance']??0):0],
         'card'=>['enabled'=>payment_enabled('card'), 'title'=>'کارت به کارت', 'accounts'=>$cards, 'instructions'=>setting('payment_instructions','')],
         'stars'=>['enabled'=>payment_enabled('stars'), 'title'=>'Telegram Stars', 'rate_toman'=>$rate],
+        'crypto'=>['enabled'=>payment_enabled('crypto'), 'title'=>'رمزارز', 'wallets'=>crypto_wallets_public(null), 'rate_source'=>setting('crypto_rate_source','nobitex'), 'markup_percent'=>(float)setting('crypto_rate_markup_percent','1')],
     ];
 }
+
+
+function crypto_manual_rates(): array {
+    $raw = setting('crypto_manual_rates', '');
+    $out = [];
+    $decoded = json_decode((string)$raw, true);
+    if (is_array($decoded)) {
+        foreach ($decoded as $asset=>$rate) $out[strtoupper((string)$asset)] = (float)$rate;
+        return $out;
+    }
+    foreach (preg_split('/\R/u', (string)$raw) as $line) {
+        $line = trim($line); if ($line === '') continue;
+        $p = array_map('trim', explode('|', $line));
+        if (!empty($p[0])) $out[strtoupper($p[0])] = (float)($p[1] ?? 0);
+    }
+    return $out;
+}
+function crypto_manual_rates_lines(): string {
+    $rates = crypto_manual_rates();
+    if (!$rates) $rates = ['USDT'=>0,'TRX'=>0,'TON'=>0];
+    $lines=[]; foreach($rates as $asset=>$rate) $lines[] = strtoupper($asset).'|'.$rate;
+    return implode("\n", $lines);
+}
+function set_crypto_manual_rates_lines(string $text): void {
+    $out=[];
+    foreach (preg_split('/\R/u', $text) as $line) {
+        $line=trim($line); if($line==='') continue;
+        $p=array_map('trim', explode('|', $line));
+        if(!empty($p[0])) $out[strtoupper($p[0])] = max(0, (float)($p[1] ?? 0));
+    }
+    set_setting('crypto_manual_rates', $out);
+}
+function crypto_wallets(bool $activeOnly=true): array {
+    if (!table_exists('crypto_wallets')) return [];
+    $sql='SELECT * FROM crypto_wallets'.($activeOnly?' WHERE is_active=1':'').' ORDER BY sort_order ASC, id ASC';
+    return db()->query($sql)->fetchAll();
+}
+function crypto_wallet_by_id(int $id): ?array {
+    if (!table_exists('crypto_wallets')) return null;
+    $q=db()->prepare('SELECT * FROM crypto_wallets WHERE id=?'); $q->execute([$id]);
+    $w=$q->fetch(); return $w ?: null;
+}
+function crypto_wallets_lines(): string {
+    $lines=[];
+    foreach (crypto_wallets(false) as $w) {
+        $lines[] = ($w['title'] ?: ($w['asset'].' '.$w['network'])).'|'.$w['network'].'|'.$w['asset'].'|'.$w['address'].'|'.($w['rate_symbol'] ?: $w['asset']).'|'.(int)$w['is_active'].'|'.(int)$w['sort_order'];
+    }
+    return implode("\n", $lines);
+}
+function set_crypto_wallets_lines(string $text): void {
+    if (!table_exists('crypto_wallets')) return;
+    db()->exec('UPDATE crypto_wallets SET is_active=0');
+    $q=db()->prepare('INSERT INTO crypto_wallets (title,network,asset,address,rate_symbol,is_active,sort_order) VALUES (?,?,?,?,?,?,?)');
+    foreach (preg_split('/\R/u', $text) as $line) {
+        $line=trim($line); if ($line==='') continue;
+        $p=array_map('trim', explode('|', $line));
+        $title=$p[0] ?? 'Crypto'; $network=strtoupper($p[1] ?? 'TRC20'); $asset=strtoupper($p[2] ?? 'USDT'); $address=$p[3] ?? '';
+        if ($address==='') continue;
+        $rate=strtoupper($p[4] ?? $asset); $active = !isset($p[5]) || !in_array(strtolower($p[5]), ['0','false','off','no'], true); $sort=(int)($p[6] ?? 99);
+        $q->execute([$title,$network,$asset,$address,$rate,$active?1:0,$sort]);
+    }
+}
+function crypto_wallet_payload(array $w, ?int $tomanAmount=null): array {
+    $rate = crypto_rate_toman((string)($w['rate_symbol'] ?: $w['asset']), false);
+    $amount = null;
+    if ($tomanAmount !== null && $rate > 0) {
+        $markup = max(0, (float)setting('crypto_rate_markup_percent', '1')) / 100;
+        $amount = round(($tomanAmount / $rate) * (1 + $markup), 6);
+    }
+    return [
+        'id'=>(int)$w['id'], 'title'=>$w['title'], 'network'=>strtoupper($w['network']), 'asset'=>strtoupper($w['asset']), 'address'=>$w['address'],
+        'rate_symbol'=>strtoupper($w['rate_symbol'] ?: $w['asset']), 'is_active'=>(int)$w['is_active'], 'sort_order'=>(int)$w['sort_order'],
+        'rate_toman'=>$rate, 'estimated_amount'=>$amount,
+    ];
+}
+function crypto_wallets_public(?int $tomanAmount=null): array {
+    return array_map(fn($w)=>crypto_wallet_payload($w, $tomanAmount), crypto_wallets(true));
+}
+function http_json_get(string $url, array $headers=[]): array {
+    $ch=curl_init($url);
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_FOLLOWLOCATION=>true]);
+    if ($headers) curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    $body=curl_exec($ch); $err=curl_error($ch); $code=(int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
+    if ($body===false || $code>=400) throw new RuntimeException('HTTP_FAILED '.($err ?: $code));
+    $j=json_decode($body, true); if(!is_array($j)) throw new RuntimeException('JSON_FAILED');
+    return $j;
+}
+function nobitex_rate_toman(string $asset): float {
+    $asset=strtoupper($asset);
+    if ($asset==='IRT' || $asset==='TOMAN') return 1.0;
+    $symbol=$asset.'IRT';
+    $urls=["https://api.nobitex.ir/v2/orderbook/{$symbol}", "https://api.nobitex.ir/v2/orderbook?symbol={$symbol}"];
+    foreach($urls as $url){
+        try{
+            $j=http_json_get($url);
+            $price=0;
+            foreach(['lastTradePrice','latest','last','close'] as $k) if(isset($j[$k])) {$price=(float)$j[$k]; break;}
+            if(!$price && !empty($j['asks'][0][0])) $price=(float)$j['asks'][0][0];
+            if(!$price && !empty($j['bids'][0][0])) $price=(float)$j['bids'][0][0];
+            if(!$price && isset($j[$symbol]['lastTradePrice'])) $price=(float)$j[$symbol]['lastTradePrice'];
+            if($price>0) return $price;
+        } catch(Throwable $e) { /* try next */ }
+    }
+    throw new RuntimeException('NOBITEX_RATE_FAILED');
+}
+function crypto_rate_toman(string $asset, bool $notify=true): float {
+    $asset=strtoupper($asset ?: 'USDT');
+    $manual=crypto_manual_rates();
+    $source=setting('crypto_rate_source','nobitex');
+    if ($source === 'manual') return (float)($manual[$asset] ?? 0);
+    try {
+        $rate=nobitex_rate_toman($asset);
+        if($rate>0) return $rate;
+    } catch(Throwable $e) {
+        if ($notify && setting_bool('crypto_notify_rate_fail', true)) {
+            $key='crypto_rate_last_fail_alert_'.$asset; $last=(int)setting($key, 0);
+            if(time()-$last>1800){ notify_admins("⚠️ دریافت نرخ رمزارز از نوبیتکس ناموفق بود\nارز: <b>".h($asset)."</b>\nربات از نرخ دستی استفاده می‌کند."); set_setting($key, (string)time()); }
+        }
+    }
+    return (float)($manual[$asset] ?? 0);
+}
+function get_crypto_check_by_order(int $orderId): ?array {
+    if(!table_exists('crypto_payment_checks')) return null;
+    $q=db()->prepare('SELECT c.*, w.title wallet_title FROM crypto_payment_checks c LEFT JOIN crypto_wallets w ON w.id=c.wallet_id WHERE c.order_id=?');
+    $q->execute([$orderId]); $r=$q->fetch(); return $r ?: null;
+}
+function crypto_check_payload(?array $c): ?array {
+    if(!$c) return null;
+    return ['id'=>(int)$c['id'],'order_id'=>(int)$c['order_id'],'wallet_id'=>(int)$c['wallet_id'],'wallet_title'=>$c['wallet_title'] ?? null,'network'=>$c['network'],'asset'=>$c['asset'],'address'=>$c['address'],'expected_amount'=>(float)$c['expected_amount'],'tx_hash'=>$c['tx_hash'],'status'=>$c['status'],'check_count'=>(int)$c['check_count'],'last_checked_at'=>$c['last_checked_at'],'confirmed_at'=>$c['confirmed_at'],'fail_reason'=>$c['fail_reason']];
+}
+function start_crypto_payment(int $orderId, int $userId, int $walletId): array {
+    if(!payment_enabled('crypto')) throw new RuntimeException('CRYPTO_DISABLED');
+    $order=order_by_id($orderId); if(!$order || (int)$order['user_id']!==$userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    if(!in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
+    $wallet=crypto_wallet_by_id($walletId); if(!$wallet || (int)$wallet['is_active']!==1) throw new RuntimeException('WALLET_NOT_FOUND');
+    $rate=crypto_rate_toman((string)($wallet['rate_symbol'] ?: $wallet['asset']));
+    if($rate<=0) throw new RuntimeException('CRYPTO_RATE_NOT_AVAILABLE');
+    $markup=max(0,(float)setting('crypto_rate_markup_percent','1'))/100;
+    $expected=round(((int)$order['final_amount']/$rate)*(1+$markup), 6);
+    $details=['wallet_id'=>$walletId,'network'=>$wallet['network'],'asset'=>$wallet['asset'],'address'=>$wallet['address'],'expected_amount'=>$expected,'rate_toman'=>$rate,'markup_percent'=>(float)setting('crypto_rate_markup_percent','1')];
+    db()->prepare('UPDATE orders SET payment_method="crypto", payment_details=?, crypto_amount=?, crypto_asset=?, crypto_network=? WHERE id=?')->execute([json_encode($details,JSON_UNESCAPED_UNICODE),(string)$expected,$wallet['asset'],$wallet['network'],$orderId]);
+    db()->prepare('INSERT INTO crypto_payment_checks (order_id,wallet_id,network,asset,address,expected_amount,status) VALUES (?,?,?,?,?,?,"waiting_hash") ON DUPLICATE KEY UPDATE wallet_id=VALUES(wallet_id),network=VALUES(network),asset=VALUES(asset),address=VALUES(address),expected_amount=VALUES(expected_amount),status="waiting_hash",tx_hash=NULL,fail_reason=NULL,raw_response=NULL')->execute([$orderId,$walletId,$wallet['network'],$wallet['asset'],$wallet['address'],(string)$expected]);
+    add_order_event($orderId, 'pending_payment', 'پرداخت رمزارز انتخاب شد', strtoupper($wallet['asset']).' / '.strtoupper($wallet['network']).' / مقدار: '.$expected, true);
+    return order_by_id($orderId);
+}
+function submit_crypto_hash(int $orderId, int $userId, string $txHash): array {
+    $txHash=trim($txHash); if($txHash==='') throw new RuntimeException('TX_HASH_EMPTY');
+    $order=order_by_id($orderId); if(!$order || (int)$order['user_id']!==$userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    if(($order['payment_method'] ?? '') !== 'crypto') throw new RuntimeException('CRYPTO_NOT_SELECTED');
+    $check=get_crypto_check_by_order($orderId); if(!$check) throw new RuntimeException('CRYPTO_CHECK_NOT_FOUND');
+    try { db()->prepare('UPDATE crypto_payment_checks SET tx_hash=?, status="pending", fail_reason=NULL WHERE order_id=?')->execute([$txHash,$orderId]); }
+    catch(Throwable $e){ throw new RuntimeException('TX_HASH_ALREADY_USED'); }
+    add_order_event($orderId, 'pending_payment', 'هش پرداخت رمزارز ثبت شد', $txHash, true);
+    notify_admins("🪙 هش پرداخت رمزارز ثبت شد\nسفارش: <code>#{$orderId}</code>\nTXID: <code>".h($txHash)."</code>");
+    crypto_verify_order($orderId);
+    return order_by_id($orderId);
+}
+function crypto_verify_order(int $orderId): ?array {
+    $check=get_crypto_check_by_order($orderId); if(!$check || empty($check['tx_hash'])) return $check;
+    if($check['status']==='confirmed') return $check;
+    $ok=false; $reason=''; $raw=[];
+    try{
+        $network=strtoupper($check['network']);
+        if(in_array($network,['TRC20','TRON','TRX'],true)) { [$ok,$reason,$raw]=verify_tron_payment($check); }
+        elseif($network==='TON') { [$ok,$reason,$raw]=verify_ton_payment($check); }
+        else { $reason='این شبکه هنوز بررسی خودکار ندارد و نیاز به تایید دستی ادمین دارد.'; }
+    } catch(Throwable $e){ $reason=$e->getMessage(); $raw=['exception'=>$reason]; }
+    db()->prepare('UPDATE crypto_payment_checks SET check_count=check_count+1,last_checked_at=NOW(),raw_response=?,fail_reason=?,status=? WHERE id=?')->execute([json_encode($raw,JSON_UNESCAPED_UNICODE),$reason,$ok?'confirmed':'pending',(int)$check['id']]);
+    if($ok){
+        db()->prepare('UPDATE crypto_payment_checks SET confirmed_at=NOW() WHERE id=?')->execute([(int)$check['id']]);
+        $paid=mark_order_paid((int)$check['order_id']);
+        add_order_event((int)$check['order_id'], 'payment_confirmed', 'پرداخت رمزارز تایید شد', strtoupper($check['asset']).' / TXID: '.$check['tx_hash'], true);
+        if($paid){ send_msg((int)$paid['telegram_id'], "✅ پرداخت رمزارز سفارش <code>#{$paid['id']}</code> تایید شد.\nسفارش شما برای آماده‌سازی ثبت شد.", main_menu_keyboard(is_admin($paid['telegram_id']))); notify_admins("✅ پرداخت رمزارز تایید شد\nسفارش: <code>#{$paid['id']}</code>\nکاربر: <code>{$paid['telegram_id']}</code>\nTXID: <code>".h($check['tx_hash'])."</code>"); }
+    }
+    return get_crypto_check_by_order($orderId);
+}
+function verify_tron_payment(array $check): array {
+    $key=app_config('TRONSCAN_API_KEY',''); $headers=$key?['TRON-PRO-API-KEY: '.$key]:[];
+    $tx=urlencode((string)$check['tx_hash']);
+    $j=http_json_get("https://apilist.tronscanapi.com/api/transaction-info?hash={$tx}", $headers);
+    if(empty($j['confirmed']) && (($j['contractRet'] ?? '') !== 'SUCCESS')) return [false,'تراکنش هنوز تایید قطعی نشده یا موفق نیست.',$j];
+    $asset=strtoupper($check['asset']); $to=strtolower($check['address']); $need=(float)$check['expected_amount'];
+    $transfers=[];
+    foreach(['trc20TransferInfo','tokenTransferInfo','transfersAllList'] as $k) if(!empty($j[$k]) && is_array($j[$k])) $transfers=array_merge($transfers, $j[$k]);
+    foreach($transfers as $t){
+        $sym=strtoupper((string)($t['symbol'] ?? $t['tokenAbbr'] ?? $t['tokenName'] ?? $asset));
+        $toAddr=strtolower((string)($t['to_address'] ?? $t['toAddress'] ?? $t['to'] ?? ''));
+        $dec=(int)($t['decimals'] ?? $t['tokenDecimal'] ?? 6);
+        $amtRaw=(string)($t['amount_str'] ?? $t['amount'] ?? $t['quant'] ?? '0');
+        $amt=(float)$amtRaw; if($amt>100000 && $dec>0) $amt=$amt/(10**$dec);
+        if($toAddr===$to && ($sym===$asset || ($asset==='USDT' && str_contains($sym,'USDT'))) && $amt + 0.000001 >= $need) return [true,'confirmed',$j];
+    }
+    // native TRX fallback
+    if($asset==='TRX'){
+        $contract=$j['contractData'] ?? [];
+        $toAddr=strtolower((string)($contract['to_address'] ?? $contract['to'] ?? ''));
+        $amt=((float)($contract['amount'] ?? 0))/1000000;
+        if($toAddr===$to && $amt+0.000001>=$need) return [true,'confirmed',$j];
+    }
+    return [false,'مبلغ/آدرس/توکن تراکنش با سفارش تطابق ندارد.',$j];
+}
+function verify_ton_payment(array $check): array {
+    $addr=urlencode((string)$check['address']); $hash=(string)$check['tx_hash']; $key=app_config('TONCENTER_API_KEY','');
+    $url="https://toncenter.com/api/v3/transactions?account={$addr}&limit=25&sort=desc".($key?'&api_key='.urlencode($key):'');
+    $j=http_json_get($url);
+    $list=$j['transactions'] ?? $j['result'] ?? [];
+    $need=(float)$check['expected_amount'];
+    foreach($list as $tx){
+        $h=(string)($tx['hash'] ?? $tx['transaction_id']['hash'] ?? '');
+        if($h==='' || !hash_equals(strtolower($h), strtolower($hash))) continue;
+        $val=0;
+        if(isset($tx['in_msg']['value'])) $val=((float)$tx['in_msg']['value'])/1000000000;
+        if(isset($tx['in_msg']['decoded_body']['amount'])) $val=max($val, ((float)$tx['in_msg']['decoded_body']['amount'])/1000000000);
+        if($val+0.000001 >= $need) return [true,'confirmed',$j];
+        return [false,'مبلغ تراکنش TON کمتر از مقدار سفارش است.',$j];
+    }
+    return [false,'تراکنش TON در آخرین تراکنش‌های این آدرس پیدا نشد.',$j];
+}
+function crypto_check_pending_all(int $limit=20): array {
+    if(!table_exists('crypto_payment_checks')) return ['checked'=>0,'confirmed'=>0];
+    $q=db()->prepare('SELECT order_id FROM crypto_payment_checks WHERE status IN ("pending","waiting_hash") AND tx_hash IS NOT NULL ORDER BY last_checked_at IS NULL DESC, last_checked_at ASC LIMIT ?');
+    $q->bindValue(1,$limit,PDO::PARAM_INT); $q->execute(); $ids=$q->fetchAll(PDO::FETCH_COLUMN);
+    $checked=0; $confirmed=0;
+    foreach($ids as $oid){ $checked++; $before=get_crypto_check_by_order((int)$oid); $after=crypto_verify_order((int)$oid); if(($before['status']??'')!=='confirmed' && ($after['status']??'')==='confirmed') $confirmed++; }
+    return ['checked'=>$checked,'confirmed'=>$confirmed];
+}
+
 function set_payment_methods_enabled(array $input): void {
-    $current=setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false]);
-    foreach (['wallet','card','stars'] as $m) if (array_key_exists($m,$input)) $current[$m]=(bool)$input[$m];
+    $current=setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
+    foreach (['wallet','card','stars','crypto'] as $m) if (array_key_exists($m,$input)) $current[$m]=(bool)$input[$m];
     set_setting('payment_methods_enabled', $current);
     if (table_exists('payment_methods')) {
         $q=db()->prepare('UPDATE payment_methods SET is_active=? WHERE method_key=?');
-        foreach (['wallet','card','stars'] as $m) $q->execute([!empty($current[$m])?1:0,$m]);
+        foreach (['wallet','card','stars','crypto'] as $m) $q->execute([!empty($current[$m])?1:0,$m]);
     }
 }
 function order_set_payment_method(int $orderId, int $userId, string $method, array $details=[]): array {
     $method = preg_replace('/[^a-z0-9_]/i','', $method);
-    if (!in_array($method, ['wallet','card','stars'], true)) throw new RuntimeException('PAYMENT_METHOD_INVALID');
+    if (!in_array($method, ['wallet','card','stars','crypto'], true)) throw new RuntimeException('PAYMENT_METHOD_INVALID');
     if (!payment_enabled($method)) throw new RuntimeException('PAYMENT_METHOD_DISABLED');
     $order=order_by_id($orderId);
     if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
@@ -233,7 +469,7 @@ function order_set_payment_method(int $orderId, int $userId, string $method, arr
     return order_by_id($orderId);
 }
 function payment_method_fa(?string $m): string {
-    return ['wallet'=>'کیف پول داخلی','card'=>'کارت به کارت','stars'=>'Telegram Stars'][$m ?: ''] ?? 'انتخاب نشده';
+    return ['wallet'=>'کیف پول داخلی','card'=>'کارت به کارت','stars'=>'Telegram Stars','crypto'=>'رمزارز'][$m ?: ''] ?? 'انتخاب نشده';
 }
 function send_stars_invoice_for_order(array $order): array {
     if (!payment_enabled('stars')) throw new RuntimeException('STARS_DISABLED');
@@ -515,10 +751,14 @@ function order_user_keyboard(array $order): string {
         if (payment_enabled('card')) $payRows[]=['text'=>'💳 کارت به کارت', 'callback_data'=>'order_pay_card_'.$order['id']];
         if ($payRows) $rows[]=$payRows;
         if (payment_enabled('stars')) $rows[] = [['text'=>'⭐ پرداخت با Telegram Stars', 'callback_data'=>'order_pay_stars_'.$order['id']]];
+        if (payment_enabled('crypto')) $rows[] = [['text'=>'🪙 پرداخت رمزارز', 'callback_data'=>'order_pay_crypto_'.$order['id']]];
+        if (($order['payment_method'] ?? '') === 'crypto') $rows[] = [['text'=>'🔗 ثبت TXID / Hash', 'callback_data'=>'order_crypto_hash_'.$order['id']], ['text'=>'🔄 بررسی پرداخت', 'callback_data'=>'order_check_crypto_'.$order['id']]];
         $rows[] = [['text'=>'📤 ارسال رسید پرداخت', 'callback_data'=>'order_receipt_'.$order['id']]];
         $rows[] = [['text'=>'🎟 ثبت کد تخفیف', 'callback_data'=>'order_coupon_'.$order['id']], ['text'=>'❌ لغو سفارش', 'callback_data'=>'order_cancel_'.$order['id']]];
     } elseif ($status === 'rejected') {
         if (payment_enabled('card')) $rows[] = [['text'=>'💳 کارت به کارت', 'callback_data'=>'order_pay_card_'.$order['id']]];
+        if (payment_enabled('crypto')) $rows[] = [['text'=>'🪙 پرداخت رمزارز', 'callback_data'=>'order_pay_crypto_'.$order['id']]];
+        if (($order['payment_method'] ?? '') === 'crypto') $rows[] = [['text'=>'🔗 ثبت TXID / Hash', 'callback_data'=>'order_crypto_hash_'.$order['id']], ['text'=>'🔄 بررسی پرداخت', 'callback_data'=>'order_check_crypto_'.$order['id']]];
         $rows[] = [['text'=>'📤 ارسال مجدد رسید', 'callback_data'=>'order_receipt_'.$order['id']]];
     }
     $rows[] = [['text'=>'📝 یادداشت سفارش / اطلاعات اکانت', 'callback_data'=>'order_note_'.$order['id']], ['text'=>'🧾 تایم‌لاین سفارش', 'callback_data'=>'order_timeline_'.$order['id']]];
@@ -1235,6 +1475,7 @@ function order_public_payload(array $o): array {
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
         'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'],
         'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
+        'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])),
         'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
