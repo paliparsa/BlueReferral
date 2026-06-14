@@ -1,6 +1,5 @@
 <?php
-require_once __DIR__ . '/../app/bootstrap.php';
-migrate();
+require_once __DIR__ . '/../app/bot_logic.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function api_out(array $data, int $code = 200): void {
@@ -70,6 +69,10 @@ function dashboard_payload(array $user): array {
         'leaderboard'=>array_map(function($r){ return ['name'=>strip_tags(display_name($r)), 'referrals'=>(int)$r['referrals_count'], 'earned'=>(int)$r['total_earned']]; }, top_users(10)),
         'transactions'=>$tx->fetchAll(),
         'withdrawals'=>$wd->fetchAll(),
+        'shop_categories'=>array_map(function($c){ return ['id'=>(int)$c['id'], 'title'=>$c['title'], 'emoji'=>$c['emoji']]; }, shop_categories(true)),
+        'shop_products'=>array_map(function($p){ return ['id'=>(int)$p['id'], 'category_id'=>(int)$p['category_id'], 'name'=>$p['name'], 'price'=>(int)$p['price'], 'short_description'=>$p['short_description'], 'full_description'=>$p['full_description'], 'delivery_type'=>$p['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($p['delivery_type']), 'commission'=>product_commission_text($p)]; }, shop_products(null, true)),
+        'orders'=>array_map('order_public_payload', user_orders((int)$user['id'], 12)),
+        'payment_instructions'=>setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'),
     ];
 }
 
@@ -127,6 +130,44 @@ if ($action === 'custom_code') {
     db()->prepare('UPDATE users SET ref_code=? WHERE id=?')->execute([$code, $user['id']]);
     $fresh = get_user_by_tid((int)$user['telegram_id']);
     api_out(dashboard_payload($fresh));
+}
+
+
+if ($action === 'create_order') {
+    $productId = (int)($input['product_id'] ?? 0);
+    try {
+        $order = create_shop_order((int)$user['id'], $productId);
+        notify_admins("🧾 سفارش جدید از Mini App\nسفارش: <code>#{$order['id']}</code>\nکاربر: <code>{$user['telegram_id']}</code>\nمحصول: <b>".h($order['product_name'])."</b>\nمبلغ: <b>".money($order['final_amount'])."</b>");
+        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]);
+    } catch (Throwable $e) { api_out(['ok'=>false, 'error'=>'PRODUCT_NOT_FOUND', 'message'=>'محصول پیدا نشد یا غیرفعال است.'], 404); }
+}
+
+if ($action === 'apply_coupon') {
+    $orderId = (int)($input['order_id'] ?? 0);
+    $code = (string)($input['code'] ?? '');
+    try {
+        $order = apply_coupon_to_order($orderId, (int)$user['id'], $code);
+        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]);
+    } catch (Throwable $e) { api_out(['ok'=>false, 'error'=>'INVALID_COUPON', 'message'=>'کد تخفیف معتبر نیست یا برای این سفارش قابل استفاده نیست.'], 400); }
+}
+
+if ($action === 'submit_receipt') {
+    $orderId = (int)($input['order_id'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+    if (mb_strlen($note) < 3) api_out(['ok'=>false, 'error'=>'EMPTY_RECEIPT', 'message'=>'توضیح رسید پرداخت را کامل‌تر بنویس.'], 400);
+    try {
+        $order = submit_order_receipt($orderId, (int)$user['id'], $note, null);
+        notify_admins(order_admin_card($order) . "\n\nرسید/توضیح پرداخت از Mini App:\n" . h($note));
+        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]);
+    } catch (Throwable $e) { api_out(['ok'=>false, 'error'=>'ORDER_NOT_FOUND', 'message'=>'سفارش پیدا نشد یا قابل پرداخت نیست.'], 400); }
+}
+
+if ($action === 'cancel_order') {
+    $orderId = (int)($input['order_id'] ?? 0);
+    $order = order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== (int)$user['id'] || $order['status'] !== 'pending_payment') api_out(['ok'=>false, 'error'=>'ORDER_LOCKED', 'message'=>'امکان لغو این سفارش نیست.'], 400);
+    db()->prepare('UPDATE orders SET status="canceled" WHERE id=?')->execute([$orderId]);
+    api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])));
 }
 
 api_out(['ok'=>false, 'error'=>'UNKNOWN_ACTION'], 404);
