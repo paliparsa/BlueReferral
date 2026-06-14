@@ -378,10 +378,14 @@ step_crypto_cron() {
   require_root
   [[ -f "$APP_DIR/public/cron_crypto.php" ]] || { fail "Missing $APP_DIR/public/cron_crypto.php"; return 1; }
   cat > /etc/cron.d/blue-ref-crypto <<CRON
-* * * * * www-data php ${APP_DIR}/public/cron_crypto.php >/dev/null 2>&1
+# BlueReferral crypto jobs
+# Check submitted TXIDs every minute so payments are confirmed quickly.
+* * * * * www-data php ${APP_DIR}/public/cron_crypto.php --check-payments >/dev/null 2>&1
+# Refresh Nobitex cached rates every 10 minutes so Mini App/API stays fast.
+*/10 * * * * www-data php ${APP_DIR}/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
 CRON
   chmod 644 /etc/cron.d/blue-ref-crypto
-  ok "Crypto payment checker cron installed: /etc/cron.d/blue-ref-crypto"
+  ok "Crypto cron installed: payments every 1 min, rates every 10 min (/etc/cron.d/blue-ref-crypto)"
 }
 
 step_update() {

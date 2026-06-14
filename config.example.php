@@ -63,6 +63,7 @@ $STARS_RATE_TOMAN = 3200; // value of 1 Telegram Star in Toman for invoice conve
 // Crypto payments - optional. Admin can configure wallets/rates inside Mini App.
 $CRYPTO_RATE_SOURCE = 'nobitex'; // nobitex or manual; cron refreshes Nobitex rates so Mini App stays fast
 $CRYPTO_RATE_MARKUP_PERCENT = 1; // safety/fee markup percent
+$CRYPTO_RATE_REFRESH_INTERVAL_SECONDS = 60; // cron should refresh live rates every minute
 $CRYPTO_MANUAL_RATES = ['USDT' => 0, 'TRX' => 0, 'TON' => 0];
 $TRONSCAN_API_KEY = ''; // optional, recommended for higher Tronscan API limits
 $TONCENTER_API_KEY = ''; // optional, recommended for TON checks

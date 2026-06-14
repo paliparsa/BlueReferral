@@ -1041,11 +1041,74 @@ README.md
 
 - ادمین کیف پول‌ها را از Mini Panel اضافه می‌کند.
 - کاربر کیف پول را انتخاب می‌کند، مبلغ رمزارز و آدرس را می‌بیند و TXID را می‌فرستد.
-- `public/cron_crypto.php` هر دقیقه نرخ نوبیتکس را cache می‌کند و TXIDهای pending را بررسی می‌کند.
+- `public/cron_crypto.php` دو حالت جدا دارد: `--check-payments` برای بررسی TXIDها و `--refresh-rates` برای رفرش نرخ نوبیتکس.
 - Mini App و webhook هیچ درخواست مستقیم به Nobitex/Tron/Ton نمی‌زنند تا کند نشوند.
 
 فایل cron پیشنهادی:
 
 ```bash
-* * * * * php /var/www/bluereferral/public/cron_crypto.php >/dev/null 2>&1
+* * * * * php /var/www/bluereferral/public/cron_crypto.php --check-payments >/dev/null 2>&1
+*/10 * * * * php /var/www/bluereferral/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
+```
+
+## Crypto Live Rate Update
+
+این نسخه پرداخت رمزارز دستی را با نرخ زنده‌ی cache شده بهبود می‌دهد:
+
+- نرخ نوبیتکس فقط در `public/cron_crypto.php` یا با دکمه رفرش ادمین گرفته می‌شود تا Mini App و webhook کند نشوند.
+- فاکتور رمزارز کاربر هنگام مشاهده‌ی صفحه سفارش هر ۶۰ ثانیه دوباره از API سبک `me` خوانده می‌شود و اگر هنوز TXID ثبت نشده باشد، مبلغ رمزارز با نرخ جدید آپدیت می‌شود.
+- بعد از ثبت TXID مبلغ فاکتور فریز می‌شود تا کاربر با تغییر نرخ متضرر/سردرگم نشود.
+- ادمین می‌تواند ولت‌ها/شبکه‌ها/ارزها را از Mini Panel اضافه، ویرایش، حذف یا غیرفعال کند.
+- ادمین می‌تواند نرخ نوبیتکس/cache را داخل تنظیمات ببیند و با دکمه «رفرش نرخ از نوبیتکس» دستی آپدیت کند.
+- در فاکتور رمزارز صریحاً نوشته می‌شود مبلغ نمایش‌داده‌شده باید دقیقاً به ولت برسد و کارمزد صرافی/شبکه بر عهده مشتری است.
+- مبلغ و آدرس ولت هر دو دکمه کپی دارند.
+
+Cron پیشنهادی:
+
+```cron
+* * * * * php /var/www/bluereferral/public/cron_crypto.php --check-payments >/dev/null 2>&1
+*/10 * * * * php /var/www/bluereferral/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
+```
+
+فایل‌های تغییر کرده در این نسخه:
+
+```text
+app/bootstrap.php
+public/api.php
+public/cron_crypto.php
+public/miniapp/app.js
+public/miniapp/style.css
+schema.sql
+README.md
+```
+
+
+## Split Crypto Cron
+
+در این نسخه cron رمزارز از هم جدا شد تا تایید پرداخت‌ها سریع بماند ولی نرخ نوبیتکس کمتر refresh شود:
+
+```cron
+# بررسی TXIDهای ثبت‌شده هر ۱ دقیقه
+* * * * * php /var/www/bluereferral/public/cron_crypto.php --check-payments >/dev/null 2>&1
+
+# رفرش نرخ نوبیتکس هر ۱۰ دقیقه
+*/10 * * * * php /var/www/bluereferral/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
+```
+
+دستور نصب/تعمیر cron داخل `blue-ref` هم همین دو خط را داخل `/etc/cron.d/blue-ref-crypto` می‌سازد. اگر می‌خواهی نرخ‌ها هر ۵ یا ۱۵ دقیقه refresh شوند فقط خط دوم را تغییر بده؛ خط اول را یک‌دقیقه‌ای نگه دار تا تایید پرداخت‌ها دیر نشود.
+
+اجرای دستی برای تست:
+
+```bash
+php /var/www/bluereferral/public/cron_crypto.php --check-payments
+php /var/www/bluereferral/public/cron_crypto.php --refresh-rates
+php /var/www/bluereferral/public/cron_crypto.php --all
+```
+
+فایل‌های تغییر کرده در این نسخه:
+
+```text
+public/cron_crypto.php
+install.sh
+README.md
 ```
