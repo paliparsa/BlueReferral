@@ -326,6 +326,7 @@ function json_markup(array $data): string { return json_encode($data, JSON_UNESC
 function main_menu_keyboard(bool $admin=false): string {
     $mini = app_config('MINIAPP_URL', '');
     $rows = [
+        [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'🧾 سفارش‌های من', 'callback_data'=>'u_orders']],
         [['text'=>'👥 لینک دعوت', 'callback_data'=>'u_ref'], ['text'=>'💰 کیف پول', 'callback_data'=>'u_wallet']],
         [['text'=>'📊 آمار من', 'callback_data'=>'u_stats'], ['text'=>'🏆 لیدربورد', 'callback_data'=>'u_leaderboard']],
         [['text'=>'🎯 مأموریت روزانه', 'callback_data'=>'u_missions'], ['text'=>'🎡 گردونه شانس', 'callback_data'=>'u_spin']],
@@ -337,8 +338,193 @@ function main_menu_keyboard(bool $admin=false): string {
     return json_markup(['inline_keyboard'=>$rows]);
 }
 function back_main_keyboard(): string { return json_markup(['inline_keyboard'=>[[['text'=>'🔙 بازگشت به منوی اصلی', 'callback_data'=>'main']]]]); }
+
+function shop_back_keyboard(): string {
+    return json_markup(['inline_keyboard'=>[[['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']]]]);
+}
+function order_user_keyboard(array $order): string {
+    $rows = [];
+    if (($order['status'] ?? '') === 'pending_payment') {
+        $rows[] = [['text'=>'📤 ارسال رسید پرداخت', 'callback_data'=>'order_receipt_'.$order['id']]];
+        $rows[] = [['text'=>'🎟 ثبت کد تخفیف', 'callback_data'=>'order_coupon_'.$order['id']], ['text'=>'❌ لغو سفارش', 'callback_data'=>'order_cancel_'.$order['id']]];
+    } elseif (($order['status'] ?? '') === 'rejected') {
+        $rows[] = [['text'=>'📤 ارسال مجدد رسید', 'callback_data'=>'order_receipt_'.$order['id']]];
+    }
+    $rows[] = [['text'=>'🧾 سفارش‌های من', 'callback_data'=>'u_orders'], ['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop']];
+    $rows[] = [['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
+    return json_markup(['inline_keyboard'=>$rows]);
+}
+function admin_shop_keyboard(): string {
+    return json_markup(['inline_keyboard'=>[
+        [['text'=>'➕ افزودن محصول', 'callback_data'=>'adm_add_product'], ['text'=>'📦 محصولات', 'callback_data'=>'adm_products']],
+        [['text'=>'🧾 سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'📂 دسته‌بندی‌ها', 'callback_data'=>'adm_categories']],
+        [['text'=>'🎟 کدهای تخفیف', 'callback_data'=>'adm_coupons'], ['text'=>'💳 متن پرداخت', 'callback_data'=>'adm_payment']],
+        [['text'=>'🔙 پنل ادمین', 'callback_data'=>'adm_home']],
+    ]]);
+}
+function admin_order_keyboard(int $orderId): string {
+    return json_markup(['inline_keyboard'=>[
+        [['text'=>'✅ تایید پرداخت', 'callback_data'=>'ord_paid_'.$orderId], ['text'=>'❌ رد سفارش', 'callback_data'=>'ord_reject_'.$orderId]],
+        [['text'=>'📩 ارسال/تحویل دستی', 'callback_data'=>'ord_deliver_'.$orderId]],
+        [['text'=>'🧾 سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🛒 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
+    ]]);
+}
+function show_shop_home(int $chat_id, $message_id=null): void {
+    $cats = shop_categories(true);
+    $rows = [];
+    foreach ($cats as $c) {
+        $rows[] = [['text'=>trim(($c['emoji'] ?: '🛒').' '.$c['title']), 'callback_data'=>'shop_cat_'.$c['id']]];
+    }
+    $rows[] = [['text'=>'📦 همه محصولات', 'callback_data'=>'shop_cat_0'], ['text'=>'🧾 سفارش‌های من', 'callback_data'=>'u_orders']];
+    $rows[] = [['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
+    $txt = "🛒 <b>فروشگاه</b>\n\nدسته‌بندی یا همه محصولات را انتخاب کن. سفارش‌ها به صورت دستی بررسی و تحویل می‌شوند.";
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+}
+function show_shop_category(int $chat_id, $message_id, int $categoryId=0): void {
+    $products = shop_products($categoryId ?: null, true);
+    $rows = [];
+    foreach ($products as $p) {
+        $rows[] = [['text'=>'📦 '.$p['name'].' — '.money($p['price']), 'callback_data'=>'shop_prod_'.$p['id']]];
+    }
+    if (!$rows) $rows[] = [['text'=>'فعلاً محصولی نیست', 'callback_data'=>'u_shop']];
+    $rows[] = [['text'=>'🔙 دسته‌بندی‌ها', 'callback_data'=>'u_shop'], ['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
+    $title = $categoryId ? 'محصولات این دسته' : 'همه محصولات';
+    send_or_edit($chat_id, $message_id, "🛒 <b>{$title}</b>\n\nبرای دیدن جزئیات روی محصول بزن.", json_markup(['inline_keyboard'=>$rows]));
+}
+function show_shop_product(int $chat_id, $message_id, int $productId): void {
+    $p = shop_product($productId);
+    if (!$p || (int)$p['is_active'] !== 1) { send_or_edit($chat_id, $message_id, 'محصول پیدا نشد یا غیرفعال است.', shop_back_keyboard()); return; }
+    $txt = "📦 <b>".h($p['name'])."</b>\n\n".
+        "قیمت: <b>".money($p['price'])."</b>\n".
+        "دسته: ".h(trim(($p['category_emoji'] ?? '').' '.($p['category_title'] ?? 'عمومی')))."\n".
+        "نوع تحویل: <b>".delivery_type_fa($p['delivery_type'])."</b>\n".
+        "پورسانت معرف: <b>".product_commission_text($p)."</b>\n\n".
+        h($p['full_description'] ?: $p['short_description'] ?: '');
+    $kb = json_markup(['inline_keyboard'=>[
+        [['text'=>'🛒 ثبت سفارش', 'callback_data'=>'shop_buy_'.$p['id']]],
+        [['text'=>'🔙 محصولات', 'callback_data'=>'shop_cat_'.(int)($p['category_id'] ?? 0)], ['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']],
+    ]]);
+    send_or_edit($chat_id, $message_id, $txt, $kb);
+}
+function show_user_orders(int $chat_id, $message_id, int $userId): void {
+    $orders = user_orders($userId, 15);
+    $rows = [];
+    $txt = "🧾 <b>سفارش‌های من</b>\n\n";
+    if (!$orders) $txt .= "هنوز سفارشی ثبت نکردی.";
+    foreach ($orders as $o) {
+        $txt .= "#{$o['id']} | ".h($o['product_name'])." | <b>".money($o['final_amount'])."</b> | ".order_status_fa($o['status'])."\n";
+        $rows[] = [['text'=>'مشاهده سفارش #'.$o['id'], 'callback_data'=>'order_view_'.$o['id']]];
+    }
+    $rows[] = [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+}
+function show_order_invoice(int $chat_id, $message_id, array $order): void {
+    $txt = "🧾 <b>فاکتور سفارش #{$order['id']}</b>\n\n".
+        "محصول: <b>".h($order['product_name'])."</b>\n".
+        "مبلغ: <b>".money($order['amount'])."</b>\n";
+    if ((int)$order['discount_amount'] > 0) $txt .= "تخفیف: <b>".money($order['discount_amount'])."</b>\n";
+    $txt .= "مبلغ نهایی: <b>".money($order['final_amount'])."</b>\n".
+        "وضعیت: <b>".order_status_fa($order['status'])."</b>\n".
+        "نوع تحویل: <b>".delivery_type_fa($order['delivery_type'])."</b>\n";
+    if (!empty($order['delivery_text']) && $order['status'] === 'delivered') $txt .= "\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>\n";
+    if (in_array($order['status'], ['pending_payment','rejected'], true)) $txt .= "\n💳 <b>راهنمای پرداخت</b>\n".h(setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'));
+    send_or_edit($chat_id, $message_id, $txt, order_user_keyboard($order));
+}
+function order_admin_card(array $order): string {
+    return "🧾 <b>سفارش #{$order['id']}</b>\n".
+        "کاربر: @".h($order['username'] ?: 'بدون یوزرنیم')." | <code>{$order['telegram_id']}</code>\n".
+        "محصول: <b>".h($order['product_name'])."</b>\n".
+        "مبلغ نهایی: <b>".money($order['final_amount'])."</b>\n".
+        "وضعیت: <b>".order_status_fa($order['status'])."</b>\n".
+        "نوع تحویل: <b>".delivery_type_fa($order['delivery_type'])."</b>";
+}
+function show_admin_shop_home(int $chat_id, $message_id=null): void {
+    $p = db()->query('SELECT COUNT(*) c FROM products')->fetch();
+    $active = db()->query('SELECT COUNT(*) c FROM products WHERE is_active=1')->fetch();
+    $pending = db()->query('SELECT COUNT(*) c FROM orders WHERE status IN ("pending_payment","pending_review")')->fetch();
+    $paid = db()->query('SELECT COUNT(*) c FROM orders WHERE status="paid"')->fetch();
+    $txt = "🛒 <b>مدیریت فروشگاه</b>\n\n".
+        "محصولات: <b>{$p['c']}</b> | فعال: <b>{$active['c']}</b>\n".
+        "سفارش‌های در انتظار: <b>{$pending['c']}</b>\n".
+        "پرداخت تایید شده و آماده تحویل: <b>{$paid['c']}</b>";
+    send_or_edit($chat_id, $message_id, $txt, admin_shop_keyboard());
+}
+function show_admin_products(int $chat_id, $message_id=null): void {
+    $products = shop_products(null, false);
+    $txt = "📦 <b>محصولات</b>\n\n";
+    $rows = [];
+    if (!$products) $txt .= "هنوز محصولی اضافه نشده.";
+    foreach ($products as $p) {
+        $status = (int)$p['is_active'] ? '✅ فعال' : '⛔️ غیرفعال';
+        $txt .= "#{$p['id']} | {$status} | <b>".h($p['name'])."</b> | ".money($p['price'])." | ".h($p['category_title'] ?? 'عمومی')."\n";
+        $rows[] = [[
+            'text'=>((int)$p['is_active'] ? '⛔️ غیرفعال کن ' : '✅ فعال کن ').'#'.$p['id'],
+            'callback_data'=>'prod_toggle_'.$p['id']
+        ]];
+    }
+    $rows[] = [['text'=>'➕ افزودن محصول', 'callback_data'=>'adm_add_product'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+}
+function show_admin_categories(int $chat_id, $message_id=null): void {
+    $cats = shop_categories(false);
+    $txt = "📂 <b>دسته‌بندی‌ها</b>\n\n";
+    foreach ($cats as $c) $txt .= "#{$c['id']} | ".h(trim(($c['emoji'] ?: '').' '.$c['title']))." | ".((int)$c['is_active']?'فعال':'غیرفعال')."\n";
+    if (!$cats) $txt .= "دسته‌ای ثبت نشده.";
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
+        [['text'=>'➕ افزودن دسته', 'callback_data'=>'adm_add_category']],
+        [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
+    ]]));
+}
+function show_admin_coupons(int $chat_id, $message_id=null): void {
+    $rows = db()->query('SELECT * FROM coupons ORDER BY id DESC LIMIT 30')->fetchAll();
+    $txt = "🎟 <b>کدهای تخفیف</b>\n\n";
+    if (!$rows) $txt .= "هنوز کدی ثبت نشده.";
+    foreach ($rows as $c) {
+        $value = $c['type'] === 'percent' ? ((int)$c['value']).'٪' : money((int)$c['value']);
+        $txt .= "<code>".h($c['code'])."</code> | {$value} | استفاده: {$c['used_count']}/".((int)$c['max_uses'] ?: '∞')." | ".((int)$c['is_active']?'فعال':'غیرفعال')."\n";
+    }
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
+        [['text'=>'➕ افزودن کد تخفیف', 'callback_data'=>'adm_add_coupon']],
+        [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
+    ]]));
+}
+function show_admin_order_filters(int $chat_id, $message_id=null): void {
+    $txt = "🧾 <b>مدیریت سفارش‌ها</b>\n\nکدام سفارش‌ها را می‌خواهی ببینی؟";
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
+        [['text'=>'⏳ در انتظار پرداخت', 'callback_data'=>'adm_orders_pending_payment'], ['text'=>'🕓 رسیدهای در انتظار', 'callback_data'=>'adm_orders_pending_review']],
+        [['text'=>'✅ پرداخت‌شده', 'callback_data'=>'adm_orders_paid'], ['text'=>'📦 تحویل‌شده', 'callback_data'=>'adm_orders_delivered']],
+        [['text'=>'❌ رد/لغو شده', 'callback_data'=>'adm_orders_rejected'], ['text'=>'📋 همه', 'callback_data'=>'adm_orders_all']],
+        [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
+    ]]));
+}
+function show_admin_order(int $chat_id, $message_id, int $orderId): void {
+    $order = order_by_id($orderId);
+    if (!$order) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', admin_shop_keyboard()); return; }
+    $txt = order_admin_card($order);
+    if (!empty($order['payment_note'])) $txt .= "\n\nرسید/توضیح پرداخت:\n".h($order['payment_note']);
+    if (!empty($order['receipt_file_id'])) $txt .= "\n\n🖼 رسید عکس دارد و قبلاً برای ادمین ارسال شده است.";
+    if (!empty($order['delivery_text'])) $txt .= "\n\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>";
+    send_or_edit($chat_id, $message_id, $txt, admin_order_keyboard($orderId));
+}
+function show_admin_orders(int $chat_id, $message_id, string $filter='all'): void {
+    $map = ['pending_payment'=>'pending_payment','pending_review'=>'pending_review','paid'=>'paid','delivered'=>'delivered','rejected'=>'rejected','canceled'=>'canceled'];
+    $status = $filter === 'all' ? null : ($map[$filter] ?? $filter);
+    if ($filter === 'rejected') $status = 'rejected';
+    $orders = admin_orders($status, 20);
+    $title = $status ? order_status_fa($status) : 'همه سفارش‌ها';
+    $txt = "🧾 <b>{$title}</b>\n\n";
+    $rows = [];
+    if (!$orders) $txt .= "سفارشی پیدا نشد.";
+    foreach ($orders as $o) {
+        $txt .= "#{$o['id']} | @".h($o['username'] ?: '---')." | <b>".h($o['product_name'])."</b> | ".money($o['final_amount'])." | ".order_status_fa($o['status'])."\n";
+        $rows[] = [['text'=>'مدیریت سفارش #'.$o['id'], 'callback_data'=>'ord_view_'.$o['id']], ['text'=>'تحویل #'.$o['id'], 'callback_data'=>'ord_deliver_'.$o['id']]];
+    }
+    $rows[] = [['text'=>'🔙 فیلتر سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🛒 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+}
 function admin_keyboard(): string {
     return json_markup(['inline_keyboard'=>[
+        [['text'=>'🛒 مدیریت فروشگاه', 'callback_data'=>'adm_shop']],
         [['text'=>'📈 آمار کل', 'callback_data'=>'adm_stats'], ['text'=>'🏧 برداشت‌ها', 'callback_data'=>'adm_withdrawals']],
         [['text'=>'💸 تغییر موجودی', 'callback_data'=>'adm_balance'], ['text'=>'🎁 پاداش خرید', 'callback_data'=>'adm_purchase']],
         [['text'=>'⚙️ تنظیمات پاداش‌ها', 'callback_data'=>'adm_settings'], ['text'=>'🎨 رنگ Mini App', 'callback_data'=>'adm_theme']],
@@ -355,7 +541,7 @@ function force_join_keyboard(): string {
 }
 function main_text(array $user): string {
     $brand = h(setting('brand_name', app_config('BRAND_NAME', 'BlueGate')));
-    return "💙 <b>{$brand} Referral Wallet</b>\n\nهمه‌چیز با دکمه‌ها انجام می‌شود؛ لینک دعوت بگیر، زیرمجموعه جذب کن، مأموریت بزن، گردونه بچرخون و برداشت ثبت کن.\n\n" . vip_line($user);
+    return "💙 <b>{$brand} Referral Wallet</b>\n\nهمه‌چیز با دکمه‌ها انجام می‌شود؛ فروشگاه را ببین، سفارش ثبت کن، لینک دعوت بگیر، زیرمجموعه جذب کن، مأموریت بزن، گردونه بچرخون و برداشت ثبت کن.\n\n" . vip_line($user);
 }
 function validate_theme_color(string $color): ?string {
     $color = trim($color);
