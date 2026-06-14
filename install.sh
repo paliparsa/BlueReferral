@@ -277,6 +277,11 @@ step_config() {
 \$FORCE_JOIN_CHANNEL = '$(php_escape "$FORCE_JOIN_CHANNEL")';
 \$DEFAULT_THEME_COLOR = '$(php_escape "$THEME_COLOR")';
 \$BRAND_NAME = '$(php_escape "$BRAND_NAME")';
+\$CRYPTO_RATE_SOURCE = 'nobitex';
+\$CRYPTO_RATE_MARKUP_PERCENT = 1;
+\$CRYPTO_MANUAL_RATES = ['USDT'=>0,'TRX'=>0,'TON'=>0];
+\$TRONSCAN_API_KEY = '';
+\$TONCENTER_API_KEY = '';
 PHP
   php -l "$APP_DIR/config.php" || return 1
   chmod 640 "$APP_DIR/config.php"
@@ -364,9 +369,19 @@ step_webhook() {
   local res
   res="$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
     -d "url=https://${DOMAIN}/bot.php?secret=${WEBHOOK_SECRET}" \
-    -d 'allowed_updates=["message","callback_query"]')" || return 1
+    -d 'allowed_updates=["message","callback_query","pre_checkout_query"]')" || return 1
   echo "Telegram response: $res"
   echo "$res" | grep -q '"ok":true' || return 1
+}
+
+step_crypto_cron() {
+  require_root
+  [[ -f "$APP_DIR/public/cron_crypto.php" ]] || { fail "Missing $APP_DIR/public/cron_crypto.php"; return 1; }
+  cat > /etc/cron.d/blue-ref-crypto <<CRON
+* * * * * www-data php ${APP_DIR}/public/cron_crypto.php >/dev/null 2>&1
+CRON
+  chmod 644 /etc/cron.d/blue-ref-crypto
+  ok "Crypto payment checker cron installed: /etc/cron.d/blue-ref-crypto"
 }
 
 step_update() {
@@ -420,6 +435,7 @@ full_install() {
   run_step "Request SSL certificate" step_ssl || { pause; return 1; }
   run_step "Run database migrations" step_migrate || { pause; return 1; }
   run_step "Set Telegram webhook" step_webhook || { pause; return 1; }
+  run_step "Install crypto payment cron" step_crypto_cron || { pause; return 1; }
   echo
   ok "Installation finished"
   echo "Bot webhook: https://${DOMAIN}/bot.php?secret=${WEBHOOK_SECRET}"
@@ -448,6 +464,7 @@ menu() {
     echo "12) Update project from GitHub"
     echo "13) Status / diagnostics"
     echo "14) Remove app files only"
+    echo "15) Install/repair crypto payment cron"
     echo "0) Exit"
     line
     echo "After installation you can run this menu anytime with: blue-ref"
@@ -469,6 +486,7 @@ menu() {
       12) run_step "Update project from GitHub" step_update; pause ;;
       13) step_status; pause ;;
       14) step_uninstall_files; pause ;;
+      15) run_step "Install/repair crypto payment cron" step_crypto_cron; pause ;;
       0) exit 0 ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
@@ -481,6 +499,7 @@ case "${1:-}" in
   --webhook) require_root; run_step "Set Telegram webhook" step_webhook ;;
   --update) require_root; run_step "Update project from GitHub" step_update ;;
   --install-command) require_root; run_step "Install/repair blue-ref command" install_blue_ref_command ;;
+  --crypto-cron) require_root; run_step "Install/repair crypto payment cron" step_crypto_cron ;;
   --help|-h)
     echo "Usage: sudo bash install.sh [--full|--status|--webhook|--update|--install-command]"
     echo "Default: opens interactive menu. After setup run: blue-ref"

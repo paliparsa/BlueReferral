@@ -789,3 +789,107 @@ Set Telegram webhook
 ### Telegram Stars
 
 Telegram Stars در این مرحله به شکل پایه اضافه شده است. وقتی فعال باشد، کاربر روی سفارش دکمه پرداخت Stars می‌زند و ربات یک فاکتور Stars داخل چت برای او ارسال می‌کند. بعد از پرداخت موفق، سفارش خودکار به وضعیت «پرداخت تایید شد» می‌رود.
+
+
+## Payment Phase 1 Fix
+
+این نسخه فیکس مرحله اول پرداخت است:
+
+- `payment_methods` به payload کاربر اضافه شد تا روش‌های پرداخت داخل Mini App نمایش داده شوند.
+- تنظیمات پرداخت داخل Mini Panel ادمین به صورت کادرهای جدا و مرتب بازطراحی شد.
+- کارت به کارت چندحسابی، کیف پول داخلی و Telegram Stars از تنظیمات قابل فعال/غیرفعال‌سازی هستند.
+- اسکرول فروشگاه در Telegram WebView اصلاح شد تا ردیف‌های افقی جلوی اسکرول عمودی صفحه را نگیرند.
+- کارت محصول اصلاح شد تا عکس محصول در کادر جدا باشد و نام/قیمت روی تصویر نیاید.
+
+### فایل‌های تغییرکرده در این نسخه
+
+```text
+public/api.php
+public/miniapp/index.html
+public/miniapp/style.css
+public/miniapp/app.js
+README.md
+```
+
+Migration جدید لازم نیست اگر مرحله PaymentPhase1 را قبلاً migrate کرده‌ای. اگر نه، یک بار migration را اجرا کن.
+
+---
+
+## Payment Phase 2 — Crypto Payments
+
+This version adds a second payment phase without changing the existing card, wallet, Stars, shop, referral, and order flows.
+
+### What was added
+
+- Crypto payment method inside the payment engine.
+- Admin-configurable crypto wallets from the Mini App admin settings.
+- User can choose a crypto wallet for an order.
+- The bot/Mini App calculates the crypto amount from the Toman invoice.
+- Price source can be Nobitex with manual fallback, or manual-only.
+- User can submit TXID / Hash from Mini App or bot.
+- Automatic checker verifies pending crypto payments.
+- If Nobitex rate lookup fails, admins can be notified and manual fallback rates are used.
+
+### Admin wallet format
+
+Go to Mini App Admin → Settings → Payment Methods → Crypto Settings.
+
+Each wallet line:
+
+```text
+Title|Network|Asset|Address|RateSymbol|Active 0/1|Sort
+```
+
+Examples:
+
+```text
+USDT TRC20|TRC20|USDT|TXXXXXXXXXXXXXXXXXXXXXXXXXXXX|USDT|1|1
+TRX Wallet|TRX|TRX|TXXXXXXXXXXXXXXXXXXXXXXXXXXXX|TRX|1|2
+TON Wallet|TON|TON|UQXXXXXXXXXXXXXXXXXXXXXXXXXXXX|TON|1|3
+```
+
+### Manual fallback rate format
+
+```text
+USDT|95000
+TRX|12000
+TON|320000
+```
+
+### Automatic crypto checker
+
+The installer now has an extra menu option:
+
+```bash
+sudo blue-ref
+```
+
+Then choose:
+
+```text
+Install/repair crypto payment cron
+```
+
+This creates:
+
+```text
+/etc/cron.d/blue-ref-crypto
+```
+
+and runs the checker every minute:
+
+```bash
+php /var/www/bluereferral/public/cron_crypto.php
+```
+
+You can also run it manually:
+
+```bash
+sudo -u www-data php /var/www/bluereferral/public/cron_crypto.php
+```
+
+### Notes
+
+- TRON/TRC20 checking uses TronScan API. A TronScan API key is optional but recommended for stable rate limits.
+- TON checking uses Toncenter API. A Toncenter API key is optional but recommended.
+- If automatic verification cannot confirm a transaction, the admin can still manually approve the order from the admin panel.

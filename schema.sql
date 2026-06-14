@@ -110,6 +110,51 @@ CREATE TABLE IF NOT EXISTS payment_methods (
   INDEX(sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+
+-- Crypto payment wallets and automatic transaction checks.
+CREATE TABLE IF NOT EXISTS crypto_wallets (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  network VARCHAR(32) NOT NULL,
+  asset VARCHAR(32) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  rate_symbol VARCHAR(32) NULL,
+  min_confirmations INT NOT NULL DEFAULT 1,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX(is_active),
+  INDEX(network),
+  INDEX(asset)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS crypto_payment_checks (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  wallet_id BIGINT UNSIGNED NOT NULL,
+  network VARCHAR(32) NOT NULL,
+  asset VARCHAR(32) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  expected_amount DECIMAL(24,8) NOT NULL DEFAULT 0,
+  tx_hash VARCHAR(255) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'waiting_hash',
+  check_count INT NOT NULL DEFAULT 0,
+  last_checked_at DATETIME NULL,
+  confirmed_at DATETIME NULL,
+  raw_response LONGTEXT NULL,
+  fail_reason VARCHAR(500) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_crypto_order (order_id),
+  UNIQUE KEY uniq_crypto_hash (tx_hash),
+  INDEX(status),
+  INDEX(wallet_id),
+  CONSTRAINT fk_crypto_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_crypto_wallet FOREIGN KEY (wallet_id) REFERENCES crypto_wallets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS product_categories (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,

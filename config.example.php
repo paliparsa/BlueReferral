@@ -59,3 +59,10 @@ $CARD_ACCOUNTS = [
     ['title' => 'کارت اصلی BlueGate', 'card' => '6037-0000-0000-0000', 'owner' => 'نام صاحب کارت', 'sheba' => 'IR000000000000000000000000'],
 ];
 $STARS_RATE_TOMAN = 3200; // value of 1 Telegram Star in Toman for invoice conversion.
+
+// Crypto payments - optional. Admin can configure wallets/rates inside Mini App.
+$CRYPTO_RATE_SOURCE = 'nobitex'; // nobitex or manual
+$CRYPTO_RATE_MARKUP_PERCENT = 1; // safety margin added to crypto amount
+$CRYPTO_MANUAL_RATES = ['USDT' => 0, 'TRX' => 0, 'TON' => 0];
+$TRONSCAN_API_KEY = ''; // optional, recommended for higher Tronscan API limits
+$TONCENTER_API_KEY = ''; // optional, recommended for TON checks
