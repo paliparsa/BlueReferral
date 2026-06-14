@@ -95,3 +95,13 @@ h2 { font-size: 18px; margin-bottom: 0; }
 .card-actions button { flex:1; min-width:120px; }
 .badge { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border-radius:999px; background:rgba(255,255,255,.1); border:1px solid var(--border); color:var(--text); font-size:12px; }
 .delivery-box { margin-top:10px; padding:10px; border-radius:14px; background:rgba(0,0,0,.22); direction:ltr; text-align:left; white-space:pre-wrap; color:#dff3ff; }
+.search-input { width:100%; border:1px solid var(--border); border-radius:18px; padding:13px 14px; margin-bottom:12px; background:rgba(0,0,0,.22); color:var(--text); outline:none; }
+.product-img { width:100%; max-height:150px; object-fit:cover; border-radius:18px; margin-bottom:10px; border:1px solid var(--border); }
+.timeline { display:grid; gap:7px; margin:10px 0; padding:10px; border-radius:16px; background:rgba(0,0,0,.18); border:1px solid var(--border); }
+.timeline div { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.timeline b { font-size:12px; }
+.timeline small { color:var(--muted); direction:ltr; font-size:11px; }
+.mini-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.mini-stat { padding:12px; border-radius:16px; background:rgba(255,255,255,.075); border:1px solid var(--border); }
+.mini-stat b { display:block; margin-bottom:6px; }
+.mini-stat span { color:var(--muted); font-size:12px; line-height:1.7; }
