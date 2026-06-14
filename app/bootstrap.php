@@ -270,15 +270,27 @@ function crypto_wallets_lines(): string {
 }
 function set_crypto_wallets_lines(string $text): void {
     if (!table_exists('crypto_wallets')) return;
+    // Keep existing wallet IDs when possible so pending/old crypto checks stay consistent.
+    // We match by network + asset + address and update instead of blindly duplicating rows.
     db()->exec('UPDATE crypto_wallets SET is_active=0');
-    $q=db()->prepare('INSERT INTO crypto_wallets (title,network,asset,address,rate_symbol,is_active,sort_order) VALUES (?,?,?,?,?,?,?)');
+    $find=db()->prepare('SELECT id FROM crypto_wallets WHERE UPPER(network)=? AND UPPER(asset)=? AND address=? LIMIT 1');
+    $upd=db()->prepare('UPDATE crypto_wallets SET title=?, rate_symbol=?, is_active=?, sort_order=? WHERE id=?');
+    $ins=db()->prepare('INSERT INTO crypto_wallets (title,network,asset,address,rate_symbol,is_active,sort_order) VALUES (?,?,?,?,?,?,?)');
     foreach (preg_split('/\R/u', $text) as $line) {
         $line=trim($line); if ($line==='') continue;
         $p=array_map('trim', explode('|', $line));
-        $title=$p[0] ?? 'Crypto'; $network=strtoupper($p[1] ?? 'TRC20'); $asset=strtoupper($p[2] ?? 'USDT'); $address=$p[3] ?? '';
+        $title=trim((string)($p[0] ?? 'Crypto')) ?: 'Crypto';
+        $network=strtoupper(trim((string)($p[1] ?? 'TRC20')) ?: 'TRC20');
+        $asset=strtoupper(trim((string)($p[2] ?? 'USDT')) ?: 'USDT');
+        $address=trim((string)($p[3] ?? ''));
         if ($address==='') continue;
-        $rate=strtoupper($p[4] ?? $asset); $active = !isset($p[5]) || !in_array(strtolower($p[5]), ['0','false','off','no'], true); $sort=(int)($p[6] ?? 99);
-        $q->execute([$title,$network,$asset,$address,$rate,$active?1:0,$sort]);
+        $rate=strtoupper(trim((string)($p[4] ?? $asset)) ?: $asset);
+        $active = !isset($p[5]) || !in_array(strtolower((string)$p[5]), ['0','false','off','no'], true);
+        $sort=(int)($p[6] ?? 99);
+        $find->execute([$network,$asset,$address]);
+        $row=$find->fetch();
+        if ($row) $upd->execute([$title,$rate,$active?1:0,$sort,(int)$row['id']]);
+        else $ins->execute([$title,$network,$asset,$address,$rate,$active?1:0,$sort]);
     }
 }
 function crypto_wallet_payload(array $w, ?int $tomanAmount=null): array {
@@ -307,20 +319,24 @@ function http_json_get(string $url, array $headers=[]): array {
     return $j;
 }
 function nobitex_rate_toman(string $asset): float {
-    $asset=strtoupper($asset);
+    $asset=strtoupper(trim($asset));
     if ($asset==='IRT' || $asset==='TOMAN') return 1.0;
-    $symbol=$asset.'IRT';
-    $urls=["https://api.nobitex.ir/v2/orderbook/{$symbol}", "https://api.nobitex.ir/v2/orderbook?symbol={$symbol}"];
-    foreach($urls as $url){
-        try{
-            $j=http_json_get($url);
-            $price=0;
-            foreach(['lastTradePrice','latest','last','close'] as $k) if(isset($j[$k])) {$price=(float)$j[$k]; break;}
-            if(!$price && !empty($j['asks'][0][0])) $price=(float)$j['asks'][0][0];
-            if(!$price && !empty($j['bids'][0][0])) $price=(float)$j['bids'][0][0];
-            if(!$price && isset($j[$symbol]['lastTradePrice'])) $price=(float)$j[$symbol]['lastTradePrice'];
-            if($price>0) return $price;
-        } catch(Throwable $e) { /* try next */ }
+    // Nobitex normally uses IRT markets. Try a few common aliases and response shapes.
+    $symbols=array_values(array_unique([$asset.'IRT', $asset.'TMN', $asset.'IRR']));
+    foreach($symbols as $symbol){
+        $urls=["https://api.nobitex.ir/v2/orderbook/{$symbol}", "https://api.nobitex.ir/v2/orderbook?symbol={$symbol}"];
+        foreach($urls as $url){
+            try{
+                $j=http_json_get($url);
+                $price=0;
+                foreach(['lastTradePrice','latest','last','close'] as $k) if(isset($j[$k]) && (float)$j[$k]>0) {$price=(float)$j[$k]; break;}
+                if(!$price && !empty($j['asks'][0][0])) $price=(float)$j['asks'][0][0];
+                if(!$price && !empty($j['bids'][0][0])) $price=(float)$j['bids'][0][0];
+                if(!$price && isset($j[$symbol]['lastTradePrice'])) $price=(float)$j[$symbol]['lastTradePrice'];
+                if(!$price && isset($j['stats'][$symbol]['latest'])) $price=(float)$j['stats'][$symbol]['latest'];
+                if($price>0) return $price;
+            } catch(Throwable $e) { /* try next source/shape */ }
+        }
     }
     throw new RuntimeException('NOBITEX_RATE_FAILED');
 }
