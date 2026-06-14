@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS orders (
   product_id BIGINT UNSIGNED NOT NULL,
   amount BIGINT NOT NULL DEFAULT 0,
   discount_amount BIGINT NOT NULL DEFAULT 0,
+  wallet_amount BIGINT NOT NULL DEFAULT 0,
   final_amount BIGINT NOT NULL DEFAULT 0,
   coupon_code VARCHAR(64) NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'pending_payment',
