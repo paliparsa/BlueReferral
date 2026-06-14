@@ -730,3 +730,9 @@ sudo blue-ref
 ```
 
 اگر مبلغ `0` باشد، جایزه به کیف پول اضافه نمی‌شود و در صورت فعال بودن اعلان ادمین، برای ادمین پیام بررسی دستی ارسال می‌شود.
+
+
+## Update: Mini App Scroll Hotfix
+- Fixed Android Telegram Mini App scrolling issue where the page could stop scrolling.
+- Removed global touch prevention from WebApp JS.
+- Added CSS scroll-safety overrides for body/app containers while keeping compact UI and wheel features.
