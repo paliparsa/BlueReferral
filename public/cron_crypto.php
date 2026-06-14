@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../app/bootstrap.php';
-migrate();
+// Migrations are handled by install.php / blue-ref, not by cron.
 if (PHP_SAPI !== 'cli') {
     $secret = (string)($_GET['secret'] ?? '');
     if ($secret === '' || $secret !== (string)app_config('WEBHOOK_SECRET','')) {
