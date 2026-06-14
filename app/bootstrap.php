@@ -105,12 +105,14 @@ function migrate(): void {
     seed_setting('crypto_notify_rate_fail', '1');
     seed_setting('swapwallet_api_key', app_config('SWAPPAY_API_KEY', ''));
     seed_setting('swapwallet_application', app_config('SWAPPAY_APPLICATION', ''));
+    seed_setting('swapwallet_username', app_config('SWAPPAY_USERNAME', app_config('SWAPPAY_APPLICATION', '')));
     seed_setting('swapwallet_base_url', app_config('SWAPPAY_BASE_URL', 'https://swapwallet.app/api'));
     seed_setting('swapwallet_auto_token', app_config('SWAPPAY_AUTO_CONVERSION_TOKEN', 'USDT'));
     seed_setting('swapwallet_usdt_rate_toman', app_config('SWAPPAY_USDT_RATE_TOMAN', 0));
     seed_setting('swapwallet_rate_markup_percent', app_config('SWAPPAY_RATE_MARKUP_PERCENT', 1));
     seed_setting('swapwallet_ttl_minutes', app_config('SWAPPAY_TTL_MINUTES', 30));
     seed_setting('swapwallet_notify_fail', '1');
+    seed_setting('swapwallet_api_version', 'v2_temporary_wallet');
     seed_payment_methods();
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
     seed_setting('delivery_template_vpn', "🔐 سرویس VPN شما آماده شد\n\n{delivery}\n\nاگر نیاز به راهنما داشتی، به پشتیبانی پیام بده.");
@@ -140,6 +142,10 @@ function migrate(): void {
     add_column_if_missing('orders', 'crypto_amount', 'DECIMAL(24,8) NULL AFTER stars_amount');
     add_column_if_missing('orders', 'crypto_asset', 'VARCHAR(32) NULL AFTER crypto_amount');
     add_column_if_missing('orders', 'crypto_network', 'VARCHAR(32) NULL AFTER crypto_asset');
+    add_column_if_missing('swapwallet_invoices', 'request_url', 'TEXT NULL AFTER payment_links_json');
+    add_column_if_missing('swapwallet_invoices', 'request_body', 'LONGTEXT NULL AFTER request_url');
+    add_column_if_missing('swapwallet_invoices', 'api_version', 'VARCHAR(64) NULL AFTER request_body');
+    add_column_if_missing('swapwallet_invoices', 'callback_raw', 'LONGTEXT NULL AFTER raw_response');
 
     seed_shop_categories();
 }
@@ -510,12 +516,17 @@ function confirm_stars_payment(string $payload, array $payment=[]): ?array {
 }
 
 
+function swapwallet_username(): string {
+    $u = trim((string)setting('swapwallet_username',''));
+    if ($u === '') $u = trim((string)setting('swapwallet_application','')); // backward compatibility
+    return ltrim($u, '@');
+}
 function swapwallet_configured(): bool {
-    return trim((string)setting('swapwallet_api_key','')) !== '' && trim((string)setting('swapwallet_application','')) !== '' && swapwallet_rate_toman() > 0;
+    return trim((string)setting('swapwallet_api_key','')) !== '' && swapwallet_username() !== '' && swapwallet_rate_toman() > 0;
 }
 function swapwallet_base_url(): string { return rtrim((string)setting('swapwallet_base_url','https://swapwallet.app/api'), '/'); }
 function swapwallet_api_key(): string { return trim((string)setting('swapwallet_api_key','')); }
-function swapwallet_application(): string { return trim((string)setting('swapwallet_application','')); }
+function swapwallet_application(): string { return swapwallet_username(); } // old name kept for compatibility
 function swapwallet_rate_toman(): float {
     // Manual-only rate. This keeps panel loading fast and independent from external APIs.
     return max(0, (float)setting('swapwallet_usdt_rate_toman', 0));
@@ -556,32 +567,37 @@ function http_json_request(string $method, string $url, array $payload=null, arr
 }
 function swapwallet_headers(): array {
     $key = swapwallet_api_key();
+    // SwapPay docs/examples have used Apikey; some gateways expect Bearer or X-API-Key. Sending all is harmless for most APIs.
     return [
         'Authorization: Apikey '.$key,
         'X-API-Key: '.$key,
+        'Api-Key: '.$key,
     ];
 }
+function swapwallet_collect_arrays(array $node, array &$out, int $depth=0): void {
+    if ($depth > 4) return;
+    $out[] = $node;
+    foreach ($node as $v) if (is_array($v)) swapwallet_collect_arrays($v, $out, $depth+1);
+}
 function swapwallet_invoice_result(array $response): array {
-    $candidates = [$response];
-    foreach (['result','data','invoice','payload'] as $k) {
-        if (isset($response[$k]) && is_array($response[$k])) $candidates[] = $response[$k];
-    }
-    if (isset($response['result']['data']) && is_array($response['result']['data'])) $candidates[] = $response['result']['data'];
-    if (isset($response['data']['invoice']) && is_array($response['data']['invoice'])) $candidates[] = $response['data']['invoice'];
+    $candidates = [];
+    swapwallet_collect_arrays($response, $candidates);
     foreach ($candidates as $c) {
-        foreach (['id','_id','invoiceId','invoice_id','swapPayId','uuid'] as $k) {
+        foreach (['id','_id','invoiceId','invoice_id','swapPayId','uuid','hash','invoiceHash','invoice_hash','walletId','wallet_id'] as $k) {
             if (!empty($c[$k])) return $c;
         }
-        if (!empty($c['paymentLinks']) || !empty($c['payment_links']) || !empty($c['links'])) return $c;
+        if (!empty($c['paymentLinks']) || !empty($c['payment_links']) || !empty($c['links']) || !empty($c['url'])) return $c;
     }
-    return $candidates[0];
+    return $response;
 }
 function swapwallet_extract_invoice_id(array $result): string {
-    foreach (['id','_id','invoiceId','invoice_id','swapPayId','uuid','hash'] as $k) if (!empty($result[$k])) return (string)$result[$k];
+    foreach (['id','_id','invoiceId','invoice_id','swapPayId','uuid','hash','invoiceHash','invoice_hash','walletId','wallet_id','temporaryWalletId','temporary_wallet_id'] as $k) {
+        if (!empty($result[$k])) return (string)$result[$k];
+    }
     throw new RuntimeException('SWAPWALLET_INVOICE_ID_MISSING');
 }
 function swapwallet_extract_payment_links(array $result): array {
-    $links = $result['paymentLinks'] ?? $result['payment_links'] ?? $result['links'] ?? [];
+    $links = $result['paymentLinks'] ?? $result['payment_links'] ?? $result['links'] ?? $result['urls'] ?? [];
     if (is_array($links)) {
         $normalized = [];
         foreach ($links as $k=>$v) {
@@ -597,16 +613,30 @@ function swapwallet_extract_payment_links(array $result): array {
     return [];
 }
 function swapwallet_best_payment_url(array $links, array $result=[]): string {
-    foreach (['paymentUrl','payment_url','payUrl','pay_url','url','link','paymentLink','payment_link','redirectUrl','redirect_url'] as $k) {
+    foreach (['paymentUrl','payment_url','payUrl','pay_url','url','link','paymentLink','payment_link','redirectUrl','redirect_url','webAppUrl','webapp_url','telegramWebAppUrl','telegram_webapp_url'] as $k) {
         if (!empty($result[$k]) && is_string($result[$k])) return (string)$result[$k];
     }
     foreach (['TELEGRAM_WEBAPP','TELEGRAM_BOT','WEBSITE','WEB','DEFAULT'] as $type) {
-        foreach ($links as $l) if (is_array($l) && strtoupper((string)($l['type'] ?? '')) === $type) {
+        foreach ($links as $l) if (is_array($l) && strtoupper((string)($l['type'] ?? $l['name'] ?? '')) === $type) {
             foreach (['url','link','href','paymentUrl','payment_url'] as $uk) if (!empty($l[$uk])) return (string)$l[$uk];
         }
     }
     foreach ($links as $l) if (is_array($l)) foreach (['url','link','href','paymentUrl','payment_url'] as $uk) if (!empty($l[$uk])) return (string)$l[$uk];
     return '';
+}
+function swapwallet_status_from_result(array $result, string $default='ACTIVE'): string {
+    foreach (['status','state','invoiceStatus','invoice_status','paymentStatus','payment_status'] as $k) {
+        if (!empty($result[$k])) return strtoupper((string)$result[$k]);
+    }
+    return strtoupper($default ?: 'ACTIVE');
+}
+function swapwallet_callback_url(int $orderId=0): string {
+    $base = rtrim((string)app_config('PUBLIC_BASE_URL', ''), '/');
+    if ($base === '') $base = rtrim((string)app_config('MINIAPP_URL', ''), '/');
+    if (str_ends_with($base, '/miniapp')) $base = substr($base, 0, -8);
+    if ($base === '') return '';
+    $secret = app_config('WEBHOOK_SECRET', '');
+    return $base . '/swapwallet_callback.php' . ($secret ? ('?secret='.rawurlencode($secret)) : '') . ($orderId ? ((strpos($base,'?')===false && !$secret)?'?':'&').'order_id='.$orderId : '');
 }
 function get_swapwallet_invoice_by_order(int $orderId): ?array {
     if (!table_exists('swapwallet_invoices')) return null;
@@ -617,7 +647,7 @@ function swapwallet_invoice_payload(?array $inv): ?array {
     return [
         'id'=>(int)$inv['id'], 'order_id'=>(int)$inv['order_id'], 'invoice_id'=>$inv['invoice_id'], 'status'=>$inv['status'],
         'amount_usd'=>(float)$inv['amount_usd'], 'token'=>$inv['token'], 'payment_url'=>$inv['payment_url'],
-        'check_count'=>(int)$inv['check_count'], 'last_checked_at'=>$inv['last_checked_at'], 'paid_at'=>$inv['paid_at'], 'fail_reason'=>$inv['fail_reason']
+        'check_count'=>(int)$inv['check_count'], 'last_checked_at'=>$inv['last_checked_at'], 'paid_at'=>$inv['paid_at'], 'fail_reason'=>$inv['fail_reason'], 'api_version'=>$inv['api_version'] ?? null
     ];
 }
 function swapwallet_payment_keyboard(string $url, int $orderId): string {
@@ -641,6 +671,54 @@ function notify_user_swapwallet_link(array $order, ?array $invoice=null): void {
     ]);
     if (empty($res['ok'])) error_log('[BlueReferral SwapWallet] send payment link failed: '.json_encode($res, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 }
+function swapwallet_invoice_payloads(array $order, float $amountUsd, string $token, int $ttl): array {
+    $name = $order['product_name'].(!empty($order['variant_title']) ? ' - '.$order['variant_title'] : '');
+    $custom = ['order_id'=>(int)$order['id'], 'telegram_id'=>(int)$order['telegram_id'], 'cartId'=>'blue-ref-'.(int)$order['id']];
+    $cb = swapwallet_callback_url((int)$order['id']);
+    $base = [
+        'amount'=>['number'=>(string)$amountUsd, 'unit'=>'USD'],
+        'autoConversionToken'=>$token,
+        'ttl'=>$ttl,
+        'description'=>'BlueReferral order #'.(int)$order['id'].' - '.$name,
+        'userId'=>(string)$order['telegram_id'],
+        'userEmail'=>'user'.(int)$order['telegram_id'].'@telegram.local',
+        'customData'=>json_encode($custom, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
+    ];
+    if ($cb !== '') $base['callbackUrl'] = $cb;
+    $alt = $base;
+    $alt['customData'] = $custom;
+    $alt['externalId'] = 'blue_ref_order_'.(int)$order['id'];
+    $legacy = [
+        'amount'=>['number'=>(string)$amountUsd, 'unit'=>'USD'],
+        'autoConversionToken'=>$token,
+        'ttl'=>$ttl,
+        'externalId'=>'blue_ref_order_'.(int)$order['id'],
+        'description'=>$base['description'],
+        'customData'=>$custom,
+        'returnUrl'=>miniapp_url(false),
+    ];
+    return [
+        ['version'=>'v2_temporary_wallet', 'payload'=>$base],
+        ['version'=>'v2_temporary_wallet_alt', 'payload'=>$alt],
+        ['version'=>'v1_legacy', 'payload'=>$legacy],
+    ];
+}
+function swapwallet_create_url(string $version): string {
+    $base = swapwallet_base_url();
+    $username = rawurlencode(swapwallet_username());
+    if (str_starts_with($version, 'v2_')) return $base.'/v2/payment/'.$username.'/invoices/temporary-wallet';
+    return $base.'/v1/payment/'.$username.'/invoice';
+}
+function swapwallet_status_urls(string $invoiceId): array {
+    $base = swapwallet_base_url();
+    $username = rawurlencode(swapwallet_username());
+    $id = rawurlencode($invoiceId);
+    return [
+        $base.'/v2/payment/'.$username.'/invoices/'.$id,
+        $base.'/v2/payment/'.$username.'/invoices?invoiceId='.$id,
+        $base.'/v1/payment/'.$username.'/invoice/'.$id,
+    ];
+}
 function start_swapwallet_invoice(int $orderId, int $userId): array {
     if (!payment_enabled('crypto')) throw new RuntimeException('SWAPWALLET_DISABLED');
     if (!swapwallet_configured()) throw new RuntimeException('SWAPWALLET_NOT_CONFIGURED_OR_RATE_MISSING');
@@ -650,69 +728,70 @@ function start_swapwallet_invoice(int $orderId, int $userId): array {
     if ($amountUsd <= 0) throw new RuntimeException('SWAPWALLET_AMOUNT_INVALID');
     $token = strtoupper((string)setting('swapwallet_auto_token','USDT')) ?: 'USDT';
     $ttl = max(5, setting_int('swapwallet_ttl_minutes', 30)) * 60;
-    $name = $order['product_name'].(!empty($order['variant_title']) ? ' - '.$order['variant_title'] : '');
-    $payload = [
-        'amount'=>['number'=>(string)$amountUsd, 'unit'=>'USD'],
-        'autoConversionToken'=>$token,
-        'ttl'=>$ttl,
-        'externalId'=>'blue_ref_order_'.$orderId,
-        'description'=>'BlueReferral order #'.$orderId.' - '.$name,
-        'customData'=>['order_id'=>$orderId, 'telegram_id'=>(int)$order['telegram_id']],
-        'returnUrl'=>miniapp_url(false),
-    ];
-    $url = swapwallet_base_url().'/v1/payment/'.rawurlencode(swapwallet_application()).'/invoice';
-    try {
-        $response = http_json_request('POST', $url, $payload, swapwallet_headers());
-        $result = swapwallet_invoice_result($response);
-        if (!is_array($result)) throw new RuntimeException('SWAPWALLET_BAD_RESPONSE');
-        $invoiceId = swapwallet_extract_invoice_id($result);
-        $links = swapwallet_extract_payment_links($result);
-        $paymentUrl = swapwallet_best_payment_url($links, $result);
-        $status = strtoupper((string)($result['status'] ?? 'ACTIVE')) ?: 'ACTIVE';
-        db()->prepare('INSERT INTO swapwallet_invoices (order_id,invoice_id,amount_usd,token,status,payment_url,payment_links_json,raw_response) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE invoice_id=VALUES(invoice_id),amount_usd=VALUES(amount_usd),token=VALUES(token),status=VALUES(status),payment_url=VALUES(payment_url),payment_links_json=VALUES(payment_links_json),raw_response=VALUES(raw_response),fail_reason=NULL')->execute([$orderId,$invoiceId,(string)$amountUsd,$token,$status,$paymentUrl,json_encode($links,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
-        $details=['gateway'=>'swapwallet','invoice_id'=>$invoiceId,'amount_usd'=>$amountUsd,'token'=>$token,'payment_url'=>$paymentUrl,'rate_toman'=>swapwallet_rate_toman(),'markup_percent'=>(float)setting('swapwallet_rate_markup_percent','1')];
-        db()->prepare('UPDATE orders SET payment_method="crypto", payment_details=?, crypto_amount=?, crypto_asset=?, crypto_network=? WHERE id=?')->execute([json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)$amountUsd,$token,'SWAPWALLET',$orderId]);
-        add_order_event($orderId, 'pending_payment', 'لینک پرداخت SwapWallet ساخته شد', $amountUsd.' USD / '.$token, true);
-        $updated = order_by_id($orderId);
-        notify_user_swapwallet_link($updated, get_swapwallet_invoice_by_order($orderId));
-        return $updated;
-    } catch (Throwable $e) {
-        error_log('[BlueReferral SwapWallet] create invoice failed order='.$orderId.' error='.$e->getMessage());
+    $attempts = [];
+    foreach (swapwallet_invoice_payloads($order, $amountUsd, $token, $ttl) as $attempt) {
+        $version = $attempt['version'];
+        $payload = $attempt['payload'];
+        $url = swapwallet_create_url($version);
         try {
-            db()->prepare('INSERT INTO swapwallet_invoices (order_id,invoice_id,amount_usd,token,status,payment_url,fail_reason,raw_response) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE amount_usd=VALUES(amount_usd),token=VALUES(token),status=VALUES(status),fail_reason=VALUES(fail_reason),raw_response=VALUES(raw_response)')
-                ->execute([$orderId,'failed_'.$orderId.'_'.time(),(string)$amountUsd,$token,'FAILED','',$e->getMessage(),json_encode(['error'=>$e->getMessage(),'url'=>$url],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
-        } catch (Throwable $ignored) {}
-        throw $e;
+            $response = http_json_request('POST', $url, $payload, swapwallet_headers());
+            $result = swapwallet_invoice_result($response);
+            if (!is_array($result)) throw new RuntimeException('SWAPWALLET_BAD_RESPONSE');
+            $invoiceId = swapwallet_extract_invoice_id($result);
+            $links = swapwallet_extract_payment_links($result);
+            $paymentUrl = swapwallet_best_payment_url($links, $result);
+            $status = swapwallet_status_from_result($result, 'ACTIVE');
+            db()->prepare('INSERT INTO swapwallet_invoices (order_id,invoice_id,amount_usd,token,status,payment_url,payment_links_json,request_url,request_body,api_version,raw_response) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE invoice_id=VALUES(invoice_id),amount_usd=VALUES(amount_usd),token=VALUES(token),status=VALUES(status),payment_url=VALUES(payment_url),payment_links_json=VALUES(payment_links_json),request_url=VALUES(request_url),request_body=VALUES(request_body),api_version=VALUES(api_version),raw_response=VALUES(raw_response),fail_reason=NULL')->execute([$orderId,$invoiceId,(string)$amountUsd,$token,$status,$paymentUrl,json_encode($links,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$url,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$version,json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+            $details=['gateway'=>'swapwallet','invoice_id'=>$invoiceId,'amount_usd'=>$amountUsd,'token'=>$token,'payment_url'=>$paymentUrl,'rate_toman'=>swapwallet_rate_toman(),'markup_percent'=>(float)setting('swapwallet_rate_markup_percent','1'),'api_version'=>$version];
+            db()->prepare('UPDATE orders SET payment_method="crypto", payment_details=?, crypto_amount=?, crypto_asset=?, crypto_network=? WHERE id=?')->execute([json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)$amountUsd,$token,'SWAPWALLET',$orderId]);
+            add_order_event($orderId, 'pending_payment', 'لینک پرداخت SwapWallet ساخته شد', $amountUsd.' USD / '.$token, true);
+            $updated = order_by_id($orderId);
+            notify_user_swapwallet_link($updated, get_swapwallet_invoice_by_order($orderId));
+            return $updated;
+        } catch (Throwable $e) {
+            $attempts[] = ['version'=>$version,'url'=>$url,'error'=>$e->getMessage(),'payload'=>$payload];
+        }
     }
+    $fail = $attempts ? end($attempts) : ['error'=>'UNKNOWN_SWAPWALLET_ERROR'];
+    $failText = (string)($fail['error'] ?? 'UNKNOWN_SWAPWALLET_ERROR');
+    error_log('[BlueReferral SwapWallet] create invoice failed order='.$orderId.' error='.$failText);
+    try {
+        db()->prepare('INSERT INTO swapwallet_invoices (order_id,invoice_id,amount_usd,token,status,payment_url,fail_reason,request_url,request_body,api_version,raw_response) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE amount_usd=VALUES(amount_usd),token=VALUES(token),status=VALUES(status),fail_reason=VALUES(fail_reason),request_url=VALUES(request_url),request_body=VALUES(request_body),api_version=VALUES(api_version),raw_response=VALUES(raw_response)')
+            ->execute([$orderId,'failed_'.$orderId.'_'.time(),(string)$amountUsd,$token,'FAILED','',$failText,(string)($fail['url'] ?? ''),json_encode($fail['payload'] ?? [],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)($fail['version'] ?? 'unknown'),json_encode(['attempts'=>$attempts],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+    } catch (Throwable $ignored) {}
+    throw new RuntimeException($failText);
 }
 function swapwallet_refresh_invoice(int $orderId): ?array {
     $inv = get_swapwallet_invoice_by_order($orderId); if (!$inv) return null;
     if (strtoupper((string)$inv['status']) === 'PAID') return $inv;
     if (!swapwallet_configured()) { db()->prepare('UPDATE swapwallet_invoices SET fail_reason=? WHERE id=?')->execute(['SwapWallet API یا نرخ دستی تنظیم نشده است.', (int)$inv['id']]); return get_swapwallet_invoice_by_order($orderId); }
     if (str_starts_with((string)$inv['invoice_id'], 'failed_')) return $inv;
-    $url = swapwallet_base_url().'/v1/payment/'.rawurlencode(swapwallet_application()).'/invoice/'.rawurlencode((string)$inv['invoice_id']);
-    try {
-        $response = http_json_request('GET', $url, null, swapwallet_headers());
-        $result = swapwallet_invoice_result($response); if (!is_array($result)) $result=[];
-        $status = strtoupper((string)($result['status'] ?? $inv['status'] ?? 'ACTIVE'));
-        $links = swapwallet_extract_payment_links($result);
-        $paymentUrl = swapwallet_best_payment_url($links, $result) ?: (string)$inv['payment_url'];
-        db()->prepare('UPDATE swapwallet_invoices SET status=?, payment_url=?, raw_response=?, check_count=check_count+1, last_checked_at=NOW(), fail_reason=NULL WHERE id=?')->execute([$status,$paymentUrl,json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(int)$inv['id']]);
-        if ($status === 'PAID') {
-            db()->prepare('UPDATE swapwallet_invoices SET paid_at=NOW() WHERE id=?')->execute([(int)$inv['id']]);
-            $paid = mark_order_paid($orderId);
-            add_order_event($orderId, 'payment_confirmed', 'پرداخت SwapWallet تایید شد', 'Invoice: '.$inv['invoice_id'], true);
-            if ($paid) {
-                send_msg((int)$paid['telegram_id'], "✅ پرداخت سواپ‌ولت سفارش <code>#{$paid['id']}</code> تایید شد.\nسفارش شما برای آماده‌سازی ثبت شد.", main_menu_keyboard(is_admin($paid['telegram_id'])));
-                notify_admins("✅ پرداخت SwapWallet تایید شد\nسفارش: <code>#{$paid['id']}</code>\nکاربر: <code>{$paid['telegram_id']}</code>\nInvoice: <code>".h($inv['invoice_id'])."</code>");
+    $errors=[];
+    foreach (swapwallet_status_urls((string)$inv['invoice_id']) as $url) {
+        try {
+            $response = http_json_request('GET', $url, null, swapwallet_headers());
+            $result = swapwallet_invoice_result($response); if (!is_array($result)) $result=[];
+            $status = swapwallet_status_from_result($result, $inv['status'] ?? 'ACTIVE');
+            $links = swapwallet_extract_payment_links($result);
+            $paymentUrl = swapwallet_best_payment_url($links, $result) ?: (string)$inv['payment_url'];
+            db()->prepare('UPDATE swapwallet_invoices SET status=?, payment_url=?, request_url=?, raw_response=?, check_count=check_count+1, last_checked_at=NOW(), fail_reason=NULL WHERE id=?')->execute([$status,$paymentUrl,$url,json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(int)$inv['id']]);
+            if ($status === 'PAID' || $status === 'PAID_CONFIRMED' || $status === 'COMPLETED') {
+                db()->prepare('UPDATE swapwallet_invoices SET status="PAID", paid_at=NOW() WHERE id=?')->execute([(int)$inv['id']]);
+                $paid = mark_order_paid($orderId);
+                add_order_event($orderId, 'payment_confirmed', 'پرداخت SwapWallet تایید شد', 'Invoice: '.$inv['invoice_id'], true);
+                if ($paid) {
+                    send_msg((int)$paid['telegram_id'], "✅ پرداخت سواپ‌ولت سفارش <code>#{$paid['id']}</code> تایید شد.\nسفارش شما برای آماده‌سازی ثبت شد.", main_menu_keyboard(is_admin($paid['telegram_id'])));
+                    notify_admins("✅ پرداخت SwapWallet تایید شد\nسفارش: <code>#{$paid['id']}</code>\nکاربر: <code>{$paid['telegram_id']}</code>\nInvoice: <code>".h($inv['invoice_id'])."</code>");
+                }
             }
-        }
-    } catch (Throwable $e) {
-        db()->prepare('UPDATE swapwallet_invoices SET check_count=check_count+1,last_checked_at=NOW(),fail_reason=? WHERE id=?')->execute([$e->getMessage(), (int)$inv['id']]);
-        if (setting_bool('swapwallet_notify_fail', true)) {
-            $key='swapwallet_last_fail_alert_'.$orderId; $last=(int)setting($key, 0);
-            if (time()-$last > 1800) { notify_admins("⚠️ بررسی پرداخت SwapWallet ناموفق بود\nسفارش: <code>#{$orderId}</code>\nخطا: <code>".h($e->getMessage())."</code>"); set_setting($key, (string)time()); }
-        }
+            return get_swapwallet_invoice_by_order($orderId);
+        } catch (Throwable $e) { $errors[]=['url'=>$url,'error'=>$e->getMessage()]; }
+    }
+    $msg = end($errors)['error'] ?? 'SWAPWALLET_STATUS_FAILED';
+    db()->prepare('UPDATE swapwallet_invoices SET check_count=check_count+1,last_checked_at=NOW(),fail_reason=?,raw_response=? WHERE id=?')->execute([$msg,json_encode(['attempts'=>$errors],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(int)$inv['id']]);
+    if (setting_bool('swapwallet_notify_fail', true)) {
+        $key='swapwallet_last_fail_alert_'.$orderId; $last=(int)setting($key, 0);
+        if (time()-$last > 1800) { notify_admins("⚠️ بررسی پرداخت SwapWallet ناموفق بود\nسفارش: <code>#{$orderId}</code>\nخطا: <code>".h($msg)."</code>"); set_setting($key, (string)time()); }
     }
     return get_swapwallet_invoice_by_order($orderId);
 }
