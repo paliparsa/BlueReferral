@@ -270,12 +270,7 @@ function crypto_wallets_lines(): string {
 }
 function set_crypto_wallets_lines(string $text): void {
     if (!table_exists('crypto_wallets')) return;
-    // Keep existing wallet IDs when possible so pending/old crypto checks stay consistent.
-    // We match by network + asset + address and update instead of blindly duplicating rows.
-    db()->exec('UPDATE crypto_wallets SET is_active=0');
-    $find=db()->prepare('SELECT id FROM crypto_wallets WHERE UPPER(network)=? AND UPPER(asset)=? AND address=? LIMIT 1');
-    $upd=db()->prepare('UPDATE crypto_wallets SET title=?, rate_symbol=?, is_active=?, sort_order=? WHERE id=?');
-    $ins=db()->prepare('INSERT INTO crypto_wallets (title,network,asset,address,rate_symbol,is_active,sort_order) VALUES (?,?,?,?,?,?,?)');
+    $rows=[];
     foreach (preg_split('/\R/u', $text) as $line) {
         $line=trim($line); if ($line==='') continue;
         $p=array_map('trim', explode('|', $line));
@@ -287,10 +282,27 @@ function set_crypto_wallets_lines(string $text): void {
         $rate=strtoupper(trim((string)($p[4] ?? $asset)) ?: $asset);
         $active = !isset($p[5]) || !in_array(strtolower((string)$p[5]), ['0','false','off','no'], true);
         $sort=(int)($p[6] ?? 99);
-        $find->execute([$network,$asset,$address]);
-        $row=$find->fetch();
-        if ($row) $upd->execute([$title,$rate,$active?1:0,$sort,(int)$row['id']]);
-        else $ins->execute([$title,$network,$asset,$address,$rate,$active?1:0,$sort]);
+        $rows[] = [$title,$network,$asset,$address,$rate,$active?1:0,$sort];
+    }
+    // Safety: an empty value can happen if a broken/old admin UI submits before builders are initialized.
+    // Do not wipe all wallet rows silently; admins can disable wallets one-by-one from the UI.
+    if (!$rows) return;
+    db()->beginTransaction();
+    try {
+        db()->exec('UPDATE crypto_wallets SET is_active=0');
+        $find=db()->prepare('SELECT id FROM crypto_wallets WHERE UPPER(network)=? AND UPPER(asset)=? AND address=? LIMIT 1');
+        $upd=db()->prepare('UPDATE crypto_wallets SET title=?, rate_symbol=?, is_active=?, sort_order=? WHERE id=?');
+        $ins=db()->prepare('INSERT INTO crypto_wallets (title,network,asset,address,rate_symbol,is_active,sort_order) VALUES (?,?,?,?,?,?,?)');
+        foreach ($rows as [$title,$network,$asset,$address,$rate,$active,$sort]) {
+            $find->execute([$network,$asset,$address]);
+            $row=$find->fetch();
+            if ($row) $upd->execute([$title,$rate,$active,$sort,(int)$row['id']]);
+            else $ins->execute([$title,$network,$asset,$address,$rate,$active,$sort]);
+        }
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        throw $e;
     }
 }
 function crypto_wallet_payload(array $w, ?int $tomanAmount=null): array {
@@ -311,7 +323,7 @@ function crypto_wallets_public(?int $tomanAmount=null): array {
 }
 function http_json_get(string $url, array $headers=[]): array {
     $ch=curl_init($url);
-    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_FOLLOWLOCATION=>true]);
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>2,CURLOPT_TIMEOUT=>5,CURLOPT_FOLLOWLOCATION=>true]);
     if ($headers) curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $body=curl_exec($ch); $err=curl_error($ch); $code=(int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
     if ($body===false || $code>=400) throw new RuntimeException('HTTP_FAILED '.($err ?: $code));
@@ -345,10 +357,19 @@ function crypto_rate_toman(string $asset, bool $notify=true): float {
     $manual=crypto_manual_rates();
     $source=setting('crypto_rate_source','nobitex');
     if ($source === 'manual') return (float)($manual[$asset] ?? 0);
+
+    // Avoid locking the bot/webhook when external price APIs are slow.
+    // Cache successful Nobitex rates for a few minutes and use manual fallback on errors.
+    $cacheKey='crypto_rate_cache_'.$asset;
+    $cached=setting_json($cacheKey, []);
+    if (!empty($cached['rate']) && !empty($cached['time']) && time()-(int)$cached['time'] < 300) {
+        return (float)$cached['rate'];
+    }
     try {
         $rate=nobitex_rate_toman($asset);
-        if($rate>0) return $rate;
+        if($rate>0){ set_setting($cacheKey, ['rate'=>$rate,'time'=>time()]); return $rate; }
     } catch(Throwable $e) {
+        error_log('[BlueReferral CryptoRate] '.$asset.' '.$e->getMessage());
         if ($notify && setting_bool('crypto_notify_rate_fail', true)) {
             $key='crypto_rate_last_fail_alert_'.$asset; $last=(int)setting($key, 0);
             if(time()-$last>1800){ notify_admins("⚠️ دریافت نرخ رمزارز از نوبیتکس ناموفق بود\nارز: <b>".h($asset)."</b>\nربات از نرخ دستی استفاده می‌کند."); set_setting($key, (string)time()); }
@@ -741,11 +762,19 @@ function main_menu_keyboard(bool $admin=false): string {
     if ($admin) $rows[] = [['text'=>'⚙️ پنل ادمین']];
     return keyboard_markup($rows);
 }
+function miniapp_url(bool $admin=false): string {
+    $mini = trim((string)app_config('MINIAPP_URL', ''));
+    if ($mini === '') return '';
+    if (!$admin) return $mini;
+    // Append admin=1 safely. Some installs set MINIAPP_URL with an existing ?v=... query.
+    $sep = str_contains($mini, '?') ? '&' : '?';
+    return $mini . $sep . 'admin=1&mode=admin';
+}
 function miniapp_inline_keyboard(bool $admin=false): string {
-    $mini = app_config('MINIAPP_URL', '');
+    $mini = miniapp_url($admin);
     $rows = [];
     if ($mini) {
-        $rows[] = [['text'=>$admin ? '🧑‍💼 باز کردن Mini Panel ادمین' : '🚀 باز کردن Mini App', 'web_app'=>['url'=>$admin ? $mini.'?admin=1' : $mini]]];
+        $rows[] = [['text'=>$admin ? '🧑‍💼 باز کردن Mini Panel ادمین' : '🚀 باز کردن Mini App', 'web_app'=>['url'=>$mini]]];
     }
     $rows[] = [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'👤 پروفایل و کیف پول', 'callback_data'=>'u_wallet']];
     return json_markup(['inline_keyboard'=>$rows]);
