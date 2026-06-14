@@ -63,3 +63,99 @@ input,textarea,select,.dialog-card{
 
 /* Payment Methods Engine v1 */
 .payment-box{margin:12px 0;padding:12px;border-radius:22px;background:linear-gradient(180deg,#ffffff12,#ffffff06);border:1px solid #ffffff14}.section-title.compact{margin-bottom:10px}.payment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.pay-method{min-height:68px;text-align:right;border-radius:18px;padding:10px}.pay-method b{display:block;font-size:13px}.pay-method span{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.5}.card-pay-list{display:grid;gap:8px;margin-top:10px}.pay-card{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;padding:10px;border-radius:18px;background:#0004;border:1px solid #ffffff12}.pay-card code{grid-column:1/3;direction:ltr;text-align:left;white-space:normal;word-break:break-all}.pay-card small{display:block;color:var(--muted);margin-top:2px}.payment-admin textarea{min-height:88px}@media(max-width:560px){.payment-grid{grid-template-columns:1fr}.pay-method{min-height:58px}.pay-card{grid-template-columns:1fr}.pay-card code{grid-column:auto}}
+
+/* BlueReferral Payment UI Fix v2 */
+/* Fix Telegram WebView vertical scroll in shop: horizontal rows must not block page scroll. */
+html,body{
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  touch-action:auto!important;
+  -webkit-overflow-scrolling:touch!important;
+}
+.app-shell,.page,#shopPage,#userApp,#adminApp,.admin-content{
+  overflow:visible!important;
+  touch-action:auto!important;
+}
+.h-scroll,.category-strip,.admin-tabs,.order-filters{
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  touch-action:auto!important;
+  -webkit-overflow-scrolling:touch!important;
+  overscroll-behavior-x:contain;
+}
+.searchbar{position:sticky;z-index:8;}
+.searchbar input{min-width:0;}
+
+/* Product cards: keep image and text as separate clean boxes, never overlay. */
+.product-tile{
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,#ffffff14,#ffffff08)!important;
+}
+.tile-img{
+  flex:0 0 auto!important;
+  position:relative!important;
+  overflow:hidden!important;
+  border-bottom:1px solid #ffffff12!important;
+}
+.tile-img img{display:block!important;position:relative!important;z-index:1!important;}
+.tile-body{
+  position:relative!important;
+  z-index:2!important;
+  background:linear-gradient(180deg,#101827,#0c1320)!important;
+  border-top:1px solid #ffffff0d!important;
+}
+.tile-body h3{
+  line-height:1.55!important;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.price-pill{max-width:100%;white-space:normal!important;line-height:1.4!important;}
+
+/* Payment method panel */
+.payment-box{overflow:hidden!important;}
+.payment-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important;}
+.pay-method{display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:3px!important;overflow:hidden!important;}
+.pay-method b,.pay-method span{max-width:100%;overflow-wrap:anywhere;}
+.pay-card{overflow:hidden!important;}
+.pay-card code{font-size:12px;line-height:1.7;}
+
+/* Admin settings redesign */
+.settings-dashboard{display:grid;gap:12px;max-width:100%;overflow:hidden;}
+.settings-hero{display:flex;justify-content:space-between;align-items:center;gap:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 22%,#101827),#0b1220)!important;}
+.settings-hero .primary{white-space:nowrap;}
+.settings-card{overflow:hidden!important;}
+.settings-card-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;}
+.settings-card-head>span{width:42px;height:42px;display:grid;place-items:center;border-radius:16px;background:color-mix(in srgb,var(--accent) 20%,#ffffff10);font-size:22px;flex:0 0 auto;}
+.settings-card-head h3{margin-bottom:4px;}
+.settings-toggles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:10px 0;}
+.settings-toggles.two{grid-template-columns:repeat(2,minmax(0,1fr));}
+.pretty-switch{position:relative;display:grid;grid-template-columns:auto 1fr;gap:7px 9px;align-items:center;padding:11px;border-radius:18px;background:#ffffff09;border:1px solid #ffffff12;min-width:0;}
+.pretty-switch input{position:absolute;opacity:0;pointer-events:none;}
+.pretty-switch>span{width:38px;height:22px;border-radius:999px;background:#ffffff22;position:relative;grid-row:1/3;transition:.18s;}
+.pretty-switch>span:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;right:3px;transition:.18s;box-shadow:0 2px 8px #0008;}
+.pretty-switch input:checked+span{background:linear-gradient(135deg,var(--success),var(--accent));}
+.pretty-switch input:checked+span:after{right:19px;}
+.pretty-switch b{font-size:13px;line-height:1.5;overflow-wrap:anywhere;}
+.pretty-switch small{grid-column:2;color:var(--muted);font-size:11px;line-height:1.6;overflow-wrap:anywhere;}
+.pretty-switch.inline{grid-template-columns:auto 1fr;min-height:48px;}
+.settings-form label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px;min-width:0;}
+.settings-form label.full{grid-column:1/-1;}
+.settings-form input,.settings-form textarea{margin:0!important;min-width:0!important;max-width:100%!important;}
+.settings-form textarea{min-height:94px;resize:vertical;}
+.hint-box{margin-top:10px;padding:10px 12px;border-radius:16px;background:color-mix(in srgb,var(--accent) 10%,#ffffff08);border:1px solid color-mix(in srgb,var(--accent) 28%,#ffffff12);color:var(--muted);line-height:1.9;font-size:12px;overflow-wrap:anywhere;}
+.hint-box code{direction:ltr;unicode-bidi:plaintext;background:#0005;padding:2px 5px;border-radius:7px;}
+.save-floating{width:100%;position:sticky;bottom:calc(78px + env(safe-area-inset-bottom));z-index:12;}
+.admin-content,.admin-card,.admin-item{max-width:100%!important;overflow:hidden!important;}
+.admin-actions{max-width:100%;}
+.admin-actions button{white-space:normal;}
+
+@media(max-width:720px){
+  .settings-toggles,.settings-toggles.two{grid-template-columns:1fr!important;}
+  .settings-hero{align-items:stretch;flex-direction:column;}
+  .settings-hero .primary{width:100%;}
+  .payment-grid{grid-template-columns:1fr!important;}
+}
