@@ -159,3 +159,29 @@ html,body{
   .settings-hero .primary{width:100%;}
   .payment-grid{grid-template-columns:1fr!important;}
 }
+
+/* Crypto payment phase */
+.pay-method.crypto,
+.crypto-wallet {
+  background: linear-gradient(135deg, rgba(34,197,94,.16), rgba(29,155,240,.13));
+  border-color: rgba(34,197,94,.35);
+}
+.crypto-pay-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  background: rgba(8,18,35,.48);
+  overflow: hidden;
+}
+.crypto-pay-panel h4 { margin: 0 0 8px; }
+.crypto-wallet-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.crypto-wallet { text-align: right; border-radius: 16px; padding: 11px; display: grid; gap: 3px; }
+.crypto-wallet span, .crypto-wallet em { color: var(--muted); font-size: 12px; font-style: normal; }
+.crypto-invoice { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crypto-invoice .full { grid-column: 1 / -1; }
+.crypto-invoice > div { border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 10px; background: rgba(255,255,255,.04); overflow-wrap: anywhere; }
+.crypto-invoice small { color: var(--muted); display: block; margin-bottom: 4px; }
+.crypto-settings-block { margin-top: 12px; border-top: 1px dashed rgba(255,255,255,.14); padding-top: 12px; }
+.crypto-settings-block h4 { margin: 0 0 10px; }
+@media (max-width: 430px) { .crypto-invoice { grid-template-columns: 1fr; } .crypto-wallet-grid { grid-template-columns: 1fr; } }
