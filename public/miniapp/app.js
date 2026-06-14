@@ -6,6 +6,7 @@ if (tg) {
 const initData = tg?.initData || '';
 let state = null;
 let pendingDialog = null;
+let selectedCategory = 0;
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => `${Number(n || 0).toLocaleString('fa-IR')} تومان`;
@@ -59,11 +60,43 @@ function render(data) {
     return `<div class="mission"><div><b>${icon} ${numberFa(m.target)} دعوت امروز</b><br><span>${status}</span></div><strong>${fmt(m.reward)}</strong></div>`;
   }).join('') || '<p class="muted">مأموریتی فعال نیست.</p>';
 
+  renderShop(data);
+
   $('leaderboard').innerHTML = (data.leaderboard || []).map((r, i) => {
     const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : numberFa(i + 1)));
     return `<div class="rank"><div><b>${medal} ${escapeHtml(r.name || 'کاربر')}</b><br><small>${numberFa(r.referrals)} دعوت</small></div><strong>${fmt(r.earned)}</strong></div>`;
   }).join('') || '<p class="muted">هنوز کسی وارد لیدربورد نشده.</p>';
 }
+
+function renderShop(data) {
+  const cats = data.shop_categories || [];
+  const products = data.shop_products || [];
+  const orders = data.orders || [];
+  if (!$('shopCats') || !$('products') || !$('orders')) return;
+  const allBtn = `<button class="${selectedCategory === 0 ? 'active' : ''}" data-cat="0">همه</button>`;
+  $('shopCats').innerHTML = allBtn + cats.map(c => `<button class="${selectedCategory === c.id ? 'active' : ''}" data-cat="${c.id}">${escapeHtml(c.emoji || '🛒')} ${escapeHtml(c.title)}</button>`).join('');
+  const filtered = selectedCategory ? products.filter(p => Number(p.category_id) === Number(selectedCategory)) : products;
+  $('products').innerHTML = filtered.map(p => `
+    <article class="product-card">
+      <h3>${escapeHtml(p.name)}</h3>
+      <p>${escapeHtml(p.short_description || p.full_description || 'بدون توضیح')}</p>
+      <div class="product-meta"><span class="badge">${escapeHtml(p.delivery_type_fa)}</span><strong>${fmt(p.price)}</strong></div>
+      <div class="product-meta"><small>پورسانت معرف: ${escapeHtml(p.commission || '—')}</small></div>
+      <div class="card-actions"><button class="primary" data-buy="${p.id}">ثبت سفارش</button></div>
+    </article>`).join('') || '<p class="muted">فعلاً محصولی در این دسته نیست.</p>';
+  $('orders').innerHTML = orders.map(o => `
+    <article class="order-card">
+      <h3>سفارش #${numberFa(o.id)} — ${escapeHtml(o.product_name)}</h3>
+      <div class="order-meta"><span class="badge">${escapeHtml(o.status_fa)}</span><strong>${fmt(o.final_amount)}</strong></div>
+      ${o.discount_amount > 0 ? `<p>تخفیف: ${fmt(o.discount_amount)} ${o.coupon_code ? ' | کد: ' + escapeHtml(o.coupon_code) : ''}</p>` : ''}
+      ${o.delivery_text ? `<div class="delivery-box">${escapeHtml(o.delivery_text)}</div>` : ''}
+      <div class="card-actions">
+        ${(o.status === 'pending_payment' || o.status === 'rejected') ? `<button class="primary" data-receipt="${o.id}">ارسال رسید</button>` : ''}
+        ${o.status === 'pending_payment' ? `<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="secondary" data-cancel="${o.id}">لغو</button>` : ''}
+      </div>
+    </article>`).join('') || '<p class="muted">هنوز سفارشی نداری.</p>';
+}
+
 function escapeHtml(str) {
   return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
@@ -83,6 +116,39 @@ function openDialog(title, text, placeholder, onSubmit) {
   $('dialogInput').placeholder = placeholder || 'اینجا بنویس...';
   $('inputDialog').showModal();
 }
+
+
+document.addEventListener('click', async (e) => {
+  const cat = e.target.closest('[data-cat]');
+  if (cat) { selectedCategory = Number(cat.dataset.cat || 0); renderShop(state || {}); return; }
+  const buy = e.target.closest('[data-buy]');
+  if (buy) {
+    try { const data = await api('create_order', { product_id: Number(buy.dataset.buy) }); render(data); showStatus(`سفارش #${numberFa(data.order?.id)} ثبت شد. حالا رسید پرداخت را ارسال کن.`); }
+    catch (err) { showStatus(err.message, 'error'); }
+    return;
+  }
+  const coupon = e.target.closest('[data-coupon]');
+  if (coupon) {
+    const oid = Number(coupon.dataset.coupon);
+    openDialog('ثبت کد تخفیف', `کد تخفیف سفارش #${numberFa(oid)} را وارد کن.`, 'BLUE10', async (value) => {
+      const data = await api('apply_coupon', { order_id: oid, code: value }); render(data); return 'کد تخفیف اعمال شد.';
+    });
+    return;
+  }
+  const receipt = e.target.closest('[data-receipt]');
+  if (receipt) {
+    const oid = Number(receipt.dataset.receipt);
+    openDialog('ارسال رسید پرداخت', `توضیح پرداخت سفارش #${numberFa(oid)} را بنویس. برای ارسال عکس رسید، از داخل خود بات هم می‌توانی استفاده کنی.`, 'شماره پیگیری / چهار رقم آخر کارت / توضیح پرداخت', async (value) => {
+      const data = await api('submit_receipt', { order_id: oid, note: value }); render(data); return 'رسید پرداخت ثبت شد و منتظر بررسی ادمین است.';
+    });
+    return;
+  }
+  const cancel = e.target.closest('[data-cancel]');
+  if (cancel) {
+    try { const data = await api('cancel_order', { order_id: Number(cancel.dataset.cancel) }); render(data); showStatus('سفارش لغو شد.'); }
+    catch (err) { showStatus(err.message, 'error'); }
+  }
+});
 
 $('refreshBtn').addEventListener('click', load);
 $('copyLink').addEventListener('click', async () => {
