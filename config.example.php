@@ -66,3 +66,14 @@ $CRYPTO_RATE_MARKUP_PERCENT = 1; // safety margin added to crypto amount
 $CRYPTO_MANUAL_RATES = ['USDT' => 0, 'TRX' => 0, 'TON' => 0];
 $TRONSCAN_API_KEY = ''; // optional, recommended for higher Tronscan API limits
 $TONCENTER_API_KEY = ''; // optional, recommended for TON checks
+
+
+// SwapWallet / SwapPay payments - recommended crypto gateway.
+// Get these from SwapWallet merchant panel later and set them in Mini App admin panel or here.
+$SWAPPAY_API_KEY = '';
+$SWAPPAY_APPLICATION = '';
+$SWAPPAY_BASE_URL = 'https://swapwallet.app/api';
+$SWAPPAY_AUTO_CONVERSION_TOKEN = 'USDT';
+$SWAPPAY_USDT_RATE_TOMAN = 0; // manual fallback: 1 USDT/USD in Toman. Required for Toman -> USD invoice conversion.
+$SWAPPAY_RATE_MARKUP_PERCENT = 1;
+$SWAPPAY_TTL_MINUTES = 30;

@@ -928,3 +928,27 @@ This patch fixes a critical Mini App/admin issue after saving payment settings:
 - Crypto wallet saving is safer and will not silently wipe wallets if a broken/old UI submits an empty builder state.
 - Nobitex rate fetching now uses shorter timeouts and a 5-minute cache to prevent the bot/webhook from hanging when the external API is slow.
 - Mini App cache version was bumped.
+
+## Update: SwapWallet Pay جایگزین کریپتوی TXID
+
+در این نسخه پرداخت رمزارز مستقیم با TXID برای پرداخت‌های جدید کنار گذاشته شد و روش پیشنهادی `SwapWallet Pay` جایگزین شد.
+
+### تنظیمات ادمین
+از Mini Panel ادمین وارد Settings شوید و در کارت **SwapWallet Pay** این موارد را وارد کنید:
+
+- API Key
+- Application
+- Base URL: پیش‌فرض `https://swapwallet.app/api`
+- Auto Token: پیش‌فرض `USDT`
+- نرخ ۱ USDT/USD به تومان
+- درصد احتیاط نرخ
+- زمان انقضای فاکتور
+
+اگر API Key را خالی بگذارید، مقدار قبلی حفظ می‌شود.
+
+### مسیر پرداخت کاربر
+کاربر در صفحه سفارش روش **SwapWallet Pay** را انتخاب می‌کند. ربات یک invoice در SwapWallet می‌سازد و لینک پرداخت را داخل Mini App و چت نشان می‌دهد. وضعیت پرداخت با cron بررسی می‌شود و اگر وضعیت invoice برابر `PAID` شود، سفارش خودکار تایید می‌شود.
+
+### Cron بررسی پرداخت
+همان cron قبلی `public/cron_crypto.php` اکنون فقط invoiceهای SwapWallet را بررسی می‌کند و دیگر موقع لود Mini App یا پنل ادمین هیچ درخواست خارجی به نوبیتکس/Tron/Ton زده نمی‌شود.
+
