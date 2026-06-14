@@ -87,6 +87,8 @@ function migrate(): void {
     seed_setting('spin_rewards', app_config('SPIN_REWARDS', []));
     seed_setting('custom_code_min_referrals', app_config('CUSTOM_CODE_MIN_REFERRALS', 3));
     seed_setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0'));
+    seed_setting('button_colors_enabled', '1');
+    seed_setting('button_colors', ['primary'=>'#1d9bf0','secondary'=>'#2563eb','danger'=>'#ef4444','success'=>'#22c55e','warning'=>'#f59e0b']);
     seed_setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
     seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً مبلغ فاکتور را کارت‌به‌کارت کنید و سپس رسید پرداخت را از دکمه ارسال رسید بفرستید.'));
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
@@ -343,19 +345,21 @@ function answer_cb($callback_id, string $text = ''): void {
     tg('answerCallbackQuery', ['callback_query_id'=>$callback_id, 'text'=>$text, 'show_alert'=>false]);
 }
 function json_markup(array $data): string { return json_encode($data, JSON_UNESCAPED_UNICODE); }
+function keyboard_markup(array $rows, bool $resize=true, bool $oneTime=false): string {
+    return json_markup(['keyboard'=>$rows, 'resize_keyboard'=>$resize, 'one_time_keyboard'=>$oneTime, 'is_persistent'=>true]);
+}
 function main_menu_keyboard(bool $admin=false): string {
     $mini = app_config('MINIAPP_URL', '');
     $rows = [
-        [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'🧾 سفارش‌های من', 'callback_data'=>'u_orders']],
-        [['text'=>'👥 لینک دعوت', 'callback_data'=>'u_ref'], ['text'=>'💰 کیف پول', 'callback_data'=>'u_wallet']],
-        [['text'=>'📊 آمار من', 'callback_data'=>'u_stats'], ['text'=>'🏆 لیدربورد', 'callback_data'=>'u_leaderboard']],
-        [['text'=>'🎯 مأموریت روزانه', 'callback_data'=>'u_missions'], ['text'=>'🎡 گردونه شانس', 'callback_data'=>'u_spin']],
-        [['text'=>'🔥 کد اختصاصی', 'callback_data'=>'u_custom_code'], ['text'=>'📣 ابزار تبلیغ', 'callback_data'=>'u_promo']],
-        [['text'=>'🏧 درخواست برداشت', 'callback_data'=>'u_withdraw'], ['text'=>'📞 پشتیبانی', 'callback_data'=>'u_support']],
+        [['text'=>'🏠 صفحه اول'], ['text'=>'🛒 فروشگاه']],
+        [['text'=>'🧾 سفارش‌های من'], ['text'=>'👤 پروفایل و کیف پول']],
+        [['text'=>'👥 دعوت و درآمد'], ['text'=>'🏆 لیدربورد']],
+        [['text'=>'🎯 مأموریت‌ها'], ['text'=>'🎡 گردونه شانس']],
+        [['text'=>'🏧 برداشت'], ['text'=>'📞 پشتیبانی']],
     ];
     if ($mini) $rows[] = [['text'=>'🚀 باز کردن Mini App', 'web_app'=>['url'=>$mini]]];
-    if ($admin) $rows[] = [['text'=>'⚙️ پنل ادمین', 'callback_data'=>'adm_home']];
-    return json_markup(['inline_keyboard'=>$rows]);
+    if ($admin) $rows[] = [['text'=>'⚙️ پنل ادمین']];
+    return keyboard_markup($rows);
 }
 function back_main_keyboard(): string { return json_markup(['inline_keyboard'=>[[['text'=>'🔙 بازگشت به منوی اصلی', 'callback_data'=>'main']]]]); }
 
@@ -498,35 +502,32 @@ function show_admin_shop_home(int $chat_id, $message_id=null): void {
     send_or_edit($chat_id, $message_id, $txt, admin_shop_keyboard());
 }
 function show_admin_products(int $chat_id, $message_id=null): void {
-    $products = shop_products(null, false);
-    $txt = "📦 <b>مدیریت محصولات</b>\n\nمحصول‌ها را می‌توانی فعال/غیرفعال کنی، عکس اضافه کنی، پلن بسازی یا از فروشگاه حذف کنی. حذف محصول، سفارش‌های قبلی را پاک نمی‌کند و فقط از فروشگاه پنهان می‌شود.\n\n";
-    $rows = [];
-    if (!$products) $txt .= "هنوز محصولی اضافه نشده.";
-    foreach ($products as $p) {
-        $status = (int)$p['is_active'] ? '✅ فعال' : '⛔️ حذف/غیرفعال';
-        $img = !empty($p['image_url']) ? '🖼' : 'بدون عکس';
-        $txt .= "#{$p['id']} | {$status} | <b>".h($p['name'])."</b> | ".product_price_label($p)." | پلن: ".(int)$p['variant_count']." | موجودی: ".(int)$p['inventory_available']." | {$img}\n";
-        $rows[] = [['text'=>((int)$p['is_active'] ? '⛔️ حذف ' : '✅ فعال ').'#'.$p['id'], 'callback_data'=>'prod_delete_'.$p['id']], ['text'=>'🔁 وضعیت #'.$p['id'], 'callback_data'=>'prod_toggle_'.$p['id']]];
-        $rows[] = [['text'=>'🖼 عکس #'.$p['id'], 'callback_data'=>'prod_image_'.$p['id']], ['text'=>'🧩 پلن #'.$p['id'], 'callback_data'=>'adm_add_variant_'.$p['id']]];
-        $rows[] = [['text'=>'📥 انبار #'.$p['id'], 'callback_data'=>'invwiz_product_'.$p['id']]];
+    $rows = shop_products(null, false);
+    if (!$rows) { send_or_edit($chat_id, $message_id, 'هنوز محصولی ثبت نشده.', admin_shop_keyboard()); return; }
+    $txt = "📦 <b>مدیریت محصولات</b>\nهر محصول را جدا مدیریت کن؛ می‌توانی غیرفعال، ویرایش یا حذف کامل کنی.\n\n";
+    $kb=[];
+    foreach ($rows as $p) {
+        $status = (int)$p['is_active'] ? '✅' : '⛔️';
+        $txt .= "{$status} <code>#{$p['id']}</code> <b>".h($p['name'])."</b> | ".product_price_label($p)."\n";
+        $kb[] = [['text'=>$status.' #'.$p['id'].' '.$p['name'], 'callback_data'=>'prod_manage_'.$p['id']]];
     }
-    $rows[] = [['text'=>'➕ افزودن محصول مرحله‌ای', 'callback_data'=>'adm_add_product'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
-    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+    $kb[] = [['text'=>'➕ افزودن محصول مرحله‌ای', 'callback_data'=>'adm_add_product']];
+    $kb[] = [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb]));
 }
 function show_admin_categories(int $chat_id, $message_id=null): void {
-    $cats = shop_categories(false);
-    $txt = "📂 <b>مدیریت دسته‌بندی‌ها</b>\n\nدسته‌ها را مرحله‌ای بساز، عکس بده یا از فروشگاه پنهان کن.\n\n";
-    $rows = [];
-    foreach ($cats as $c) {
-        $status = (int)$c['is_active'] ? '✅ فعال' : '⛔️ حذف/غیرفعال';
-        $img = !empty($c['image_url']) ? '🖼' : 'بدون عکس';
-        $txt .= "#{$c['id']} | ".h(trim(($c['emoji'] ?: '').' '.$c['title']))." | {$status} | {$img}\n";
-        $rows[] = [['text'=>((int)$c['is_active']?'⛔️ حذف ':'✅ فعال ').'#'.$c['id'], 'callback_data'=>'cat_delete_'.$c['id']], ['text'=>'🖼 عکس #'.$c['id'], 'callback_data'=>'cat_image_'.$c['id']]];
+    $rows = shop_categories(false);
+    $txt = "📂 <b>مدیریت دسته‌بندی‌ها</b>\n\n";
+    $kb=[];
+    foreach ($rows as $c) {
+        $status=(int)$c['is_active']?'✅':'⛔️';
+        $txt .= "{$status} <code>#{$c['id']}</code> ".h(($c['emoji']?:'🛒').' '.$c['title'])."\n";
+        $kb[] = [['text'=>$status.' #'.$c['id'].' '.trim(($c['emoji']?:'🛒').' '.$c['title']), 'callback_data'=>'cat_manage_'.$c['id']]];
     }
-    if (!$cats) $txt .= "دسته‌ای ثبت نشده.";
-    $rows[] = [['text'=>'➕ افزودن دسته مرحله‌ای', 'callback_data'=>'adm_add_category']];
-    $rows[] = [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
-    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
+    if (!$rows) $txt .= 'دسته‌ای نداریم.';
+    $kb[] = [['text'=>'➕ افزودن دسته مرحله‌ای', 'callback_data'=>'adm_add_category']];
+    $kb[] = [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb]));
 }
 function show_admin_coupons(int $chat_id, $message_id=null): void {
     $rows = db()->query('SELECT * FROM coupons ORDER BY id DESC LIMIT 30')->fetchAll();
@@ -584,30 +585,31 @@ function show_admin_orders(int $chat_id, $message_id, string $filter='all'): voi
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
 }
 function show_admin_inventory(int $chat_id, $message_id=null): void {
-    $rows = db()->query('SELECT i.*, p.name product_name, v.title variant_title FROM inventory_items i JOIN products p ON p.id=i.product_id LEFT JOIN product_variants v ON v.id=i.variant_id ORDER BY i.id DESC LIMIT 40')->fetchAll();
-    $txt="📥 <b>مدیریت انبار دستی</b>\n\nآیتم‌های آماده را می‌توانی تک‌تک حذف کنی. فقط آیتم‌های آماده قابل حذف هستند.\n\n";
+    $rows = inventory_items_for_admin(60);
+    $txt = "📥 <b>مدیریت انبار دستی</b>\n\n";
     $kb=[];
-    if (!$rows) $txt .= "هنوز آیتمی در انبار نیست.";
-    foreach ($rows as $r) {
-        $name = $r['product_name'].(!empty($r['variant_title']) ? ' - '.$r['variant_title'] : '');
-        $preview = mb_substr(preg_replace('/\s+/u',' ', (string)$r['content']), 0, 38);
-        $txt .= "#{$r['id']} | ".h($name)." | ".h($r['status'])." | <code>".h($preview)."</code>\n";
-        if ($r['status']==='available') $kb[] = [['text'=>'🗑 حذف آیتم #'.$r['id'], 'callback_data'=>'inv_delete_'.$r['id']]];
+    foreach ($rows as $i) {
+        $content = mb_substr((string)$i['content'],0,28);
+        $txt .= "<code>#{$i['id']}</code> ".h($i['product_name']).(!empty($i['variant_title'])?' / '.h($i['variant_title']):'')." | <b>".h($i['status'])."</b> | ".h($content)."\n";
+        $kb[] = [['text'=>'#'.$i['id'].' '.mb_substr($i['product_name'],0,18).' | '.$i['status'], 'callback_data'=>'inv_manage_'.$i['id']]];
     }
-    $kb[] = [['text'=>'➕ افزودن انبار مرحله‌ای', 'callback_data'=>'adm_add_inventory'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    if (!$rows) $txt .= 'انبار خالی است.';
+    $kb[] = [['text'=>'➕ افزودن انبار مرحله‌ای', 'callback_data'=>'adm_add_inventory']];
+    $kb[] = [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb]));
 }
 function show_admin_variants(int $chat_id, $message_id=null): void {
-    $rows = db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 50')->fetchAll();
-    $txt="🧩 <b>مدیریت پلن‌ها / Variants</b>\n\n";
+    $rows = db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 80')->fetchAll();
+    $txt = "🧩 <b>مدیریت پلن‌ها</b>\n\n";
     $kb=[];
-    if (!$rows) $txt .= "هنوز پلنی ثبت نشده.";
-    foreach ($rows as $r) {
-        $status = (int)$r['is_active'] ? '✅ فعال' : '⛔️ حذف/غیرفعال';
-        $txt .= "#{$r['id']} | محصول #{$r['product_id']} ".h($r['product_name'])." | <b>".h($r['title'])."</b> | ".money((int)$r['price'])." | {$status}\n";
-        $kb[] = [['text'=>'🗑 حذف پلن #'.$r['id'], 'callback_data'=>'variant_delete_'.$r['id']]];
+    foreach ($rows as $v) {
+        $status=(int)$v['is_active']?'✅':'⛔️';
+        $txt .= "{$status} <code>#{$v['id']}</code> ".h($v['product_name'])." | ".h($v['title'])." | ".money($v['price'])."\n";
+        $kb[] = [['text'=>$status.' #'.$v['id'].' '.$v['product_name'].' / '.$v['title'], 'callback_data'=>'variant_manage_'.$v['id']]];
     }
-    $kb[] = [['text'=>'➕ افزودن پلن مرحله‌ای', 'callback_data'=>'adm_add_variant_manual'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    if (!$rows) $txt .= 'پلنی نداریم.';
+    $kb[] = [['text'=>'➕ افزودن پلن مرحله‌ای', 'callback_data'=>'adm_add_variant_manual']];
+    $kb[] = [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb]));
 }
 function show_sales_report(int $chat_id, $message_id=null): void {
@@ -622,14 +624,16 @@ function show_sales_report(int $chat_id, $message_id=null): void {
     send_or_edit($chat_id, $message_id, $txt, admin_shop_keyboard());
 }
 function admin_keyboard(): string {
-    return json_markup(['inline_keyboard'=>[
-        [['text'=>'🛒 مدیریت فروشگاه', 'callback_data'=>'adm_shop']],
-        [['text'=>'📈 آمار کل', 'callback_data'=>'adm_stats'], ['text'=>'🏧 برداشت‌ها', 'callback_data'=>'adm_withdrawals']],
-        [['text'=>'💸 تغییر موجودی', 'callback_data'=>'adm_balance'], ['text'=>'🎁 پاداش خرید', 'callback_data'=>'adm_purchase']],
-        [['text'=>'⚙️ تنظیمات پاداش‌ها', 'callback_data'=>'adm_settings'], ['text'=>'🎨 رنگ Mini App', 'callback_data'=>'adm_theme']],
-        [['text'=>'📢 پیام همگانی', 'callback_data'=>'adm_broadcast'], ['text'=>'🏆 لیدربورد ادمین', 'callback_data'=>'adm_leaderboard']],
-        [['text'=>'🔙 منوی کاربر', 'callback_data'=>'main']],
-    ]]);
+    $mini = app_config('MINIAPP_URL', '');
+    $rows = [
+        [['text'=>'🛒 مدیریت فروشگاه'], ['text'=>'📈 آمار کل']],
+        [['text'=>'🏧 برداشت‌ها'], ['text'=>'💸 تغییر موجودی']],
+        [['text'=>'🎁 پاداش خرید'], ['text'=>'⚙️ تنظیمات پاداش‌ها']],
+        [['text'=>'🎨 تنظیم رنگ‌ها'], ['text'=>'📢 پیام همگانی']],
+        [['text'=>'🏆 لیدربورد ادمین'], ['text'=>'🏠 صفحه اول']],
+    ];
+    if ($mini) $rows[] = [['text'=>'🧑‍💼 Mini Panel ادمین', 'web_app'=>['url'=>$mini.'?admin=1']]];
+    return keyboard_markup($rows);
 }
 function force_join_keyboard(): string {
     $channel = ltrim((string)app_config('FORCE_JOIN_CHANNEL', ''), '@');
@@ -1046,6 +1050,64 @@ function create_category_from_wizard(array $p): int {
 function inventory_items_for_admin(int $limit=80): array {
     $q=db()->prepare('SELECT i.*, p.name product_name, v.title variant_title FROM inventory_items i JOIN products p ON p.id=i.product_id LEFT JOIN product_variants v ON v.id=i.variant_id ORDER BY i.id DESC LIMIT ?');
     $q->bindValue(1, $limit, PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
+}
+
+
+function setting_bool(string $key, bool $default=false): bool {
+    $v = setting($key, $default ? '1' : '0');
+    return in_array(strtolower((string)$v), ['1','true','yes','on'], true);
+}
+function button_colors(): array {
+    return array_merge(['primary'=>'#1d9bf0','secondary'=>'#2563eb','danger'=>'#ef4444','success'=>'#22c55e','warning'=>'#f59e0b'], setting_json('button_colors', []));
+}
+function hard_delete_product(int $productId): bool {
+    $q=db()->prepare('SELECT COUNT(*) c FROM orders WHERE product_id=?'); $q->execute([$productId]);
+    if ((int)$q->fetch()['c'] > 0) return false;
+    db()->prepare('DELETE FROM inventory_items WHERE product_id=?')->execute([$productId]);
+    db()->prepare('DELETE FROM product_variants WHERE product_id=?')->execute([$productId]);
+    $d=db()->prepare('DELETE FROM products WHERE id=?'); $d->execute([$productId]);
+    return $d->rowCount() > 0;
+}
+function hard_delete_category(int $categoryId): bool {
+    db()->prepare('UPDATE products SET category_id=NULL WHERE category_id=?')->execute([$categoryId]);
+    $d=db()->prepare('DELETE FROM product_categories WHERE id=?'); $d->execute([$categoryId]);
+    return $d->rowCount() > 0;
+}
+function hard_delete_variant(int $variantId): bool {
+    $q=db()->prepare('SELECT COUNT(*) c FROM orders WHERE variant_id=?'); $q->execute([$variantId]);
+    if ((int)$q->fetch()['c'] > 0) return false;
+    db()->prepare('UPDATE inventory_items SET variant_id=NULL WHERE variant_id=?')->execute([$variantId]);
+    $d=db()->prepare('DELETE FROM product_variants WHERE id=?'); $d->execute([$variantId]);
+    return $d->rowCount() > 0;
+}
+function hard_delete_inventory(int $inventoryId): bool {
+    $d=db()->prepare('DELETE FROM inventory_items WHERE id=?'); $d->execute([$inventoryId]);
+    return $d->rowCount() > 0;
+}
+function update_product_field(int $id, string $field, $value): bool {
+    $allowed=['category_id','name','price','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured'];
+    if (!in_array($field,$allowed,true)) return false;
+    if (in_array($field,['price','commission_value','duration_days','is_active','is_featured'],true)) $value=(int)parse_amount($value);
+    if ($field==='category_id') $value = ((int)$value > 0) ? (int)$value : null;
+    if ($field==='delivery_type') $value=normalize_delivery_type((string)$value);
+    if ($field==='commission_type' && !in_array($value,['none','fixed','percent'],true)) $value='none';
+    $q=db()->prepare("UPDATE products SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
+}
+function update_category_field(int $id, string $field, $value): bool {
+    $allowed=['title','emoji','image_url','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
+    if (in_array($field,['sort_order','is_active'],true)) $value=(int)parse_amount($value);
+    $q=db()->prepare("UPDATE product_categories SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
+}
+function update_variant_field(int $id, string $field, $value): bool {
+    $allowed=['title','price','duration_days','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
+    if (in_array($field,['price','duration_days','sort_order','is_active'],true)) $value=(int)parse_amount($value);
+    $q=db()->prepare("UPDATE product_variants SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
+}
+function update_inventory_field(int $id, string $field, $value): bool {
+    $allowed=['product_id','variant_id','content','status']; if(!in_array($field,$allowed,true)) return false;
+    if (in_array($field,['product_id','variant_id'],true)) $value=((int)$value>0)?(int)$value:null;
+    if ($field==='status' && !in_array($value,['available','reserved','delivered','disabled'],true)) $value='available';
+    $q=db()->prepare("UPDATE inventory_items SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 
 function verify_webapp_init_data(string $initData): array|false {

@@ -48,7 +48,29 @@ function handle_message(array $message): void {
         return;
     }
 
-    send_msg($chat_id, "برای کار با ربات از دکمه‌های زیر استفاده کن 👇", main_menu_keyboard(is_admin($chat_id)));
+    if (handle_keyboard_text($chat_id, $user, $text)) return;
+
+    send_msg($chat_id, "برای کار با ربات از دکمه‌های پایین استفاده کن 👇", main_menu_keyboard(is_admin($chat_id)));
+}
+
+
+function handle_keyboard_text(int $chat_id, array $user, string $text): bool {
+    $map = [
+        '🏠 صفحه اول'=>'main', '🛒 فروشگاه'=>'u_shop', '🧾 سفارش‌های من'=>'u_orders', '👤 پروفایل و کیف پول'=>'u_wallet',
+        '👥 دعوت و درآمد'=>'u_ref', '🏆 لیدربورد'=>'u_leaderboard', '🎯 مأموریت‌ها'=>'u_missions', '🎡 گردونه شانس'=>'u_spin',
+        '🏧 برداشت'=>'u_withdraw', '📞 پشتیبانی'=>'u_support',
+    ];
+    $adminMap = [
+        '⚙️ پنل ادمین'=>'adm_home', '🛒 مدیریت فروشگاه'=>'adm_shop', '📈 آمار کل'=>'adm_stats', '🏧 برداشت‌ها'=>'adm_withdrawals',
+        '💸 تغییر موجودی'=>'adm_balance', '🎁 پاداش خرید'=>'adm_purchase', '⚙️ تنظیمات پاداش‌ها'=>'adm_settings', '🎨 تنظیم رنگ‌ها'=>'adm_theme',
+        '📢 پیام همگانی'=>'adm_broadcast', '🏆 لیدربورد ادمین'=>'adm_leaderboard',
+    ];
+    if (isset($map[$text])) {
+        if ($map[$text] === 'main') { clear_step($chat_id); send_msg($chat_id, main_text($user), main_menu_keyboard(is_admin($chat_id))); return true; }
+        handle_user_callback($chat_id, null, $user, $map[$text]); return true;
+    }
+    if (is_admin($chat_id) && isset($adminMap[$text])) { handle_admin_callback($chat_id, null, $user, $adminMap[$text]); return true; }
+    return false;
 }
 
 function handle_callback(array $cb): void {
@@ -81,13 +103,18 @@ function handle_callback(array $cb): void {
 
     if ($data === 'main') { clear_step($chat_id); send_or_edit($chat_id, $message_id, main_text($user), main_menu_keyboard(is_admin($chat_id))); return; }
     if (str_starts_with($data, 'u_') || str_starts_with($data, 'shop_') || str_starts_with($data, 'order_')) { handle_user_callback($chat_id, $message_id, $user, $data); return; }
-    if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_') || str_starts_with($data, 'prod_') || str_starts_with($data, 'cat_') || str_starts_with($data, 'coupon_') || str_starts_with($data, 'ord_') || str_starts_with($data, 'prodwiz_') || str_starts_with($data, 'catwiz_') || str_starts_with($data, 'varwiz_') || str_starts_with($data, 'invwiz_') || str_starts_with($data, 'inv_delete_') || str_starts_with($data, 'variant_delete_')) {
+    if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_') || str_starts_with($data, 'prod_') || str_starts_with($data, 'cat_') || str_starts_with($data, 'coupon_') || str_starts_with($data, 'ord_') || str_starts_with($data, 'prodwiz_') || str_starts_with($data, 'catwiz_') || str_starts_with($data, 'varwiz_') || str_starts_with($data, 'invwiz_') || str_starts_with($data, 'inv_') || str_starts_with($data, 'variant_') || str_starts_with($data, 'edit_') || str_starts_with($data, 'hard_') || str_starts_with($data, 'toggle_')) {
         if (!is_admin($chat_id)) { send_msg($chat_id, 'دسترسی ادمین ندارید.'); return; }
         handle_admin_callback($chat_id, $message_id, $user, $data); return;
     }
 }
 
 function send_or_edit(int $chat_id, $message_id, string $text, ?string $markup=null): void {
+    $decoded = $markup ? json_decode($markup, true) : null;
+    if ($message_id && is_array($decoded) && isset($decoded['keyboard'])) {
+        send_msg($chat_id, $text, $markup);
+        return;
+    }
     if ($message_id) edit_msg($chat_id, $message_id, $text, $markup);
     else send_msg($chat_id, $text, $markup);
 }
@@ -724,6 +751,75 @@ function handle_shop_admin_v2_callback(int $chat_id, $message_id, array $user, s
         send_msg($chat_id, "✅ افزودن انبار تمام شد.\nتعداد آیتم‌های اضافه‌شده: <b>{$count}</b>", admin_shop_keyboard());
         return true;
     }
+
+    // Full CRUD management menus
+    if (str_starts_with($data, 'prod_manage_')) {
+        $pid=(int)substr($data,12); $p=shop_product($pid);
+        if(!$p){ send_or_edit($chat_id,$message_id,'محصول پیدا نشد.',admin_shop_keyboard()); return true; }
+        $txt="📦 <b>محصول #{$pid}</b>\nنام: <b>".h($p['name'])."</b>\nقیمت: <b>".product_price_label($p)."</b>\nدسته: <b>".h(($p['category_emoji']?:'').' '.($p['category_title']?:'بدون دسته'))."</b>\nوضعیت: <b>".((int)$p['is_active']?'فعال':'غیرفعال')."</b>\nویژه: <b>".((int)($p['is_featured']??0)?'بله':'خیر')."</b>";
+        $kb=json_markup(['inline_keyboard'=>[
+            [['text'=>'✏️ ویرایش کامل', 'callback_data'=>'prod_edit_'.$pid], ['text'=>'🖼 عکس', 'callback_data'=>'prod_image_'.$pid]],
+            [['text'=>((int)$p['is_active']?'⛔️ غیرفعال کن':'✅ فعال کن'), 'callback_data'=>'prod_toggle_'.$pid], ['text'=>'🧩 پلن جدید', 'callback_data'=>'adm_add_variant_'.$pid]],
+            [['text'=>'🗑 حذف کامل', 'callback_data'=>'hard_product_'.$pid], ['text'=>'🫥 حذف/غیرفعال', 'callback_data'=>'prod_delete_'.$pid]],
+            [['text'=>'🔙 محصولات', 'callback_data'=>'adm_products']],
+        ]]);
+        send_or_edit($chat_id,$message_id,$txt,$kb); return true;
+    }
+    if (str_starts_with($data, 'prod_edit_')) {
+        $pid=(int)substr($data,10);
+        $rows=[
+            [['text'=>'نام', 'callback_data'=>'edit_product_'.$pid.'_name'], ['text'=>'قیمت', 'callback_data'=>'edit_product_'.$pid.'_price']],
+            [['text'=>'دسته‌بندی', 'callback_data'=>'edit_product_'.$pid.'_category_id'], ['text'=>'نوع تحویل', 'callback_data'=>'edit_product_'.$pid.'_delivery_type']],
+            [['text'=>'نوع پورسانت', 'callback_data'=>'edit_product_'.$pid.'_commission_type'], ['text'=>'مقدار پورسانت', 'callback_data'=>'edit_product_'.$pid.'_commission_value']],
+            [['text'=>'مدت', 'callback_data'=>'edit_product_'.$pid.'_duration_days'], ['text'=>'توضیح کوتاه', 'callback_data'=>'edit_product_'.$pid.'_short_description']],
+            [['text'=>'توضیح کامل', 'callback_data'=>'edit_product_'.$pid.'_full_description'], ['text'=>'عکس', 'callback_data'=>'prod_image_'.$pid]],
+            [['text'=>'ویژه/معمولی', 'callback_data'=>'edit_product_'.$pid.'_is_featured'], ['text'=>'فعال/غیرفعال', 'callback_data'=>'prod_toggle_'.$pid]],
+            [['text'=>'🔙 محصول', 'callback_data'=>'prod_manage_'.$pid]],
+        ];
+        send_or_edit($chat_id,$message_id,"✏️ کدام بخش محصول <code>#{$pid}</code> ویرایش شود؟",json_markup(['inline_keyboard'=>$rows])); return true;
+    }
+    if (preg_match('/^edit_product_(\d+)_(.+)$/', $data, $m)) {
+        $pid=(int)$m[1]; $field=$m[2];
+        if ($field==='category_id') { $rows=category_rows_keyboard('editprodcat_'.$pid.'_'); $rows[]=[['text'=>'🔙 محصول', 'callback_data'=>'prod_manage_'.$pid]]; send_or_edit($chat_id,$message_id,'دسته جدید محصول را انتخاب کن:',json_markup(['inline_keyboard'=>$rows])); return true; }
+        if ($field==='delivery_type') { $rows=[[['text'=>'دستی','callback_data'=>'editval_product_'.$pid.'_delivery_type_manual'],['text'=>'اکانت','callback_data'=>'editval_product_'.$pid.'_delivery_type_account']],[['text'=>'VPN','callback_data'=>'editval_product_'.$pid.'_delivery_type_vpn'],['text'=>'کد/گیفت','callback_data'=>'editval_product_'.$pid.'_delivery_type_code']],[['text'=>'فایل/متن','callback_data'=>'editval_product_'.$pid.'_delivery_type_file']],[['text'=>'🔙 محصول','callback_data'=>'prod_manage_'.$pid]]]; send_or_edit($chat_id,$message_id,'نوع تحویل جدید را انتخاب کن:',json_markup(['inline_keyboard'=>$rows])); return true; }
+        if ($field==='commission_type') { $rows=[[['text'=>'بدون','callback_data'=>'editval_product_'.$pid.'_commission_type_none'],['text'=>'ثابت','callback_data'=>'editval_product_'.$pid.'_commission_type_fixed'],['text'=>'درصدی','callback_data'=>'editval_product_'.$pid.'_commission_type_percent']],[['text'=>'🔙 محصول','callback_data'=>'prod_manage_'.$pid]]]; send_or_edit($chat_id,$message_id,'نوع پورسانت را انتخاب کن:',json_markup(['inline_keyboard'=>$rows])); return true; }
+        if ($field==='is_featured') { $p=shop_product($pid); update_product_field($pid,'is_featured', empty($p['is_featured'])?1:0); send_or_edit($chat_id,$message_id,'✅ وضعیت ویژه تغییر کرد.', json_markup(['inline_keyboard'=>[[['text'=>'بازگشت به محصول','callback_data'=>'prod_manage_'.$pid]]]])); return true; }
+        set_step_payload($chat_id,'admin_edit_entity',['type'=>'product','id'=>$pid,'field'=>$field]);
+        send_msg($chat_id,"مقدار جدید برای <code>{$field}</code> محصول <code>#{$pid}</code> را بفرست.",shop_cancel_keyboard()); return true;
+    }
+    if (preg_match('/^editprodcat_(\d+)_(\d+)$/',$data,$m)) { update_product_field((int)$m[1],'category_id',(int)$m[2]); send_or_edit($chat_id,$message_id,'✅ دسته‌بندی محصول تغییر کرد.',json_markup(['inline_keyboard'=>[[['text'=>'بازگشت به محصول','callback_data'=>'prod_manage_'.$m[1]]]]])); return true; }
+    if (preg_match('/^editval_product_(\d+)_(delivery_type|commission_type)_(.+)$/',$data,$m)) { update_product_field((int)$m[1],$m[2],$m[3]); send_or_edit($chat_id,$message_id,'✅ تغییر ذخیره شد.',json_markup(['inline_keyboard'=>[[['text'=>'بازگشت به محصول','callback_data'=>'prod_manage_'.$m[1]]]]])); return true; }
+    if (str_starts_with($data, 'hard_product_')) { $pid=(int)substr($data,13); $ok=hard_delete_product($pid); send_or_edit($chat_id,$message_id,$ok?"✅ محصول #{$pid} کامل حذف شد.":"این محصول سفارش ثبت‌شده دارد؛ برای حفظ سوابق فقط غیرفعال‌سازی امن است.", admin_shop_keyboard()); return true; }
+
+    if (str_starts_with($data, 'cat_manage_')) {
+        $cid=(int)substr($data,11); $q=db()->prepare('SELECT * FROM product_categories WHERE id=?'); $q->execute([$cid]); $c=$q->fetch();
+        if(!$c){send_or_edit($chat_id,$message_id,'دسته پیدا نشد.',admin_shop_keyboard());return true;}
+        $txt="📂 <b>دسته #{$cid}</b>\n".h(($c['emoji']?:'🛒').' '.$c['title'])."\nوضعیت: <b>".((int)$c['is_active']?'فعال':'غیرفعال')."</b>";
+        $rows=[[['text'=>'نام','callback_data'=>'edit_category_'.$cid.'_title'],['text'=>'اموجی','callback_data'=>'edit_category_'.$cid.'_emoji']],[['text'=>'عکس','callback_data'=>'cat_image_'.$cid],['text'=>((int)$c['is_active']?'غیرفعال':'فعال'),'callback_data'=>'edit_category_'.$cid.'_is_active']],[['text'=>'🗑 حذف کامل','callback_data'=>'hard_category_'.$cid],['text'=>'🫥 حذف/غیرفعال','callback_data'=>'cat_delete_'.$cid]],[['text'=>'🔙 دسته‌بندی‌ها','callback_data'=>'adm_categories']]];
+        send_or_edit($chat_id,$message_id,$txt,json_markup(['inline_keyboard'=>$rows])); return true;
+    }
+    if (preg_match('/^edit_category_(\d+)_(.+)$/',$data,$m)) { $cid=(int)$m[1]; $field=$m[2]; if($field==='is_active'){ $q=db()->prepare('SELECT is_active FROM product_categories WHERE id=?');$q->execute([$cid]);$r=$q->fetch(); update_category_field($cid,'is_active',empty($r['is_active'])?1:0); send_or_edit($chat_id,$message_id,'✅ وضعیت دسته تغییر کرد.',json_markup(['inline_keyboard'=>[[['text'=>'بازگشت','callback_data'=>'cat_manage_'.$cid]]]])); return true;} set_step_payload($chat_id,'admin_edit_entity',['type'=>'category','id'=>$cid,'field'=>$field]); send_msg($chat_id,"مقدار جدید <code>{$field}</code> دسته <code>#{$cid}</code> را بفرست.",shop_cancel_keyboard()); return true; }
+    if (str_starts_with($data,'hard_category_')) { $cid=(int)substr($data,14); $ok=hard_delete_category($cid); send_or_edit($chat_id,$message_id,$ok?"✅ دسته #{$cid} کامل حذف شد.":"حذف کامل دسته انجام نشد.",admin_shop_keyboard()); return true; }
+
+    if (str_starts_with($data, 'variant_manage_')) {
+        $vid=(int)substr($data,15); $v=product_variant($vid); if(!$v){send_or_edit($chat_id,$message_id,'پلن پیدا نشد.',admin_shop_keyboard());return true;}
+        $rows=[[['text'=>'نام پلن','callback_data'=>'edit_variant_'.$vid.'_title'],['text'=>'قیمت','callback_data'=>'edit_variant_'.$vid.'_price']],[['text'=>'مدت','callback_data'=>'edit_variant_'.$vid.'_duration_days'],['text'=>((int)$v['is_active']?'غیرفعال':'فعال'),'callback_data'=>'edit_variant_'.$vid.'_is_active']],[['text'=>'🗑 حذف کامل','callback_data'=>'hard_variant_'.$vid],['text'=>'🫥 حذف/غیرفعال','callback_data'=>'variant_delete_'.$vid]],[['text'=>'🔙 پلن‌ها','callback_data'=>'adm_variants']]];
+        send_or_edit($chat_id,$message_id,"🧩 <b>پلن #{$vid}</b>\nمحصول: <b>".h($v['product_name'])."</b>\nنام: <b>".h($v['title'])."</b>\nقیمت: <b>".money($v['price'])."</b>",json_markup(['inline_keyboard'=>$rows])); return true;
+    }
+    if (preg_match('/^edit_variant_(\d+)_(.+)$/',$data,$m)) { $vid=(int)$m[1]; $field=$m[2]; if($field==='is_active'){ $v=product_variant($vid); update_variant_field($vid,'is_active',empty($v['is_active'])?1:0); send_or_edit($chat_id,$message_id,'✅ وضعیت پلن تغییر کرد.',json_markup(['inline_keyboard'=>[[['text'=>'بازگشت','callback_data'=>'variant_manage_'.$vid]]]])); return true;} set_step_payload($chat_id,'admin_edit_entity',['type'=>'variant','id'=>$vid,'field'=>$field]); send_msg($chat_id,"مقدار جدید <code>{$field}</code> پلن <code>#{$vid}</code> را بفرست.",shop_cancel_keyboard()); return true; }
+    if (str_starts_with($data,'hard_variant_')) { $vid=(int)substr($data,13); $ok=hard_delete_variant($vid); send_or_edit($chat_id,$message_id,$ok?"✅ پلن #{$vid} کامل حذف شد.":"این پلن سفارش ثبت‌شده دارد؛ برای حفظ سوابق فقط غیرفعال شدنی است.",admin_shop_keyboard()); return true; }
+
+    if (str_starts_with($data, 'inv_manage_')) {
+        $iid=(int)substr($data,11); $q=db()->prepare('SELECT i.*, p.name product_name, v.title variant_title FROM inventory_items i JOIN products p ON p.id=i.product_id LEFT JOIN product_variants v ON v.id=i.variant_id WHERE i.id=?'); $q->execute([$iid]); $i=$q->fetch();
+        if(!$i){send_or_edit($chat_id,$message_id,'آیتم انبار پیدا نشد.',admin_shop_keyboard());return true;}
+        $txt="📥 <b>آیتم انبار #{$iid}</b>\nمحصول: <b>".h($i['product_name'])."</b>\nپلن: <b>".h($i['variant_title']?:'ندارد')."</b>\nوضعیت: <b>".h($i['status'])."</b>\n\n<code>".h($i['content'])."</code>";
+        $rows=[[['text'=>'ویرایش محتوا','callback_data'=>'edit_inventory_'.$iid.'_content'],['text'=>'وضعیت','callback_data'=>'edit_inventory_'.$iid.'_status']],[['text'=>'🗑 حذف کامل','callback_data'=>'hard_inventory_'.$iid],['text'=>'حذف امن','callback_data'=>'inv_delete_'.$iid]],[['text'=>'🔙 انبار','callback_data'=>'adm_inventory']]];
+        send_or_edit($chat_id,$message_id,$txt,json_markup(['inline_keyboard'=>$rows])); return true;
+    }
+    if (preg_match('/^edit_inventory_(\d+)_(.+)$/',$data,$m)) { $iid=(int)$m[1]; $field=$m[2]; if($field==='status'){ $rows=[[['text'=>'available','callback_data'=>'editval_inventory_'.$iid.'_status_available'],['text'=>'disabled','callback_data'=>'editval_inventory_'.$iid.'_status_disabled']],[['text'=>'reserved','callback_data'=>'editval_inventory_'.$iid.'_status_reserved'],['text'=>'delivered','callback_data'=>'editval_inventory_'.$iid.'_status_delivered']],[['text'=>'🔙 آیتم','callback_data'=>'inv_manage_'.$iid]]]; send_or_edit($chat_id,$message_id,'وضعیت جدید آیتم را انتخاب کن:',json_markup(['inline_keyboard'=>$rows])); return true;} set_step_payload($chat_id,'admin_edit_entity',['type'=>'inventory','id'=>$iid,'field'=>$field]); send_msg($chat_id,"مقدار جدید <code>{$field}</code> آیتم <code>#{$iid}</code> را بفرست.",shop_cancel_keyboard()); return true; }
+    if (preg_match('/^editval_inventory_(\d+)_status_(.+)$/',$data,$m)) { update_inventory_field((int)$m[1],'status',$m[2]); send_or_edit($chat_id,$message_id,'✅ وضعیت آیتم تغییر کرد.',json_markup(['inline_keyboard'=>[[['text'=>'بازگشت','callback_data'=>'inv_manage_'.$m[1]]]]])); return true; }
+    if (str_starts_with($data,'hard_inventory_')) { $iid=(int)substr($data,15); $ok=hard_delete_inventory($iid); send_or_edit($chat_id,$message_id,$ok?"✅ آیتم #{$iid} کامل حذف شد.":"حذف انجام نشد.",admin_shop_keyboard()); return true; }
+
     if (str_starts_with($data, 'prod_image_')) {
         $pid=(int)substr($data,11);
         set_step($chat_id, 'admin_product_image', (string)$pid);
@@ -751,10 +847,23 @@ function handle_shop_admin_v2_callback(int $chat_id, $message_id, array $user, s
 
 function handle_shop_admin_v2_message(int $chat_id, array $user, array $message): bool {
     $step=(string)($user['step'] ?? '');
-    if (!in_array($step, ['admin_product_wizard','admin_category_wizard','admin_variant_wizard','admin_inventory_wizard','admin_product_image','admin_category_image'], true)) return false;
+    if (!in_array($step, ['admin_product_wizard','admin_category_wizard','admin_variant_wizard','admin_inventory_wizard','admin_product_image','admin_category_image','admin_edit_entity'], true)) return false;
     if (!is_admin($chat_id)) { clear_step($chat_id); send_msg($chat_id, 'این مرحله فقط برای ادمین است.', main_menu_keyboard(false)); return true; }
     $text=trim((string)($message['text'] ?? $message['caption'] ?? ''));
     $payload=step_payload_array($user);
+
+    if ($step === 'admin_edit_entity') {
+        $type=$payload['type'] ?? ''; $id=(int)($payload['id'] ?? 0); $field=(string)($payload['field'] ?? '');
+        $ok=false;
+        if ($type==='product') $ok=update_product_field($id,$field,$text);
+        elseif ($type==='category') $ok=update_category_field($id,$field,$text);
+        elseif ($type==='variant') $ok=update_variant_field($id,$field,$text);
+        elseif ($type==='inventory') $ok=update_inventory_field($id,$field,$text);
+        clear_step($chat_id);
+        send_msg($chat_id, $ok ? "✅ ویرایش ذخیره شد." : "ویرایش انجام نشد؛ فیلد معتبر نیست.", admin_shop_keyboard());
+        return true;
+    }
+
     if ($step === 'admin_product_image') {
         $pid=(int)$user['step_payload']; $url=image_url_from_message($message, 'products');
         if (!$url) { send_msg($chat_id, 'عکس یا لینک معتبر دریافت نشد. دوباره بفرست یا لغو کن.', shop_cancel_keyboard()); return true; }
