@@ -1,10 +1,12 @@
-# BlueReferral — BlueGate Referral Wallet Ultra
+# BlueReferral — Referral Wallet + Mini App
 
-ربات همکاری در فروش و کیف پول BlueGate با رابط کاملاً دکمه‌ای + Mini App مدرن تلگرام.
+ربات همکاری در فروش و کیف پول BlueGate با رابط کاملاً دکمه‌ای، Mini App مدرن تلگرام و نصب تعاملی روی سرور.
 
-این نسخه برای GitHub آماده شده و ساختار پروژه طوری است که فایل‌های حساس بیرون از `public/` می‌مانند. کاربر و ادمین تقریباً بدون کامند کار می‌کنند؛ فقط `/start` برای ورود اولیه تلگرام استفاده می‌شود و بعد از آن همه‌چیز با دکمه، Inline Button و Mini App انجام می‌شود.
+این نسخه برای ریپوی `paliparsa/BlueReferral` آماده شده و تمرکز اصلی‌اش این است که نصب و مدیریت پروژه از حالت «یک اسکریپت خطی و شکننده» خارج شود. حالا با یک منوی نصب می‌توانی هر مرحله را جدا اجرا کنی، اگر خطا خوردی برگردی همان مرحله را دوباره بزنی، و بعد از نصب با دستور دائمی `blue-ref` دوباره پنل مدیریت نصب را باز کنی.
 
-## امکانات اصلی
+---
+
+## امکانات ربات
 
 ### سمت کاربر
 
@@ -16,110 +18,219 @@
 - 🎡 گردونه شانس
 - 🔥 کد دعوت اختصاصی
 - 🏧 درخواست برداشت
-- 📣 متن آماده تبلیغ
-- 🚀 Mini App مدرن داخل تلگرام
+- 📣 ابزار تبلیغ با متن آماده
+- 🚀 Mini App داخل تلگرام
 
 ### سمت ادمین
 
-- ⚙️ پنل ادمین کاملاً دکمه‌ای
-- 📈 آمار کل کاربران، موجودی‌ها و دعوت‌ها
-- 🏧 مدیریت برداشت‌ها با دکمه پرداخت/رد
+- ⚙️ پنل ادمین دکمه‌ای
+- 📈 آمار کلی کاربران، موجودی و دعوت‌ها
+- 🏧 مدیریت برداشت‌ها
 - 💸 تغییر موجودی کاربر
-- 🎁 ثبت پاداش خرید برای معرف خریدار
-- ⚙️ تنظیم پاداش‌ها بدون ویرایش کد
+- 🎁 ثبت پاداش خرید برای معرف
+- ⚙️ تغییر پاداش‌ها بدون ویرایش کد
 - 🎨 تغییر رنگ اصلی Mini App
 - 📢 پیام همگانی
 - 🏆 لیدربورد ادمین
 
 ### Mini App
 
-- طراحی مدرن شیشه‌ای، دارک و آبی
-- قابلیت تغییر رنگ محلی توسط کاربر
-- قابلیت تغییر رنگ پیش‌فرض از پنل ادمین
+- طراحی دارک، شیشه‌ای و مدرن
+- رنگ پیش‌فرض آبی BlueGate
+- امکان تغییر رنگ اصلی از پنل ادمین
+- امکان تغییر رنگ محلی توسط کاربر
 - نمایش کیف پول، VIP، مأموریت‌ها، لینک دعوت و لیدربورد
-- ثبت برداشت از داخل Mini App
-- چرخاندن گردونه از داخل Mini App
-- ثبت کد دعوت اختصاصی از داخل Mini App
+- ثبت برداشت، گردونه و کد اختصاصی داخل Mini App
 - اعتبارسنجی Telegram WebApp `initData`
 
-## پیش‌نیازها
+---
 
-سرور Ubuntu/Debian با دسترسی root:
+## نصب یک‌خطی
 
-- Nginx
-- PHP 8.1+
-- MariaDB/MySQL
-- دامنه وصل‌شده به سرور
-- SSL فعال
-- Bot Token از BotFather
-
-اسکریپت نصب، پکیج‌های لازم را نصب می‌کند.
-
-## نصب یک‌خطی روی سرور
-
-برای ریپوی فعلی `paliparsa/BlueReferral` نصب یک‌خطی به این شکل است:
+روی Ubuntu/Debian با دسترسی root اجرا کن:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/paliparsa/BlueReferral/main/install.sh)
 ```
 
-اسکریپت ازت این موارد را می‌پرسد:
+بعد از اجرا، منوی نصب باز می‌شود.
 
-- دامنه، مثل `ref.bluegate.example`
-- توکن ربات تلگرام
-- یوزرنیم ربات بدون `@`
-- آیدی عددی ادمین یا ادمین‌ها
-- یوزرنیم پشتیبانی
-- مسیر نصب
+گزینه پیشنهادی برای نصب کامل:
 
-بعد از نصب، خودش این کارها را انجام می‌دهد:
+```text
+1) Full install / reinstall recommended path
+```
 
-- نصب Nginx / PHP / MariaDB
-- ساخت دیتابیس و یوزر دیتابیس
-- ساخت `config.php`
-- اجرای migration دیتابیس
-- ساخت کانفیگ Nginx
-- گرفتن SSL با Certbot
-- تنظیم Webhook ربات
+این گزینه مرحله‌به‌مرحله این کارها را انجام می‌دهد:
 
-## نصب دستی
+1. نصب/تعمیر دستور دائمی `blue-ref`
+2. گرفتن اطلاعات اولیه مثل دامنه، توکن ربات، ادمین‌ها و رنگ Mini App
+3. نصب پکیج‌ها: Nginx, PHP, MariaDB, Certbot و...
+4. کلون یا آپدیت پروژه از GitHub
+5. ساخت `config.php`
+6. ساخت دیتابیس و یوزر دیتابیس
+7. تنظیم Nginx
+8. گرفتن SSL با Certbot
+9. اجرای migration دیتابیس
+10. تنظیم Webhook ربات تلگرام
+
+---
+
+## دستور دائمی مدیریت نصب
+
+بعد از اجرای نصب کامل، دستور زیر روی سرور ساخته می‌شود:
+
+```bash
+blue-ref
+```
+
+از این به بعد هر وقت خواستی نصب را ادامه بدهی، مرحله‌ای را تعمیر کنی، وبهوک را دوباره ست کنی، SSL بگیری، آپدیت بزنی یا وضعیت را ببینی، فقط بزن:
+
+```bash
+sudo blue-ref
+```
+
+یا اگر با root وارد شدی:
+
+```bash
+blue-ref
+```
+
+---
+
+## منوی نصب و مدیریت
+
+داخل `blue-ref` این گزینه‌ها را داری:
+
+```text
+1) Full install / reinstall recommended path
+2) Setup wizard only: domain, token, database, theme
+3) Install/repair system packages
+4) Clone/update GitHub repository
+5) Generate/repair config.php
+6) Create/update database user and DB
+7) Configure nginx
+8) Request/repair SSL certificate
+9) Run database migrations
+10) Set Telegram webhook
+11) Install/repair blue-ref command
+12) Update project from GitHub
+13) Status / diagnostics
+14) Remove app files only
+0) Exit
+```
+
+اگر وسط نصب از SSH پرت شدی یا یک مرحله خطا داد، دوباره وارد SSH شو و بزن:
+
+```bash
+sudo blue-ref
+```
+
+بعد همان مرحله‌ای که خطا داده را انتخاب کن. لازم نیست کل نصب را از اول بزنی.
+
+---
+
+## لاگ نصب
+
+همه خروجی‌های نصب اینجا ذخیره می‌شود:
+
+```text
+/var/log/blue-ref-install.log
+```
+
+برای دیدن خطاهای آخر:
+
+```bash
+tail -n 100 /var/log/blue-ref-install.log
+```
+
+---
+
+## تنظیمات ذخیره‌شده نصب
+
+اطلاعاتی مثل دامنه، مسیر نصب، دیتابیس و توکن ربات بعد از ویزارد اینجا ذخیره می‌شود:
+
+```text
+/etc/blue-ref.env
+```
+
+سطح دسترسی این فایل محدود است. این فایل را عمومی نکن چون شامل توکن و پسورد دیتابیس است.
+
+---
+
+## نصب دستی از داخل ریپو
 
 ```bash
 git clone https://github.com/paliparsa/BlueReferral.git
 cd BlueReferral
-cp config.example.php config.php
-nano config.php
+sudo bash install.sh
 ```
 
-بعد دیتابیس بساز:
-
-```sql
-CREATE DATABASE bluegate_referral CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'bluegate_user'@'localhost' IDENTIFIED BY 'strong-password';
-GRANT ALL PRIVILEGES ON bluegate_referral.* TO 'bluegate_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-سپس:
+یا نصب کامل بدون باز کردن منوی اصلی:
 
 ```bash
-php public/install.php
+sudo bash install.sh --full
 ```
 
-Webhook:
+گزینه‌های سریع:
 
 ```bash
-curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
-  -d "url=https://YOUR_DOMAIN/bot.php?secret=YOUR_WEBHOOK_SECRET" \
-  -d 'allowed_updates=["message","callback_query"]'
+sudo bash install.sh --status
+sudo bash install.sh --webhook
+sudo bash install.sh --update
+sudo bash install.sh --install-command
 ```
+
+---
+
+## آپدیت پروژه
+
+روش پیشنهادی:
+
+```bash
+sudo blue-ref
+```
+
+بعد گزینه زیر را بزن:
+
+```text
+12) Update project from GitHub
+```
+
+یا مستقیم:
+
+```bash
+sudo blue-ref --update
+```
+
+یا از داخل پوشه پروژه:
+
+```bash
+sudo bash update.sh
+```
+
+---
+
+## مسیرهای مهم
+
+فرض کن دامنه تو `ref.example.com` باشد:
+
+```text
+https://ref.example.com/bot.php?secret=YOUR_WEBHOOK_SECRET
+https://ref.example.com/miniapp/
+https://ref.example.com/setwebhook.php?secret=YOUR_WEBHOOK_SECRET
+```
+
+فایل‌های حساس بیرون از `public/` هستند و `config.php` داخل GitHub آپلود نمی‌شود.
+
+---
 
 ## تنظیم Mini App در BotFather
 
-در BotFather این کارها را انجام بده:
+در BotFather:
 
 1. `/mybots`
-2. انتخاب ربات
+2. ربات را انتخاب کن
 3. `Bot Settings`
 4. `Menu Button`
 5. `Configure menu button`
@@ -129,48 +240,22 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
 https://YOUR_DOMAIN/miniapp/
 ```
 
-برای Mini App کامل‌تر هم می‌توانی از بخش `BotFather > /newapp` استفاده کنی و همین URL را بدهی.
+برای Mini App رسمی‌تر هم می‌توانی از `/newapp` استفاده کنی و همین URL را بدهی.
 
-## تنظیمات مهم در `config.php`
-
-```php
-$BOT_TOKEN = '...';
-$BOT_USERNAME = 'BlueGateBot';
-$ADMIN_IDS = [123456789];
-$SUPPORT_USERNAME = 'BlueGateSupport';
-$PUBLIC_BASE_URL = 'https://YOUR_DOMAIN';
-$WEBHOOK_SECRET = 'random-secret';
-$MINIAPP_URL = 'https://YOUR_DOMAIN/miniapp/';
-```
-
-پاداش‌ها:
-
-```php
-$START_REWARD = 2000;
-$MIN_WITHDRAW = 50000;
-$PURCHASE_REWARD = 10000;
-```
-
-عضویت اجباری در کانال:
-
-```php
-$FORCE_JOIN_CHANNEL = '@BllueGate';
-```
-
-اگر خالی باشد، عضویت اجباری خاموش است.
+---
 
 ## ساختار پروژه
 
 ```text
 BlueReferral/
 ├── app/
-│   ├── bootstrap.php      # دیتابیس، تنظیمات، تلگرام، helperها
-│   └── bot_logic.php      # منطق ربات و callbackها
+│   ├── bootstrap.php
+│   └── bot_logic.php
 ├── public/
-│   ├── bot.php            # webhook endpoint
-│   ├── api.php            # API مربوط به Mini App
-│   ├── install.php        # اجرای migration
-│   ├── setwebhook.php     # تنظیم webhook با secret
+│   ├── bot.php
+│   ├── api.php
+│   ├── install.php
+│   ├── setwebhook.php
 │   └── miniapp/
 │       ├── index.html
 │       ├── style.css
@@ -183,65 +268,92 @@ BlueReferral/
 └── README.md
 ```
 
-## آپدیت پروژه
+---
 
-روی سرور:
+## رفع خطاهای رایج
 
-```bash
-sudo APP_DIR=/var/www/bluegate-referral-wallet bash update.sh
-```
-
-یا اگر داخل مسیر نصب هستی:
+### اگر نصب پکیج‌ها گیر کرد
 
 ```bash
-sudo bash update.sh
+ps aux | grep -E "apt|dpkg|install.sh|systemctl" | grep -v grep
 ```
 
-## نکته امنیتی
+اگر پروسه‌ای گیر کرده بود و مطمئن بودی باید متوقف شود:
 
-- فایل `config.php` را به GitHub آپلود نکن؛ داخل `.gitignore` گذاشته شده.
-- ربات فقط endpoint زیر را با secret قبول می‌کند:
+```bash
+sudo pkill -f install.sh
+sudo pkill apt
+sudo pkill dpkg
+sudo dpkg --configure -a
+sudo apt --fix-broken install -y
+```
+
+بعد:
+
+```bash
+sudo blue-ref
+```
+
+و همان مرحله را دوباره اجرا کن.
+
+### اگر SSL خطا داد
+
+اول مطمئن شو DNS دامنه به IP سرور وصل است، بعد:
+
+```bash
+sudo blue-ref
+```
+
+گزینه:
 
 ```text
-https://YOUR_DOMAIN/bot.php?secret=YOUR_WEBHOOK_SECRET
+8) Request/repair SSL certificate
 ```
 
+### اگر ربات جواب نداد
+
+Webhook را دوباره ست کن:
+
+```bash
+sudo blue-ref
+```
+
+گزینه:
+
+```text
+10) Set Telegram webhook
+```
+
+### اگر فقط وضعیت را می‌خواهی
+
+```bash
+sudo blue-ref --status
+```
+
+---
+
+## نکات امنیتی
+
+- `config.php`، `/etc/blue-ref.env` و لاگ‌ها را عمومی نکن.
+- توکن ربات را داخل GitHub نگذار.
+- Webhook با secret ست می‌شود.
 - Mini App درخواست‌ها را با `initData` تلگرام بررسی می‌کند.
-- دیتابیس و تنظیمات حساس داخل `public/` نیستند.
+- دسترسی `config.php` بعد از نصب محدود می‌شود.
 
-## مسیرهای مهم
+---
 
-```text
-https://YOUR_DOMAIN/bot.php?secret=YOUR_WEBHOOK_SECRET
-https://YOUR_DOMAIN/miniapp/
-https://YOUR_DOMAIN/setwebhook.php?secret=YOUR_WEBHOOK_SECRET
-```
+## پیشنهاد اجرای امن روی SSH
 
-## تست سریع بعد از نصب
-
-1. ربات را در تلگرام باز کن.
-2. فقط `/start` را بزن.
-3. بعد از آن همه چیز با دکمه‌هاست.
-4. دکمه Mini App را بزن.
-5. از پنل ادمین، رنگ Mini App و پاداش‌ها را تغییر بده.
-
-## مهاجرت از نسخه PRO قبلی
-
-اگر نسخه قبلی همین پروژه را داشتی، دیتابیس را نگه دار و فقط فایل‌های جدید را جایگزین کن. سپس اجرا کن:
+برای اینکه وسط نصب با قطع SSH به مشکل نخوری، بهتر است نصب را داخل `screen` یا `tmux` اجرا کنی:
 
 ```bash
-php public/install.php
+apt install -y screen
+screen -S blue-ref
+bash <(curl -fsSL https://raw.githubusercontent.com/paliparsa/BlueReferral/main/install.sh)
 ```
 
-Migration ستون‌های جدید مثل `step_payload`، `theme_color` و جدول‌های لازم را اضافه می‌کند.
+اگر SSH قطع شد، برگرد و بزن:
 
-## شخصی‌سازی رنگ‌ها
-
-رنگ پیش‌فرض Mini App از پنل ادمین قابل تغییر است. کاربر هم داخل Mini App می‌تواند رنگ را برای خودش عوض کند؛ این تغییر محلی در مرورگر تلگرام ذخیره می‌شود.
-
-رنگ‌ها با CSS Variable کنترل می‌شوند:
-
-```css
---accent: #1d9bf0;
+```bash
+screen -r blue-ref
 ```
-

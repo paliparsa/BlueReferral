@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
-APP_DIR="${APP_DIR:-/var/www/bluegate-referral-wallet}"
-if [[ $EUID -ne 0 ]]; then echo "Run as root"; exit 1; fi
-git -C "$APP_DIR" pull --ff-only
-chown -R www-data:www-data "$APP_DIR"
-sudo -u www-data php "$APP_DIR/public/install.php"
-systemctl reload nginx || true
-echo "Updated."
+set -uo pipefail
+ENV_FILE="/etc/blue-ref.env"
+APP_DIR="${APP_DIR:-/var/www/bluereferral}"
+[[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "Run as root: sudo bash update.sh or sudo blue-ref"
+  exit 1
+fi
+if [[ -f "$APP_DIR/install.sh" ]]; then
+  exec bash "$APP_DIR/install.sh" --update
+fi
+echo "Cannot find $APP_DIR/install.sh. Run the one-line installer again or use: blue-ref"
+exit 1
