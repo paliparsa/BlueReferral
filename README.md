@@ -916,3 +916,15 @@ README.md
 ```
 
 Migration جدید لازم نیست.
+
+
+## Patch: Crypto/Admin Mini App debug fix
+
+This patch fixes a critical Mini App/admin issue after saving payment settings:
+
+- Admin Mini Panel URL now appends `admin=1` safely even if `MINIAPP_URL` already contains query parameters.
+- Mini App detects admin mode more robustly from URL/search/hash/start parameter.
+- API now returns JSON errors instead of blank/fatal responses where possible.
+- Crypto wallet saving is safer and will not silently wipe wallets if a broken/old UI submits an empty builder state.
+- Nobitex rate fetching now uses shorter timeouts and a 5-minute cache to prevent the bot/webhook from hanging when the external API is slow.
+- Mini App cache version was bumped.
