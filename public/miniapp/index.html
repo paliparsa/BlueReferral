@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>BlueGate Referral Wallet</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <main class="app-shell">
+    <section class="hero glass">
+      <div>
+        <p class="eyebrow">Referral Wallet</p>
+        <h1 id="brand">BlueGate</h1>
+        <p class="muted">زیرمجموعه بگیر، مأموریت بزن، گردونه بچرخون و درآمدت رو برداشت کن.</p>
+      </div>
+      <button id="refreshBtn" class="icon-btn" aria-label="refresh">↻</button>
+    </section>
+
+    <section id="status" class="status glass hidden"></section>
+
+    <section class="grid stats-grid">
+      <article class="stat glass">
+        <span>موجودی</span>
+        <strong id="balance">—</strong>
+      </article>
+      <article class="stat glass">
+        <span>کل درآمد</span>
+        <strong id="earned">—</strong>
+      </article>
+      <article class="stat glass">
+        <span>زیرمجموعه‌ها</span>
+        <strong id="refs">—</strong>
+      </article>
+      <article class="stat glass">
+        <span>شانس گردونه</span>
+        <strong id="spins">—</strong>
+      </article>
+    </section>
+
+    <section class="vip-card glass">
+      <div class="vip-ring" id="vipEmoji">💎</div>
+      <div>
+        <p class="muted">سطح همکاری</p>
+        <h2 id="vipTitle">—</h2>
+        <p id="vipText" class="muted">—</p>
+      </div>
+    </section>
+
+    <section class="glass panel">
+      <div class="panel-title">
+        <h2>لینک دعوت من</h2>
+        <span id="startReward" class="pill">—</span>
+      </div>
+      <div class="copy-box">
+        <code id="refLink">—</code>
+        <button id="copyLink" class="primary small">کپی</button>
+      </div>
+      <button id="shareBtn" class="secondary full">ارسال متن تبلیغ آماده</button>
+    </section>
+
+    <section class="glass panel">
+      <div class="panel-title">
+        <h2>مأموریت روزانه</h2>
+        <span id="todayRefs" class="pill">—</span>
+      </div>
+      <div id="missions" class="mission-list"></div>
+      <button id="claimBtn" class="primary full">دریافت پاداش‌های آماده</button>
+    </section>
+
+    <section class="grid action-grid">
+      <button id="spinBtn" class="action-card glass">
+        <b>🎡 گردونه شانس</b>
+        <span>با دعوت بیشتر شانس بگیر</span>
+      </button>
+      <button id="withdrawBtn" class="action-card glass">
+        <b>🏧 درخواست برداشت</b>
+        <span id="minWithdraw">حداقل برداشت: —</span>
+      </button>
+      <button id="customCodeBtn" class="action-card glass">
+        <b>🔥 کد دعوت اختصاصی</b>
+        <span>لینکت رو برند کن</span>
+      </button>
+      <button id="supportBtn" class="action-card glass">
+        <b>📞 پشتیبانی</b>
+        <span>ارتباط سریع در تلگرام</span>
+      </button>
+    </section>
+
+    <section class="glass panel">
+      <div class="panel-title">
+        <h2>لیدربورد</h2>
+        <span class="pill">Top 10</span>
+      </div>
+      <div id="leaderboard" class="leaderboard"></div>
+    </section>
+
+    <section class="glass panel">
+      <div class="panel-title">
+        <h2>رنگ Mini App</h2>
+        <span class="pill">Local</span>
+      </div>
+      <div class="theme-row">
+        <button data-color="#1d9bf0" style="--sw:#1d9bf0"></button>
+        <button data-color="#8b5cf6" style="--sw:#8b5cf6"></button>
+        <button data-color="#22c55e" style="--sw:#22c55e"></button>
+        <button data-color="#ef4444" style="--sw:#ef4444"></button>
+        <button data-color="#f97316" style="--sw:#f97316"></button>
+        <button data-color="#ec4899" style="--sw:#ec4899"></button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="inputDialog" class="glass dialog">
+    <h3 id="dialogTitle">—</h3>
+    <p id="dialogText" class="muted">—</p>
+    <textarea id="dialogInput" rows="3" placeholder="اینجا بنویس..."></textarea>
+    <div class="dialog-actions">
+      <button id="dialogCancel" class="secondary">لغو</button>
+      <button id="dialogSubmit" class="primary">ثبت</button>
+    </div>
+  </dialog>
+
+  <script src="./app.js"></script>
+</body>
+</html>
