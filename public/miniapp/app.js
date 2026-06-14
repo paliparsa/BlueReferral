@@ -1,11 +1,9 @@
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
-// Prevent accidental pinch/double-tap zoom in Telegram WebView while keeping normal one-finger vertical scroll.
-document.addEventListener('gesturestart', e => e.preventDefault(), {passive:false});
-document.addEventListener('gesturechange', e => e.preventDefault(), {passive:false});
-document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, {passive:false});
-let __lastTouchEnd = 0;
-document.addEventListener('touchend', e => { const now = Date.now(); if (now - __lastTouchEnd <= 280) e.preventDefault(); __lastTouchEnd = now; }, {passive:false});
+// Scroll safety: do not block touchmove/touchend globally.
+// Telegram's WebView handles one-finger page scrolling best when touch events stay passive.
+// Zoom is controlled by the viewport meta and CSS; global preventDefault breaks scrolling on some Android builds.
+try { tg?.disableVerticalSwipes?.(); } catch(e) {}
 const initData = tg?.initData || '';
 const isAdminMode = new URLSearchParams(location.search).get('admin') === '1';
 let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, orderFilter = 'all', lastSpinPrize = null;
