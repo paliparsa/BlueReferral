@@ -4,3 +4,5 @@ config.php
 /vendor/
 /node_modules/
 .env
+
+public/uploads/
