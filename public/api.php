@@ -2,16 +2,8 @@
 require_once __DIR__ . '/../app/bot_logic.php';
 header('Content-Type: application/json; charset=utf-8');
 
-function api_out(array $data, int $code = 200): void {
-    http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
-}
-function request_json(): array {
-    $raw = file_get_contents('php://input');
-    $data = json_decode($raw ?: '{}', true);
-    return is_array($data) ? $data : [];
-}
+function api_out(array $data, int $code = 200): void { http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
+function request_json(): array { $raw = file_get_contents('php://input'); $data = json_decode($raw ?: '{}', true); return is_array($data) ? $data : []; }
 function webapp_auth_user(string $initData): array {
     $validated = verify_webapp_init_data($initData);
     if (!$validated || empty($validated['user'])) api_out(['ok'=>false, 'error'=>'INVALID_TELEGRAM_WEBAPP_DATA'], 401);
@@ -21,153 +13,46 @@ function webapp_auth_user(string $initData): array {
     if (is_joined_channel((int)$tgUser['id'])) try_reward_referrer($user);
     return get_user_by_tid((int)$tgUser['id']);
 }
-function user_payload(array $user): array {
-    $vip = vip_info((int)$user['referrals_count']);
-    $today = today_referrals((int)$user['id']);
+function product_payload(array $p): array {
+    $variants = array_map(function($v){ return ['id'=>(int)$v['id'], 'title'=>$v['title'], 'price'=>(int)$v['price'], 'duration_days'=>(int)$v['duration_days']]; }, product_variants((int)$p['id'], true));
     return [
-        'telegram_id'=>(int)$user['telegram_id'],
-        'username'=>$user['username'],
-        'first_name'=>$user['first_name'],
-        'ref_code'=>$user['ref_code'],
-        'referral_link'=>referral_link($user),
-        'balance'=>(int)$user['balance'],
-        'total_earned'=>(int)$user['total_earned'],
-        'total_withdrawn'=>(int)$user['total_withdrawn'],
-        'referrals_count'=>(int)$user['referrals_count'],
-        'today_referrals'=>$today,
-        'spin_balance'=>(int)$user['spin_balance'],
-        'vip'=>$vip,
+        'id'=>(int)$p['id'], 'category_id'=>(int)$p['category_id'], 'name'=>$p['name'], 'price'=>(int)$p['price'], 'price_label'=>product_price_label($p),
+        'short_description'=>$p['short_description'], 'full_description'=>$p['full_description'], 'image_url'=>$p['image_url'] ?? null,
+        'delivery_type'=>$p['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($p['delivery_type']), 'commission'=>product_commission_text($p),
+        'variant_count'=>(int)($p['variant_count'] ?? count($variants)), 'variants'=>$variants, 'inventory_available'=>(int)($p['inventory_available'] ?? 0), 'is_featured'=>(int)($p['is_featured'] ?? 0),
     ];
+}
+function user_payload(array $user): array {
+    $vip = vip_info((int)$user['referrals_count']); $today = today_referrals((int)$user['id']); $customer = customer_stats((int)$user['id']);
+    return ['telegram_id'=>(int)$user['telegram_id'], 'username'=>$user['username'], 'first_name'=>$user['first_name'], 'ref_code'=>$user['ref_code'], 'referral_link'=>referral_link($user), 'balance'=>(int)$user['balance'], 'total_earned'=>(int)$user['total_earned'], 'total_withdrawn'=>(int)$user['total_withdrawn'], 'referrals_count'=>(int)$user['referrals_count'], 'today_referrals'=>$today, 'spin_balance'=>(int)$user['spin_balance'], 'vip'=>$vip, 'customer'=>$customer];
 }
 function dashboard_payload(array $user): array {
-    $missions = [];
-    $today = date('Y-m-d');
-    $todayCount = today_referrals((int)$user['id']);
-    foreach (mission_rows() as $m) {
-        $missions[] = [
-            'target'=>(int)$m['target'],
-            'reward'=>(int)$m['reward'],
-            'done'=>$todayCount >= (int)$m['target'],
-            'claimed'=>is_mission_claimed((int)$user['id'], $today, (int)$m['target']),
-        ];
-    }
-    $tx = db()->prepare('SELECT type, amount, description, created_at FROM transactions WHERE user_id=? ORDER BY id DESC LIMIT 15');
-    $tx->execute([$user['id']]);
-    $wd = db()->prepare('SELECT amount, status, created_at FROM withdrawals WHERE user_id=? ORDER BY id DESC LIMIT 10');
-    $wd->execute([$user['id']]);
-    return [
-        'ok'=>true,
-        'brand'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')),
-        'theme_color'=>setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0')),
-        'start_reward'=>setting_int('start_reward', 2000),
-        'min_withdraw'=>setting_int('min_withdraw', 50000),
-        'spin_every'=>setting_int('spin_referrals_per_chance', 5),
-        'support_username'=>app_config('SUPPORT_USERNAME', 'BlueGateSupport'),
-        'custom_code_min'=>setting_int('custom_code_min_referrals', 3),
-        'user'=>user_payload($user),
-        'missions'=>$missions,
-        'leaderboard'=>array_map(function($r){ return ['name'=>strip_tags(display_name($r)), 'referrals'=>(int)$r['referrals_count'], 'earned'=>(int)$r['total_earned']]; }, top_users(10)),
-        'transactions'=>$tx->fetchAll(),
-        'withdrawals'=>$wd->fetchAll(),
-        'shop_categories'=>array_map(function($c){ return ['id'=>(int)$c['id'], 'title'=>$c['title'], 'emoji'=>$c['emoji']]; }, shop_categories(true)),
-        'shop_products'=>array_map(function($p){ return ['id'=>(int)$p['id'], 'category_id'=>(int)$p['category_id'], 'name'=>$p['name'], 'price'=>(int)$p['price'], 'short_description'=>$p['short_description'], 'full_description'=>$p['full_description'], 'delivery_type'=>$p['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($p['delivery_type']), 'commission'=>product_commission_text($p)]; }, shop_products(null, true)),
-        'orders'=>array_map('order_public_payload', user_orders((int)$user['id'], 12)),
-        'payment_instructions'=>setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'),
-    ];
+    $missions = []; $today = date('Y-m-d'); $todayCount = today_referrals((int)$user['id']);
+    foreach (mission_rows() as $m) $missions[] = ['target'=>(int)$m['target'], 'reward'=>(int)$m['reward'], 'done'=>$todayCount >= (int)$m['target'], 'claimed'=>is_mission_claimed((int)$user['id'], $today, (int)$m['target'])];
+    $tx = db()->prepare('SELECT type, amount, description, created_at FROM transactions WHERE user_id=? ORDER BY id DESC LIMIT 15'); $tx->execute([$user['id']]);
+    $wd = db()->prepare('SELECT amount, status, created_at FROM withdrawals WHERE user_id=? ORDER BY id DESC LIMIT 10'); $wd->execute([$user['id']]);
+    $products = array_map('product_payload', shop_products(null, true));
+    return ['ok'=>true, 'brand'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'theme_color'=>setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0')), 'start_reward'=>setting_int('start_reward', 2000), 'min_withdraw'=>setting_int('min_withdraw', 50000), 'spin_every'=>setting_int('spin_referrals_per_chance', 5), 'support_username'=>app_config('SUPPORT_USERNAME', 'BlueGateSupport'), 'custom_code_min'=>setting_int('custom_code_min_referrals', 3), 'is_admin'=>is_admin((int)$user['telegram_id']), 'user'=>user_payload($user), 'missions'=>$missions, 'leaderboard'=>array_map(function($r){ return ['name'=>strip_tags(display_name($r)), 'referrals'=>(int)$r['referrals_count'], 'earned'=>(int)$r['total_earned']]; }, top_users(10)), 'transactions'=>$tx->fetchAll(), 'withdrawals'=>$wd->fetchAll(), 'shop_categories'=>array_map(function($c){ return ['id'=>(int)$c['id'], 'title'=>$c['title'], 'emoji'=>$c['emoji']]; }, shop_categories(true)), 'shop_products'=>$products, 'orders'=>array_map('order_public_payload', user_orders((int)$user['id'], 20)), 'payment_instructions'=>setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.')];
 }
+function require_admin(array $user): void { if (!is_admin((int)$user['telegram_id'])) api_out(['ok'=>false,'error'=>'ADMIN_ONLY','message'=>'دسترسی ادمین لازم است.'], 403); }
 
-$input = request_json();
-$action = $input['action'] ?? ($_GET['action'] ?? 'me');
-$initData = $input['initData'] ?? ($_GET['initData'] ?? '');
-$user = webapp_auth_user((string)$initData);
+$input = request_json(); $action = $input['action'] ?? ($_GET['action'] ?? 'me'); $initData = $input['initData'] ?? ($_GET['initData'] ?? ''); $user = webapp_auth_user((string)$initData);
 
 if ($action === 'me') api_out(dashboard_payload($user));
+if ($action === 'claim_missions') { [$count, $claimed] = claim_available_missions($user); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['claimed'=>$claimed, 'today_count'=>$count]); }
+if ($action === 'spin') { $user=get_user_by_tid((int)$user['telegram_id']); if ((int)$user['spin_balance']<=0) api_out(['ok'=>false,'error'=>'NO_SPIN_BALANCE','message'=>'فعلاً شانس گردونه نداری.'],400); $reward=weighted_spin_reward(); $title=$reward['title']??'جایزه گردونه'; $amount=(int)($reward['amount']??0); db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]); db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'],$title,$amount]); if($amount>0)add_balance($user['id'],$amount,'spin_reward',$title,null); if(!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>{$user['telegram_id']}</code>\nجایزه: <b>".h($title)."</b>"); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['prize'=>['title'=>$title,'amount'=>$amount]]); }
+if ($action === 'withdraw') { $user=get_user_by_tid((int)$user['telegram_id']); $card=trim((string)($input['card_info']??'')); if(mb_strlen($card)<8) api_out(['ok'=>false,'error'=>'INVALID_CARD_INFO','message'=>'اطلاعات کارت/شبا کامل نیست.'],400); $min=setting_int('min_withdraw',50000); if((int)$user['balance']<$min) api_out(['ok'=>false,'error'=>'LOW_BALANCE','message'=>'موجودی به حداقل برداشت نمی‌رسد.'],400); $pending=db()->prepare('SELECT COUNT(*) c FROM withdrawals WHERE user_id=? AND status="pending"'); $pending->execute([$user['id']]); if((int)$pending->fetch()['c']>0) api_out(['ok'=>false,'error'=>'PENDING_WITHDRAWAL','message'=>'یک برداشت در انتظار دارید.'],400); $amount=(int)$user['balance']; db()->prepare('INSERT INTO withdrawals (user_id, amount, card_info) VALUES (?,?,?)')->execute([$user['id'],$amount,$card]); db()->prepare('UPDATE users SET balance=0 WHERE id=?')->execute([$user['id']]); notify_admins("🏧 برداشت جدید از Mini App\nکاربر: <code>{$user['telegram_id']}</code>\nمبلغ: <b>".money($amount)."</b>\nاطلاعات:\n".h($card)); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['withdraw_amount'=>$amount]); }
+if ($action === 'custom_code') { $code=normalize_ref_code((string)($input['code']??'')); $min=setting_int('custom_code_min_referrals',3); if((int)$user['referrals_count']<$min) api_out(['ok'=>false,'error'=>'NOT_ENOUGH_REFERRALS','message'=>"حداقل {$min} زیرمجموعه لازم است."],400); if(strlen($code)<4||strlen($code)>20) api_out(['ok'=>false,'error'=>'INVALID_CODE','message'=>'کد باید ۴ تا ۲۰ کاراکتر باشد.'],400); $exists=get_user_by_ref($code); if($exists && (int)$exists['id'] !== (int)$user['id']) api_out(['ok'=>false,'error'=>'CODE_TAKEN','message'=>'این کد قبلاً گرفته شده.'],400); db()->prepare('UPDATE users SET ref_code=? WHERE id=?')->execute([$code,$user['id']]); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id']))); }
 
-if ($action === 'claim_missions') {
-    [$count, $claimed] = claim_available_missions($user);
-    $fresh = get_user_by_tid((int)$user['telegram_id']);
-    api_out(dashboard_payload($fresh) + ['claimed'=>$claimed, 'today_count'=>$count]);
-}
+if ($action === 'create_order') { $productId=(int)($input['product_id']??0); $variantId=!empty($input['variant_id'])?(int)$input['variant_id']:null; try{ $order=create_shop_order((int)$user['id'],$productId,$variantId); notify_admins("🧾 سفارش جدید از Mini App\nسفارش: <code>#{$order['id']}</code>\nکاربر: <code>{$user['telegram_id']}</code>\nمحصول: <b>".h($order['product_name'].(!empty($order['variant_title'])?' - '.$order['variant_title']:''))."</b>\nمبلغ: <b>".money($order['final_amount'])."</b>"); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]); } catch(Throwable $e){ api_out(['ok'=>false,'error'=>$e->getMessage(),'message'=>'محصول یا پلن پیدا نشد یا غیرفعال است.'],404); } }
+if ($action === 'apply_coupon') { try{ $order=apply_coupon_to_order((int)($input['order_id']??0),(int)$user['id'],(string)($input['code']??'')); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]); } catch(Throwable $e){ api_out(['ok'=>false,'error'=>'INVALID_COUPON','message'=>'کد تخفیف معتبر نیست یا برای این سفارش قابل استفاده نیست.'],400); } }
+if ($action === 'submit_receipt') { $orderId=(int)($input['order_id']??0); $note=trim((string)($input['note']??'')); if(mb_strlen($note)<3) api_out(['ok'=>false,'error'=>'EMPTY_RECEIPT','message'=>'توضیح رسید پرداخت را کامل‌تر بنویس.'],400); try{ $order=submit_order_receipt($orderId,(int)$user['id'],$note,null); notify_admins(order_admin_card($order)."\n\nرسید/توضیح پرداخت از Mini App:\n".h($note)); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]); } catch(Throwable $e){ api_out(['ok'=>false,'error'=>'ORDER_NOT_FOUND','message'=>'سفارش پیدا نشد یا قابل پرداخت نیست.'],400); } }
+if ($action === 'cancel_order') { $orderId=(int)($input['order_id']??0); $order=order_by_id($orderId); if(!$order || (int)$order['user_id'] !== (int)$user['id'] || normalize_order_status($order['status']) !== 'pending_payment') api_out(['ok'=>false,'error'=>'ORDER_LOCKED','message'=>'امکان لغو این سفارش نیست.'],400); cancel_order($orderId,'لغو از Mini App'); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id']))); }
 
-if ($action === 'spin') {
-    $user = get_user_by_tid((int)$user['telegram_id']);
-    if ((int)$user['spin_balance'] <= 0) api_out(['ok'=>false, 'error'=>'NO_SPIN_BALANCE', 'message'=>'فعلاً شانس گردونه نداری.'], 400);
-    $reward = weighted_spin_reward();
-    $title = $reward['title'] ?? 'جایزه گردونه';
-    $amount = (int)($reward['amount'] ?? 0);
-    db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]);
-    db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'], $title, $amount]);
-    if ($amount > 0) add_balance($user['id'], $amount, 'spin_reward', $title, null);
-    if (!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>{$user['telegram_id']}</code>\nجایزه: <b>".h($title)."</b>");
-    $fresh = get_user_by_tid((int)$user['telegram_id']);
-    api_out(dashboard_payload($fresh) + ['prize'=>['title'=>$title, 'amount'=>$amount]]);
-}
-
-if ($action === 'withdraw') {
-    $user = get_user_by_tid((int)$user['telegram_id']);
-    $card = trim((string)($input['card_info'] ?? ''));
-    if (mb_strlen($card) < 8) api_out(['ok'=>false, 'error'=>'INVALID_CARD_INFO', 'message'=>'اطلاعات کارت/شبا کامل نیست.'], 400);
-    $min = setting_int('min_withdraw', 50000);
-    if ((int)$user['balance'] < $min) api_out(['ok'=>false, 'error'=>'LOW_BALANCE', 'message'=>'موجودی به حداقل برداشت نمی‌رسد.'], 400);
-    $pending = db()->prepare('SELECT COUNT(*) c FROM withdrawals WHERE user_id=? AND status="pending"');
-    $pending->execute([$user['id']]);
-    if ((int)$pending->fetch()['c'] > 0) api_out(['ok'=>false, 'error'=>'PENDING_WITHDRAWAL', 'message'=>'یک برداشت در انتظار دارید.'], 400);
-    $amount = (int)$user['balance'];
-    db()->prepare('INSERT INTO withdrawals (user_id, amount, card_info) VALUES (?,?,?)')->execute([$user['id'], $amount, $card]);
-    db()->prepare('UPDATE users SET balance=0 WHERE id=?')->execute([$user['id']]);
-    notify_admins("🏧 برداشت جدید از Mini App\nکاربر: <code>{$user['telegram_id']}</code>\nمبلغ: <b>".money($amount)."</b>\nاطلاعات:\n".h($card));
-    $fresh = get_user_by_tid((int)$user['telegram_id']);
-    api_out(dashboard_payload($fresh) + ['withdraw_amount'=>$amount]);
-}
-
-if ($action === 'custom_code') {
-    $code = normalize_ref_code((string)($input['code'] ?? ''));
-    $min = setting_int('custom_code_min_referrals', 3);
-    if ((int)$user['referrals_count'] < $min) api_out(['ok'=>false, 'error'=>'NOT_ENOUGH_REFERRALS', 'message'=>"حداقل {$min} زیرمجموعه لازم است."], 400);
-    if (strlen($code) < 4 || strlen($code) > 20) api_out(['ok'=>false, 'error'=>'INVALID_CODE', 'message'=>'کد باید ۴ تا ۲۰ کاراکتر باشد.'], 400);
-    $exists = get_user_by_ref($code);
-    if ($exists && (int)$exists['id'] !== (int)$user['id']) api_out(['ok'=>false, 'error'=>'CODE_TAKEN', 'message'=>'این کد قبلاً گرفته شده.'], 400);
-    db()->prepare('UPDATE users SET ref_code=? WHERE id=?')->execute([$code, $user['id']]);
-    $fresh = get_user_by_tid((int)$user['telegram_id']);
-    api_out(dashboard_payload($fresh));
-}
-
-
-if ($action === 'create_order') {
-    $productId = (int)($input['product_id'] ?? 0);
-    try {
-        $order = create_shop_order((int)$user['id'], $productId);
-        notify_admins("🧾 سفارش جدید از Mini App\nسفارش: <code>#{$order['id']}</code>\nکاربر: <code>{$user['telegram_id']}</code>\nمحصول: <b>".h($order['product_name'])."</b>\nمبلغ: <b>".money($order['final_amount'])."</b>");
-        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]);
-    } catch (Throwable $e) { api_out(['ok'=>false, 'error'=>'PRODUCT_NOT_FOUND', 'message'=>'محصول پیدا نشد یا غیرفعال است.'], 404); }
-}
-
-if ($action === 'apply_coupon') {
-    $orderId = (int)($input['order_id'] ?? 0);
-    $code = (string)($input['code'] ?? '');
-    try {
-        $order = apply_coupon_to_order($orderId, (int)$user['id'], $code);
-        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]);
-    } catch (Throwable $e) { api_out(['ok'=>false, 'error'=>'INVALID_COUPON', 'message'=>'کد تخفیف معتبر نیست یا برای این سفارش قابل استفاده نیست.'], 400); }
-}
-
-if ($action === 'submit_receipt') {
-    $orderId = (int)($input['order_id'] ?? 0);
-    $note = trim((string)($input['note'] ?? ''));
-    if (mb_strlen($note) < 3) api_out(['ok'=>false, 'error'=>'EMPTY_RECEIPT', 'message'=>'توضیح رسید پرداخت را کامل‌تر بنویس.'], 400);
-    try {
-        $order = submit_order_receipt($orderId, (int)$user['id'], $note, null);
-        notify_admins(order_admin_card($order) . "\n\nرسید/توضیح پرداخت از Mini App:\n" . h($note));
-        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]);
-    } catch (Throwable $e) { api_out(['ok'=>false, 'error'=>'ORDER_NOT_FOUND', 'message'=>'سفارش پیدا نشد یا قابل پرداخت نیست.'], 400); }
-}
-
-if ($action === 'cancel_order') {
-    $orderId = (int)($input['order_id'] ?? 0);
-    $order = order_by_id($orderId);
-    if (!$order || (int)$order['user_id'] !== (int)$user['id'] || $order['status'] !== 'pending_payment') api_out(['ok'=>false, 'error'=>'ORDER_LOCKED', 'message'=>'امکان لغو این سفارش نیست.'], 400);
-    db()->prepare('UPDATE orders SET status="canceled" WHERE id=?')->execute([$orderId]);
-    api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])));
-}
+// Admin Mini Panel actions
+if ($action === 'admin_summary') { require_admin($user); api_out(['ok'=>true,'report'=>sales_report(), 'orders'=>array_map('order_public_payload', admin_orders(null, 30)), 'products'=>array_map('product_payload', shop_products(null, false)), 'categories'=>shop_categories(false)]); }
+if ($action === 'admin_add_product') { require_admin($user); $name=trim((string)($input['name']??'')); $price=max(0,(int)($input['price']??0)); if($name===''||$price<=0) api_out(['ok'=>false,'message'=>'نام و قیمت الزامی است.'],400); $catId=find_or_create_category((string)($input['category']??'عمومی')); $delivery=normalize_delivery_type((string)($input['delivery_type']??'manual')); $commissionType=in_array(($input['commission_type']??'none'),['none','fixed','percent'],true)?$input['commission_type']:'none'; $commissionValue=max(0,(int)($input['commission_value']??0)); db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured) VALUES (?,?,?,?,?,?,?,?,?,?,?)')->execute([$catId,$name,$price,(string)($input['short_description']??''),(string)($input['full_description']??''),(string)($input['image_url']??null),$delivery,$commissionType,$commissionValue,max(0,(int)($input['duration_days']??0)),!empty($input['is_featured'])?1:0]); api_out(['ok'=>true,'product_id'=>(int)db()->lastInsertId()]); }
+if ($action === 'admin_order_status') { require_admin($user); $oid=(int)($input['order_id']??0); $status=(string)($input['status']??''); if(!in_array(normalize_order_status($status),['reviewing','payment_confirmed','preparing','rejected','canceled','refunded'],true)) api_out(['ok'=>false,'message'=>'وضعیت معتبر نیست.'],400); $order=update_order_status($oid,$status,order_status_fa($status),(string)($input['note']??''),true); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); api_out(['ok'=>true,'order'=>order_public_payload($order)]); }
+if ($action === 'admin_deliver_order') { require_admin($user); $oid=(int)($input['order_id']??0); $delivery=trim((string)($input['delivery']??'')); if($delivery==='') api_out(['ok'=>false,'message'=>'متن تحویل خالی است.'],400); $order=deliver_order($oid,$delivery); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); send_msg($order['telegram_id'], "📦 سفارش شما تحویل داده شد.\nسفارش: <code>#{$oid}</code>\nمحصول: <b>".h($order['product_name'])."</b>\n\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>", main_menu_keyboard(is_admin($order['telegram_id']))); api_out(['ok'=>true,'order'=>order_public_payload($order)]); }
 
 api_out(['ok'=>false, 'error'=>'UNKNOWN_ACTION'], 404);
