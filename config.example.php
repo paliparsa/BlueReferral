@@ -71,7 +71,8 @@ $TONCENTER_API_KEY = ''; // optional, recommended for TON checks
 // SwapWallet / SwapPay payments - recommended crypto gateway.
 // Get these from SwapWallet merchant panel later and set them in Mini App admin panel or here.
 $SWAPPAY_API_KEY = '';
-$SWAPPAY_APPLICATION = '';
+$SWAPPAY_APPLICATION = ''; // legacy name; same as SWAPPAY_USERNAME
+$SWAPPAY_USERNAME = ''; // SwapWallet username/merchant slug used in /v2/payment/{username}/...
 $SWAPPAY_BASE_URL = 'https://swapwallet.app/api';
 $SWAPPAY_AUTO_CONVERSION_TOKEN = 'USDT';
 $SWAPPAY_USDT_RATE_TOMAN = 0; // manual fallback: 1 USDT/USD in Toman. Required for Toman -> USD invoice conversion.

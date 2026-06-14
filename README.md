@@ -966,3 +966,28 @@ This patch fixes a critical Mini App/admin issue after saving payment settings:
 - اگر لینک پرداخت ساخته شود، هم داخل Mini App نمایش داده می‌شود و هم با دکمه مستقیم برای کاربر در تلگرام ارسال می‌شود.
 
 بعد از آپدیت، فقط یک بار migration را از `blue-ref` اجرا کن. اگر پنل کند بود، `grep -R "CryptoRate\|api.nobitex" app public` نباید خروجی فعال مرتبط با API بدهد.
+
+## Update: SwapWallet v2 Temporary Wallet
+
+This build updates SwapWallet Pay to the current SwapPay v2 flow:
+
+- Create invoice via `POST /v2/payment/{username}/invoices/temporary-wallet`.
+- Keep the old v1 path only as a final compatibility fallback.
+- Rename the admin field concept from Application to **SwapWallet Username / Slug**.
+- Store request URL, request body, API version, raw response, and callback payload for debugging.
+- Add `public/swapwallet_callback.php` for SwapWallet payment callbacks.
+- Keep rates manual to avoid Nobitex/Tron/Ton calls during Mini App load.
+
+Admin settings needed:
+
+- API Key: from SwapWallet panel.
+- SwapWallet Username / Slug: the username/merchant slug used in `/v2/payment/{username}/...`.
+- Base URL: `https://swapwallet.app/api`.
+- Auto Token: usually `USDT`.
+- USDT/USD to Toman rate: manual rate used to convert Toman invoices to USD.
+
+If invoice creation fails, inspect:
+
+```bash
+sudo mysql -D YOUR_DB -e "SELECT id, order_id, status, fail_reason, request_url, LEFT(request_body,300) req, LEFT(raw_response,500) raw FROM swapwallet_invoices ORDER BY id DESC LIMIT 5;"
+```
