@@ -95,7 +95,11 @@ function migrate(): void {
     seed_setting('require_contact_auth', '0');
     seed_setting('notify_new_user', '1');
     seed_setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
-    seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً مبلغ فاکتور را کارت‌به‌کارت کنید و سپس رسید پرداخت را از دکمه ارسال رسید بفرستید.'));
+    seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً یکی از روش‌های پرداخت فعال را انتخاب کن. پرداخت کارت‌به‌کارت با ارسال رسید بررسی می‌شود.'));
+    seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false]);
+    seed_setting('card_accounts', app_config('CARD_ACCOUNTS', []));
+    seed_setting('stars_rate_toman', app_config('STARS_RATE_TOMAN', 3200));
+    seed_payment_methods();
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
     seed_setting('delivery_template_vpn', "🔐 سرویس VPN شما آماده شد\n\n{delivery}\n\nاگر نیاز به راهنما داشتی، به پشتیبانی پیام بده.");
     seed_setting('delivery_template_code', "🎟 کد/لایسنس شما آماده شد\n\n{delivery}");
@@ -118,6 +122,9 @@ function migrate(): void {
     add_column_if_missing('orders', 'user_hidden', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER admin_note');
     add_column_if_missing('orders', 'archived_at', 'DATETIME NULL AFTER user_hidden');
     add_column_if_missing('orders', 'wallet_amount', 'BIGINT NOT NULL DEFAULT 0 AFTER discount_amount');
+    add_column_if_missing('orders', 'payment_method', 'VARCHAR(32) NULL AFTER final_amount');
+    add_column_if_missing('orders', 'payment_details', 'TEXT NULL AFTER payment_method');
+    add_column_if_missing('orders', 'stars_amount', 'INT NOT NULL DEFAULT 0 AFTER payment_details');
 
     seed_shop_categories();
 }
@@ -139,6 +146,121 @@ function set_setting(string $key, $value): void {
     $stored = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE);
     $q = db()->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)');
     $q->execute([$key, $stored]);
+}
+
+
+function seed_payment_methods(): void {
+    if (!table_exists('payment_methods')) return;
+    $defaults = [
+        ['wallet','کیف پول داخلی','wallet',1, ['description'=>'پرداخت از موجودی کیف پول کاربر'], 1],
+        ['card','کارت به کارت','card',1, ['description'=>'پرداخت دستی با ارسال رسید'], 2],
+        ['stars','Telegram Stars','stars',0, ['description'=>'پرداخت مستقیم با استار تلگرام'], 3],
+    ];
+    $q = db()->prepare('INSERT IGNORE INTO payment_methods (method_key,title,method_type,is_active,settings_json,sort_order) VALUES (?,?,?,?,?,?)');
+    foreach ($defaults as $m) $q->execute([$m[0],$m[1],$m[2],$m[3],json_encode($m[4], JSON_UNESCAPED_UNICODE),$m[5]]);
+}
+function payment_enabled(string $method): bool {
+    $enabled = setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false]);
+    if (array_key_exists($method, $enabled)) return (bool)$enabled[$method];
+    try {
+        if (table_exists('payment_methods')) {
+            $q=db()->prepare('SELECT is_active FROM payment_methods WHERE method_key=?');
+            $q->execute([$method]); $row=$q->fetch();
+            if ($row) return (int)$row['is_active']===1;
+        }
+    } catch (Throwable $e) {}
+    return false;
+}
+function parse_card_accounts($raw=null): array {
+    if ($raw === null) $raw = setting('card_accounts', '');
+    if (is_array($raw)) $arr = $raw; else {
+        $decoded = json_decode((string)$raw, true);
+        if (is_array($decoded)) $arr = $decoded; else {
+            $arr=[];
+            foreach (preg_split('/\R/u', (string)$raw) as $line) {
+                $line=trim($line); if ($line==='') continue;
+                $p=array_map('trim', explode('|', $line));
+                $arr[]=['title'=>$p[0]??'کارت','card'=>$p[1]??'','owner'=>$p[2]??'','sheba'=>$p[3]??''];
+            }
+        }
+    }
+    $out=[]; $i=1;
+    foreach ($arr as $c) {
+        if (!is_array($c)) continue;
+        $card=trim((string)($c['card'] ?? ''));
+        $owner=trim((string)($c['owner'] ?? ''));
+        $title=trim((string)($c['title'] ?? ('کارت '.$i)));
+        $sheba=trim((string)($c['sheba'] ?? ''));
+        if ($card==='' && $owner==='' && $sheba==='') continue;
+        $out[]=['id'=>$i,'title'=>$title ?: ('کارت '.$i),'card'=>$card,'owner'=>$owner,'sheba'=>$sheba]; $i++;
+    }
+    return $out;
+}
+function card_accounts_lines(): string {
+    $lines=[];
+    foreach (parse_card_accounts() as $c) $lines[] = ($c['title'] ?? 'کارت').'|'.($c['card'] ?? '').'|'.($c['owner'] ?? '').'|'.($c['sheba'] ?? '');
+    return implode("\n", $lines);
+}
+function payment_methods_public(?array $user=null): array {
+    $cards=parse_card_accounts();
+    $rate=max(1, setting_int('stars_rate_toman', 3200));
+    return [
+        'wallet'=>['enabled'=>payment_enabled('wallet'), 'title'=>'کیف پول داخلی', 'balance'=>$user?(int)($user['balance']??0):0],
+        'card'=>['enabled'=>payment_enabled('card'), 'title'=>'کارت به کارت', 'accounts'=>$cards, 'instructions'=>setting('payment_instructions','')],
+        'stars'=>['enabled'=>payment_enabled('stars'), 'title'=>'Telegram Stars', 'rate_toman'=>$rate],
+    ];
+}
+function set_payment_methods_enabled(array $input): void {
+    $current=setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false]);
+    foreach (['wallet','card','stars'] as $m) if (array_key_exists($m,$input)) $current[$m]=(bool)$input[$m];
+    set_setting('payment_methods_enabled', $current);
+    if (table_exists('payment_methods')) {
+        $q=db()->prepare('UPDATE payment_methods SET is_active=? WHERE method_key=?');
+        foreach (['wallet','card','stars'] as $m) $q->execute([!empty($current[$m])?1:0,$m]);
+    }
+}
+function order_set_payment_method(int $orderId, int $userId, string $method, array $details=[]): array {
+    $method = preg_replace('/[^a-z0-9_]/i','', $method);
+    if (!in_array($method, ['wallet','card','stars'], true)) throw new RuntimeException('PAYMENT_METHOD_INVALID');
+    if (!payment_enabled($method)) throw new RuntimeException('PAYMENT_METHOD_DISABLED');
+    $order=order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    if (!in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
+    $stars=0;
+    if ($method==='stars') $stars = max(1, (int)ceil((int)$order['final_amount'] / max(1, setting_int('stars_rate_toman', 3200))));
+    db()->prepare('UPDATE orders SET payment_method=?, payment_details=?, stars_amount=? WHERE id=?')->execute([$method, json_encode($details, JSON_UNESCAPED_UNICODE), $stars, $orderId]);
+    add_order_event($orderId, normalize_order_status($order['status']), 'روش پرداخت انتخاب شد', payment_method_fa($method), true);
+    return order_by_id($orderId);
+}
+function payment_method_fa(?string $m): string {
+    return ['wallet'=>'کیف پول داخلی','card'=>'کارت به کارت','stars'=>'Telegram Stars'][$m ?: ''] ?? 'انتخاب نشده';
+}
+function send_stars_invoice_for_order(array $order): array {
+    if (!payment_enabled('stars')) throw new RuntimeException('STARS_DISABLED');
+    $amountStars = (int)($order['stars_amount'] ?? 0);
+    if ($amountStars <= 0) $amountStars = max(1, (int)ceil((int)$order['final_amount'] / max(1, setting_int('stars_rate_toman', 3200))));
+    $payload = 'order_'.$order['id'].'_stars_'.$amountStars;
+    $name = $order['product_name'].(!empty($order['variant_title']) ? ' - '.$order['variant_title'] : '');
+    return tg('sendInvoice', [
+        'chat_id'=>(int)$order['telegram_id'],
+        'title'=>'پرداخت سفارش #'.$order['id'],
+        'description'=>'پرداخت '.$name.' با Telegram Stars',
+        'payload'=>$payload,
+        'provider_token'=>'',
+        'currency'=>'XTR',
+        'prices'=>json_encode([['label'=>'Order #'.$order['id'], 'amount'=>$amountStars]], JSON_UNESCAPED_UNICODE),
+        'start_parameter'=>'blue_ref_order_'.$order['id'],
+    ]);
+}
+function confirm_stars_payment(string $payload, array $payment=[]): ?array {
+    if (!preg_match('/^order_(\d+)_stars_(\d+)$/', $payload, $m)) return null;
+    $orderId=(int)$m[1]; $stars=(int)$m[2];
+    $order=order_by_id($orderId); if (!$order) return null;
+    if (normalize_order_status($order['status']) === 'delivered') return $order;
+    db()->prepare('UPDATE orders SET payment_method="stars", stars_amount=?, payment_details=? WHERE id=?')->execute([$stars,json_encode($payment, JSON_UNESCAPED_UNICODE),$orderId]);
+    $paid=mark_order_paid($orderId);
+    add_order_event($orderId, 'payment_confirmed', 'پرداخت با Telegram Stars تایید شد', $stars.' Stars', true);
+    return $paid;
 }
 
 function tg(string $method, array $data = []) {
@@ -388,9 +510,15 @@ function order_user_keyboard(array $order): string {
     $status = normalize_order_status($order['status'] ?? '');
     $rows = [];
     if ($status === 'pending_payment') {
+        $payRows=[];
+        if (payment_enabled('wallet')) $payRows[]=['text'=>'💰 پرداخت از کیف پول', 'callback_data'=>'order_pay_wallet_'.$order['id']];
+        if (payment_enabled('card')) $payRows[]=['text'=>'💳 کارت به کارت', 'callback_data'=>'order_pay_card_'.$order['id']];
+        if ($payRows) $rows[]=$payRows;
+        if (payment_enabled('stars')) $rows[] = [['text'=>'⭐ پرداخت با Telegram Stars', 'callback_data'=>'order_pay_stars_'.$order['id']]];
         $rows[] = [['text'=>'📤 ارسال رسید پرداخت', 'callback_data'=>'order_receipt_'.$order['id']]];
         $rows[] = [['text'=>'🎟 ثبت کد تخفیف', 'callback_data'=>'order_coupon_'.$order['id']], ['text'=>'❌ لغو سفارش', 'callback_data'=>'order_cancel_'.$order['id']]];
     } elseif ($status === 'rejected') {
+        if (payment_enabled('card')) $rows[] = [['text'=>'💳 کارت به کارت', 'callback_data'=>'order_pay_card_'.$order['id']]];
         $rows[] = [['text'=>'📤 ارسال مجدد رسید', 'callback_data'=>'order_receipt_'.$order['id']]];
     }
     $rows[] = [['text'=>'📝 یادداشت سفارش / اطلاعات اکانت', 'callback_data'=>'order_note_'.$order['id']], ['text'=>'🧾 تایم‌لاین سفارش', 'callback_data'=>'order_timeline_'.$order['id']]];
@@ -906,7 +1034,7 @@ function apply_wallet_to_order(int $orderId, int $userId): array {
     wallet_transaction($userId, -$use, 'wallet_payment', 'پرداخت از کیف پول برای سفارش #'.$orderId, null);
     $newWallet = $already + $use;
     $newFinal = max(0, $base - $newWallet);
-    $sql = 'UPDATE orders SET wallet_amount=?, final_amount=?';
+    $sql = "UPDATE orders SET wallet_amount=?, final_amount=?, payment_method=COALESCE(payment_method,'wallet')";
     $params = [$newWallet, $newFinal];
     if ($newFinal === 0) { $sql .= ', status="payment_confirmed", paid_at=NOW()'; }
     $sql .= ' WHERE id=?'; $params[] = $orderId;
@@ -1105,7 +1233,9 @@ function order_public_payload(array $o): array {
     return [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
-        'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'], 'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
+        'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'],
+        'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
+        'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),

@@ -3,6 +3,10 @@ require_once __DIR__ . '/bootstrap.php';
 migrate();
 
 function handle_update(array $update): void {
+    if (isset($update['pre_checkout_query'])) {
+        handle_pre_checkout($update['pre_checkout_query']);
+        return;
+    }
     if (isset($update['callback_query'])) {
         handle_callback($update['callback_query']);
         return;
@@ -13,6 +17,18 @@ function handle_update(array $update): void {
     }
 }
 
+
+function handle_pre_checkout(array $q): void {
+    tg('answerPreCheckoutQuery', ['pre_checkout_query_id'=>$q['id'], 'ok'=>true]);
+}
+function handle_successful_payment(int $chat_id, array $payment): void {
+    $payload=(string)($payment['invoice_payload'] ?? '');
+    $order=confirm_stars_payment($payload, $payment);
+    if ($order) {
+        send_msg($chat_id, "✅ پرداخت Stars سفارش <code>#{$order['id']}</code> تایید شد.\nسفارش شما برای آماده‌سازی ثبت شد.", main_menu_keyboard(is_admin($chat_id)));
+        notify_admins("⭐️ پرداخت Telegram Stars تایید شد\nسفارش: <code>#{$order['id']}</code>\nکاربر: <code>{$chat_id}</code>\nمبلغ: <b>{$order['stars_amount']} Stars</b>");
+    }
+}
 
 function send_home_message(int $chat_id, array $user, bool $withKeyboard=true): void {
     send_msg($chat_id, main_text($user), miniapp_inline_keyboard(is_admin($chat_id)));
@@ -56,6 +72,10 @@ function handle_message(array $message): void {
     $chat_id = (int)($message['chat']['id'] ?? 0);
     $from = $message['from'] ?? [];
     if (!$chat_id || !$from) return;
+    if (!empty($message['successful_payment']) && is_array($message['successful_payment'])) {
+        handle_successful_payment($chat_id, $message['successful_payment']);
+        return;
+    }
     $text = trim((string)($message['text'] ?? ''));
 
     $ref = null;
@@ -284,6 +304,24 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
         if (!$order || (int)$order['user_id'] !== (int)$user['id']) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', back_main_keyboard()); return; }
         show_order_invoice($chat_id, $message_id, $order); return;
     }
+    if (str_starts_with($data, 'order_pay_wallet_')) {
+        $oid=(int)substr($data, 17);
+        try { $order=apply_wallet_to_order($oid, (int)$user['id']); show_order_invoice($chat_id, $message_id, $order); }
+        catch (Throwable $e) { send_msg($chat_id, 'امکان پرداخت از کیف پول برای این سفارش نیست.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+    if (str_starts_with($data, 'order_pay_card_')) {
+        $oid=(int)substr($data, 15);
+        try { $order=order_set_payment_method($oid, (int)$user['id'], 'card', []); show_order_invoice($chat_id, $message_id, $order); }
+        catch (Throwable $e) { send_msg($chat_id, 'امکان انتخاب کارت به کارت نیست.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+    if (str_starts_with($data, 'order_pay_stars_')) {
+        $oid=(int)substr($data, 16);
+        try { $order=order_set_payment_method($oid, (int)$user['id'], 'stars', []); $res=send_stars_invoice_for_order($order); show_order_invoice($chat_id, $message_id, order_by_id($oid)); if (empty($res['ok'])) send_msg($chat_id, 'ارسال فاکتور Stars ممکن نشد. شاید پرداخت Stars برای بات فعال نیست.'); }
+        catch (Throwable $e) { send_msg($chat_id, 'امکان پرداخت با Stars برای این سفارش نیست.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
     if (str_starts_with($data, 'order_receipt_')) {
         $oid = (int)substr($data, 14);
         $order = order_by_id($oid);
@@ -317,6 +355,14 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
         show_user_orders($chat_id, $message_id, (int)$user['id']);
         send_msg($chat_id, "🧹 {$count} سفارش لغوشده/ردشده از لیست شما مخفی شد.", main_menu_keyboard(is_admin($chat_id)));
         return;
+    }
+
+    if (str_starts_with($data, 'order_note_')) {
+        $oid = (int)substr($data, 11);
+        $order = order_by_id($oid);
+        if (!$order || (int)$order['user_id'] !== (int)$user['id']) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', back_main_keyboard()); return; }
+        set_step($chat_id, 'customer_order_note', (string)$oid);
+        send_msg($chat_id, "📝 یادداشت سفارش <code>#{$oid}</code> را بفرست.\nایمیل، رمز، یوزرنیم یا توضیح لازم برای آماده‌سازی اکانت را همینجا ارسال کن.", back_main_keyboard()); return;
     }
 
     if (str_starts_with($data, 'order_timeline_')) {
@@ -498,6 +544,19 @@ email2@test.com | pass2</code>", admin_shop_keyboard()); return; }
 
 function handle_step_message(int $chat_id, array $user, array $message): void {
     $step = (string)($user['step'] ?? '');
+    if ($step === 'customer_order_note') {
+        $oid=(int)$user['step_payload'];
+        $note=trim((string)($message['text'] ?? $message['caption'] ?? ''));
+        if ($note==='') { send_msg($chat_id, 'لطفاً متن یادداشت را ارسال کن.', back_main_keyboard()); return; }
+        try {
+            $order=update_order_customer_note($oid, (int)$user['id'], $note);
+            clear_step($chat_id);
+            send_msg($chat_id, "✅ یادداشت سفارش <code>#{$oid}</code> ثبت شد.", main_menu_keyboard(is_admin($chat_id)));
+            notify_admins("📝 یادداشت مشتری برای سفارش <code>#{$oid}</code>\nکاربر: <code>{$chat_id}</code>\n\n".h($note));
+        } catch (Throwable $e) { clear_step($chat_id); send_msg($chat_id, 'ثبت یادداشت ممکن نشد. سفارش پیدا نشد.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+
     if ($step === 'order_receipt') {
         $oid = (int)$user['step_payload'];
         $note = trim((string)($message['caption'] ?? $message['text'] ?? ''));
