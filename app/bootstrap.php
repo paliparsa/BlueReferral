@@ -117,6 +117,7 @@ function migrate(): void {
     add_column_if_missing('orders', 'canceled_at', 'DATETIME NULL AFTER rejected_at');
     add_column_if_missing('orders', 'user_hidden', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER admin_note');
     add_column_if_missing('orders', 'archived_at', 'DATETIME NULL AFTER user_hidden');
+    add_column_if_missing('orders', 'wallet_amount', 'BIGINT NOT NULL DEFAULT 0 AFTER discount_amount');
 
     seed_shop_categories();
 }
@@ -875,21 +876,85 @@ function calculate_coupon_discount(array $coupon, int $amount): int {
     if ($coupon['type'] === 'fixed') return min($amount, max(0, (int)$coupon['value']));
     return min($amount, (int)floor($amount * max(0, (int)$coupon['value']) / 100));
 }
+
+
+function increment_coupon_use(int $couponId): void {
+    db()->prepare('UPDATE coupons SET used_count=used_count+1 WHERE id=?')->execute([$couponId]);
+}
+
+function order_payable_base(array $order, int $discountAmount = null): int {
+    $discount = $discountAmount === null ? (int)($order['discount_amount'] ?? 0) : $discountAmount;
+    return max(0, (int)$order['amount'] - $discount);
+}
+function wallet_transaction(int $userId, int $amount, string $type, string $description, ?int $relatedUserId=null): void {
+    db()->prepare('INSERT INTO transactions (user_id,type,amount,description,related_user_id) VALUES (?,?,?,?,?)')->execute([$userId,$type,$amount,$description,$relatedUserId]);
+}
+function apply_wallet_to_order(int $orderId, int $userId): array {
+    $order = order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    $status = normalize_order_status((string)$order['status']);
+    if (!in_array($status, ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
+    $user = get_user_by_id($userId);
+    $balance = (int)($user['balance'] ?? 0);
+    if ($balance <= 0) throw new RuntimeException('NO_WALLET_BALANCE');
+    $base = order_payable_base($order);
+    $already = (int)($order['wallet_amount'] ?? 0);
+    $remaining = max(0, $base - $already);
+    if ($remaining <= 0) return $order;
+    $use = min($balance, $remaining);
+    db()->prepare('UPDATE users SET balance=balance-? WHERE id=? AND balance>=?')->execute([$use,$userId,$use]);
+    wallet_transaction($userId, -$use, 'wallet_payment', 'پرداخت از کیف پول برای سفارش #'.$orderId, null);
+    $newWallet = $already + $use;
+    $newFinal = max(0, $base - $newWallet);
+    $sql = 'UPDATE orders SET wallet_amount=?, final_amount=?';
+    $params = [$newWallet, $newFinal];
+    if ($newFinal === 0) { $sql .= ', status="payment_confirmed", paid_at=NOW()'; }
+    $sql .= ' WHERE id=?'; $params[] = $orderId;
+    db()->prepare($sql)->execute($params);
+    add_order_event($orderId, $newFinal === 0 ? 'payment_confirmed' : $status, 'پرداخت از کیف پول ثبت شد', 'مبلغ استفاده‌شده: '.money($use), true);
+    return order_by_id($orderId);
+}
+function refund_wallet_for_order(int $orderId, string $reason='بازگشت وجه کیف پول'): void {
+    $order = order_by_id($orderId);
+    if (!$order) return;
+    $wallet = (int)($order['wallet_amount'] ?? 0);
+    if ($wallet <= 0) return;
+    $userId = (int)$order['user_id'];
+    db()->prepare('UPDATE users SET balance=balance+? WHERE id=?')->execute([$wallet,$userId]);
+    wallet_transaction($userId, $wallet, 'wallet_refund', $reason.' سفارش #'.$orderId, null);
+    $base = order_payable_base($order);
+    db()->prepare('UPDATE orders SET wallet_amount=0, final_amount=? WHERE id=?')->execute([$base,$orderId]);
+    add_order_event($orderId, normalize_order_status((string)$order['status']), 'موجودی کیف پول برگشت داده شد', money($wallet), true);
+}
+
 function apply_coupon_to_order(int $orderId, int $userId, string $code): array {
     $order=order_by_id($orderId);
     if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
     if (normalize_order_status($order['status']) !== 'pending_payment') throw new RuntimeException('ORDER_LOCKED');
-    $coupon=coupon_by_code($code); if (!$coupon) throw new RuntimeException('COUPON_NOT_FOUND');
+    $coupon=coupon_by_code($code);
     $discount=calculate_coupon_discount($coupon, (int)$order['amount']);
-    if ($discount <= 0) throw new RuntimeException('COUPON_INVALID');
-    $final=max(0, (int)$order['amount'] - $discount);
-    db()->prepare('UPDATE orders SET coupon_code=?, discount_amount=?, final_amount=? WHERE id=?')->execute([$coupon['code'],$discount,$final,$orderId]);
-    db()->prepare('UPDATE coupons SET used_count=used_count+1 WHERE id=?')->execute([$coupon['id']]);
-    add_order_event($orderId, 'pending_payment', 'کد تخفیف اعمال شد', $coupon['code'].' / '.money($discount));
+    $base=max(0, (int)$order['amount'] - $discount);
+    $wallet=(int)($order['wallet_amount'] ?? 0);
+    if ($wallet > $base) {
+        $refund = $wallet - $base;
+        db()->prepare('UPDATE users SET balance=balance+? WHERE id=?')->execute([$refund,$userId]);
+        wallet_transaction($userId, $refund, 'wallet_refund', 'اصلاح پرداخت کیف پول بعد از کد تخفیف سفارش #'.$orderId, null);
+        $wallet = $base;
+        add_order_event($orderId, 'pending_payment', 'بخشی از کیف پول برگشت خورد', money($refund), true);
+    }
+    $final=max(0, $base - $wallet);
+    $sql='UPDATE orders SET coupon_code=?, discount_amount=?, wallet_amount=?, final_amount=?';
+    $params=[$coupon['code'],$discount,$wallet,$final];
+    if ($final === 0) { $sql .= ', status="payment_confirmed", paid_at=NOW()'; }
+    $sql.=' WHERE id=?'; $params[]=$orderId;
+    db()->prepare($sql)->execute($params);
+    increment_coupon_use((int)$coupon['id']);
+    add_order_event($orderId, $final===0?'payment_confirmed':'pending_payment', 'کد تخفیف اعمال شد', $coupon['code'].' / '.money($discount));
     return order_by_id($orderId);
 }
 function update_order_status(int $orderId, string $status, string $title='', string $note='', bool $public=true): ?array {
     $status = normalize_order_status($status);
+    if (in_array($status, ['rejected','canceled','refunded'], true)) refund_wallet_for_order($orderId, 'بازگشت خودکار کیف پول');
     $timeCol = ['receipt_submitted'=>'review_started_at','reviewing'=>'review_started_at','payment_confirmed'=>'paid_at','preparing'=>'prepared_at','delivered'=>'delivered_at','rejected'=>'rejected_at','canceled'=>'canceled_at'][$status] ?? null;
     $sql='UPDATE orders SET status=?'; $params=[$status];
     if ($timeCol) { $sql .= ", {$timeCol}=NOW()"; }
@@ -917,6 +982,7 @@ function update_order_customer_note(int $orderId, int $userId, string $note): ar
 }
 function reject_order(int $orderId, string $note=''): ?array {
     $order=order_by_id($orderId); if (!$order) return null;
+    refund_wallet_for_order($orderId, 'بازگشت کیف پول سفارش رد شده');
     db()->prepare('UPDATE orders SET status="rejected", admin_note=?, rejected_at=NOW() WHERE id=?')->execute([$note,$orderId]);
     add_order_event($orderId, 'rejected', 'سفارش رد شد', $note, true);
     return order_by_id($orderId);
@@ -1039,7 +1105,7 @@ function order_public_payload(array $o): array {
     return [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
-        'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'], 'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
+        'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'], 'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
