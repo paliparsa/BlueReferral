@@ -113,6 +113,7 @@ function migrate(): void {
     seed_setting('swapwallet_ttl_minutes', app_config('SWAPPAY_TTL_MINUTES', 30));
     seed_setting('swapwallet_notify_fail', '1');
     seed_setting('swapwallet_api_version', 'v2_temporary_wallet');
+    seed_setting('swapwallet_strict_v2', '1');
     seed_payment_methods();
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
     seed_setting('delivery_template_vpn', "🔐 سرویس VPN شما آماده شد\n\n{delivery}\n\nاگر نیاز به راهنما داشتی، به پشتیبانی پیام بده.");
@@ -543,7 +544,7 @@ function http_json_request(string $method, string $url, array $payload=null, arr
     if ($payload !== null) $baseHeaders[] = 'Content-Type: application/json';
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_CONNECTTIMEOUT => 2,
         CURLOPT_TIMEOUT => 6,
         CURLOPT_CUSTOMREQUEST => strtoupper($method),
@@ -556,23 +557,40 @@ function http_json_request(string $method, string $url, array $payload=null, arr
     $err = curl_error($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     curl_close($ch);
-    if ($body === false) throw new RuntimeException('HTTP_FAILED '.($err ?: 'curl'));
+    if ($body === false) throw new RuntimeException('HTTP_FAILED CURL '.($err ?: 'unknown'));
     $j = json_decode($body ?: '{}', true);
-    if (!is_array($j)) throw new RuntimeException('JSON_FAILED HTTP '.$code.' BODY '.mb_substr((string)$body,0,220));
+    if (!is_array($j)) {
+        throw new RuntimeException('JSON_FAILED HTTP '.$code.' BODY '.mb_substr((string)$body,0,500));
+    }
     if ($code >= 400) {
-        $msg = $j['message'] ?? $j['error'] ?? $j['detail'] ?? ('HTTP '.$code);
-        throw new RuntimeException('HTTP_FAILED '.$msg);
+        $msg = $j['message'] ?? $j['error'] ?? $j['detail'] ?? ($j['errorMessage'] ?? ('HTTP '.$code));
+        $shortBody = mb_substr(json_encode($j, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES), 0, 500);
+        throw new RuntimeException('HTTP_FAILED '.$code.' '.$msg.' BODY '.$shortBody);
     }
     return $j;
 }
 function swapwallet_headers(): array {
     $key = swapwallet_api_key();
-    // SwapPay docs/examples have used Apikey; some gateways expect Bearer or X-API-Key. Sending all is harmless for most APIs.
+    // Official SwapPay examples use exactly this authorization scheme.
     return [
         'Authorization: Apikey '.$key,
-        'X-API-Key: '.$key,
-        'Api-Key: '.$key,
     ];
+}
+function swapwallet_mask_key(string $key): string {
+    $key = trim($key);
+    if ($key === '') return '';
+    return mb_substr($key, 0, 4).'…'.mb_substr($key, -4);
+}
+function swapwallet_is_404_error(string $err): bool { return str_contains($err, 'HTTP_FAILED 404') || stripos($err, 'Not Found') !== false; }
+function swapwallet_pretty_fail_reason(array $attempts): string {
+    $last = $attempts ? end($attempts) : [];
+    $err = (string)($last['error'] ?? 'UNKNOWN_SWAPWALLET_ERROR');
+    $all404 = $attempts && count(array_filter($attempts, fn($a)=>swapwallet_is_404_error((string)($a['error'] ?? '')))) === count($attempts);
+    if ($all404) {
+        return 'SWAPWALLET_USERNAME_NOT_FOUND_OR_SWAPPAY_INACTIVE: مقدار SwapWallet Username/Slug پیدا نشد یا SwapPay برای این حساب فعال نیست. مقدار عددی، شماره کاربری، شماره موبایل یا ایمیل معمولاً معتبر نیست. مقدار دقیق {username} را باید از پنل/پشتیبانی SwapWallet بگیری.';
+    }
+    if (str_contains($err, 'HTTP_FAILED 401') || str_contains($err, 'HTTP_FAILED 403')) return 'SWAPWALLET_API_KEY_REJECTED: API Key رد شد یا دسترسی SwapPay ندارد.';
+    return $err;
 }
 function swapwallet_collect_arrays(array $node, array &$out, int $depth=0): void {
     if ($depth > 4) return;
@@ -675,39 +693,47 @@ function swapwallet_invoice_payloads(array $order, float $amountUsd, string $tok
     $name = $order['product_name'].(!empty($order['variant_title']) ? ' - '.$order['variant_title'] : '');
     $custom = ['order_id'=>(int)$order['id'], 'telegram_id'=>(int)$order['telegram_id'], 'cartId'=>'blue-ref-'.(int)$order['id']];
     $cb = swapwallet_callback_url((int)$order['id']);
+    $returnUrl = miniapp_url(false);
+    $description = 'BlueReferral order #'.(int)$order['id'].' - '.$name;
     $base = [
         'amount'=>['number'=>(string)$amountUsd, 'unit'=>'USD'],
         'autoConversionToken'=>$token,
         'ttl'=>$ttl,
-        'description'=>'BlueReferral order #'.(int)$order['id'].' - '.$name,
+        'description'=>$description,
         'userId'=>(string)$order['telegram_id'],
         'userEmail'=>'user'.(int)$order['telegram_id'].'@telegram.local',
+        'externalId'=>'blue_ref_order_'.(int)$order['id'],
+        'returnUrl'=>$returnUrl,
         'customData'=>json_encode($custom, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
     ];
     if ($cb !== '') $base['callbackUrl'] = $cb;
-    $alt = $base;
-    $alt['customData'] = $custom;
-    $alt['externalId'] = 'blue_ref_order_'.(int)$order['id'];
-    $legacy = [
+
+    $objectCustom = $base;
+    $objectCustom['customData'] = $custom;
+
+    $snakeCase = [
         'amount'=>['number'=>(string)$amountUsd, 'unit'=>'USD'],
-        'autoConversionToken'=>$token,
+        'auto_conversion_token'=>$token,
         'ttl'=>$ttl,
-        'externalId'=>'blue_ref_order_'.(int)$order['id'],
-        'description'=>$base['description'],
-        'customData'=>$custom,
-        'returnUrl'=>miniapp_url(false),
+        'description'=>$description,
+        'user_id'=>(string)$order['telegram_id'],
+        'user_email'=>'user'.(int)$order['telegram_id'].'@telegram.local',
+        'external_id'=>'blue_ref_order_'.(int)$order['id'],
+        'return_url'=>$returnUrl,
+        'custom_data'=>$custom,
     ];
+    if ($cb !== '') $snakeCase['callback_url'] = $cb;
+
     return [
         ['version'=>'v2_temporary_wallet', 'payload'=>$base],
-        ['version'=>'v2_temporary_wallet_alt', 'payload'=>$alt],
-        ['version'=>'v1_legacy', 'payload'=>$legacy],
+        ['version'=>'v2_temporary_wallet_object_custom', 'payload'=>$objectCustom],
+        ['version'=>'v2_temporary_wallet_snake_case', 'payload'=>$snakeCase],
     ];
 }
 function swapwallet_create_url(string $version): string {
     $base = swapwallet_base_url();
     $username = rawurlencode(swapwallet_username());
-    if (str_starts_with($version, 'v2_')) return $base.'/v2/payment/'.$username.'/invoices/temporary-wallet';
-    return $base.'/v1/payment/'.$username.'/invoice';
+    return $base.'/v2/payment/'.$username.'/invoices/temporary-wallet';
 }
 function swapwallet_status_urls(string $invoiceId): array {
     $base = swapwallet_base_url();
@@ -716,8 +742,27 @@ function swapwallet_status_urls(string $invoiceId): array {
     return [
         $base.'/v2/payment/'.$username.'/invoices/'.$id,
         $base.'/v2/payment/'.$username.'/invoices?invoiceId='.$id,
-        $base.'/v1/payment/'.$username.'/invoice/'.$id,
     ];
+}
+function swapwallet_allowed_tokens_url(): string { return swapwallet_base_url().'/v1/payment/invoice/allowed-tokens'; }
+function swapwallet_test_connection(): array {
+    $out = [
+        'configured'=>swapwallet_configured(),
+        'base_url'=>swapwallet_base_url(),
+        'username'=>swapwallet_username(),
+        'api_key_masked'=>swapwallet_mask_key(swapwallet_api_key()),
+        'create_url'=>swapwallet_create_url('v2_temporary_wallet'),
+        'allowed_tokens_url'=>swapwallet_allowed_tokens_url(),
+    ];
+    try {
+        $res = http_json_request('GET', swapwallet_allowed_tokens_url(), null, swapwallet_headers());
+        $out['allowed_tokens_ok'] = true;
+        $out['allowed_tokens_sample'] = array_slice($res, 0, 5);
+    } catch (Throwable $e) {
+        $out['allowed_tokens_ok'] = false;
+        $out['allowed_tokens_error'] = $e->getMessage();
+    }
+    return $out;
 }
 function start_swapwallet_invoice(int $orderId, int $userId): array {
     if (!payment_enabled('crypto')) throw new RuntimeException('SWAPWALLET_DISABLED');
@@ -752,12 +797,12 @@ function start_swapwallet_invoice(int $orderId, int $userId): array {
             $attempts[] = ['version'=>$version,'url'=>$url,'error'=>$e->getMessage(),'payload'=>$payload];
         }
     }
-    $fail = $attempts ? end($attempts) : ['error'=>'UNKNOWN_SWAPWALLET_ERROR'];
-    $failText = (string)($fail['error'] ?? 'UNKNOWN_SWAPWALLET_ERROR');
+    $primaryFail = $attempts[0] ?? ['error'=>'UNKNOWN_SWAPWALLET_ERROR'];
+    $failText = swapwallet_pretty_fail_reason($attempts);
     error_log('[BlueReferral SwapWallet] create invoice failed order='.$orderId.' error='.$failText);
     try {
         db()->prepare('INSERT INTO swapwallet_invoices (order_id,invoice_id,amount_usd,token,status,payment_url,fail_reason,request_url,request_body,api_version,raw_response) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE amount_usd=VALUES(amount_usd),token=VALUES(token),status=VALUES(status),fail_reason=VALUES(fail_reason),request_url=VALUES(request_url),request_body=VALUES(request_body),api_version=VALUES(api_version),raw_response=VALUES(raw_response)')
-            ->execute([$orderId,'failed_'.$orderId.'_'.time(),(string)$amountUsd,$token,'FAILED','',$failText,(string)($fail['url'] ?? ''),json_encode($fail['payload'] ?? [],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)($fail['version'] ?? 'unknown'),json_encode(['attempts'=>$attempts],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+            ->execute([$orderId,'failed_'.$orderId.'_'.time(),(string)$amountUsd,$token,'FAILED','',$failText,(string)($primaryFail['url'] ?? ''),json_encode($primaryFail['payload'] ?? [],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)($primaryFail['version'] ?? 'unknown'),json_encode(['attempts'=>$attempts,'diagnostic'=>swapwallet_test_connection()],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
     } catch (Throwable $ignored) {}
     throw new RuntimeException($failText);
 }
