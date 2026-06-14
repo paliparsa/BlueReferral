@@ -10,6 +10,8 @@ if (PHP_SAPI !== 'cli') {
         exit;
     }
 }
-$result = crypto_check_pending_all(25);
+// New preferred crypto flow: SwapWallet invoice checks. Legacy raw TXID checks are intentionally not run here
+// to prevent slow external blockchain calls from affecting the bot.
+$result = swapwallet_check_pending_all(25);
 header('Content-Type: application/json; charset=utf-8');
 echo json_encode(['ok'=>true] + $result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
