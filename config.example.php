@@ -61,8 +61,8 @@ $CARD_ACCOUNTS = [
 $STARS_RATE_TOMAN = 3200; // value of 1 Telegram Star in Toman for invoice conversion.
 
 // Crypto payments - optional. Admin can configure wallets/rates inside Mini App.
-$CRYPTO_RATE_SOURCE = 'nobitex'; // nobitex or manual
-$CRYPTO_RATE_MARKUP_PERCENT = 1; // safety margin added to crypto amount
+$CRYPTO_RATE_SOURCE = 'manual'; // legacy raw crypto is deprecated; SwapWallet uses SWAPPAY_USDT_RATE_TOMAN
+$CRYPTO_RATE_MARKUP_PERCENT = 1; // legacy raw crypto only
 $CRYPTO_MANUAL_RATES = ['USDT' => 0, 'TRX' => 0, 'TON' => 0];
 $TRONSCAN_API_KEY = ''; // optional, recommended for higher Tronscan API limits
 $TONCENTER_API_KEY = ''; // optional, recommended for TON checks

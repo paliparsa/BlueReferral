@@ -952,3 +952,17 @@ This patch fixes a critical Mini App/admin issue after saving payment settings:
 ### Cron بررسی پرداخت
 همان cron قبلی `public/cron_crypto.php` اکنون فقط invoiceهای SwapWallet را بررسی می‌کند و دیگر موقع لود Mini App یا پنل ادمین هیچ درخواست خارجی به نوبیتکس/Tron/Ton زده نمی‌شود.
 
+
+
+## Debug Fix: SwapWallet + Speed
+
+این نسخه چند فیکس مهم دارد:
+
+- اجرای `migrate()` از مسیرهای webhook/API/cron حذف شد؛ فقط از `install.php` یا منوی `blue-ref` انجام می‌شود.
+- مسیر Mini App دیگر موقع باز شدن به Nobitex، Tron یا TON درخواست نمی‌زند.
+- نرخ پرداخت SwapWallet فقط از تنظیم دستی `SWAPPAY_USDT_RATE_TOMAN` / پنل ادمین خوانده می‌شود.
+- اگر ساخت invoice سواپ‌ولت خطا بدهد، Mini App دیگر پیام موفقیت الکی نشان نمی‌دهد.
+- پاسخ SwapWallet با چند ساختار مختلف parse می‌شود و `raw_response` داخل `swapwallet_invoices` ذخیره می‌شود.
+- اگر لینک پرداخت ساخته شود، هم داخل Mini App نمایش داده می‌شود و هم با دکمه مستقیم برای کاربر در تلگرام ارسال می‌شود.
+
+بعد از آپدیت، فقط یک بار migration را از `blue-ref` اجرا کن. اگر پنل کند بود، `grep -R "CryptoRate\|api.nobitex" app public` نباید خروجی فعال مرتبط با API بدهد.
