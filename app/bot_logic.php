@@ -13,6 +13,45 @@ function handle_update(array $update): void {
     }
 }
 
+
+function send_home_message(int $chat_id, array $user, bool $withKeyboard=true): void {
+    send_msg($chat_id, main_text($user), miniapp_inline_keyboard(is_admin($chat_id)));
+    if ($withKeyboard) send_msg($chat_id, 'منوی پایین همیشه در دسترسه 👇', main_menu_keyboard(is_admin($chat_id)));
+}
+function save_user_contact_from_message(int $chat_id, array $message): bool {
+    if (empty($message['contact']) || !is_array($message['contact'])) return false;
+    $contact = $message['contact'];
+    $contactUserId = (int)($contact['user_id'] ?? 0);
+    if ($contactUserId && $contactUserId !== $chat_id) return false;
+    $phone = trim((string)($contact['phone_number'] ?? ''));
+    if ($phone === '') return false;
+    db()->prepare('UPDATE users SET phone_number=?, phone_verified_at=NOW() WHERE telegram_id=?')->execute([$phone, $chat_id]);
+    return true;
+}
+function contact_required_for_user(array $user): bool {
+    return setting_bool('require_contact_auth', false) && empty($user['phone_number']);
+}
+function maybe_notify_new_start(array $user): void {
+    if (!setting_bool('notify_new_user', true)) return;
+    if ((int)($user['start_notified'] ?? 0) === 1) return;
+    $ref = 'بدون معرف';
+    if (!empty($user['referrer_id'])) { $r = get_user_by_id((int)$user['referrer_id']); if ($r) $ref = '@'.($r['username'] ?: 'بدون یوزرنیم').' | <code>'.$r['telegram_id'].'</code>'; }
+    $name = trim(($user['first_name'] ?? '').' '.($user['last_name'] ?? '')) ?: 'بدون نام';
+    $username = !empty($user['username']) ? '@'.$user['username'] : 'بدون یوزرنیم';
+    $phone = !empty($user['phone_number']) ? $user['phone_number'] : 'ثبت نشده';
+    notify_admins("🆕 <b>عضو جدید ربات</b>
+
+نام: <b>".h($name)."</b>
+یوزرنیم: <b>".h($username)."</b>
+آیدی: <code>{$user['telegram_id']}</code>
+شماره: <code>".h($phone)."</code>
+کد دعوت: <code>".h($user['ref_code'])."</code>
+معرف: {$ref}
+موجودی: <b>".money((int)$user['balance'])."</b>
+تاریخ عضویت: <code>{$user['created_at']}</code>");
+    db()->prepare('UPDATE users SET start_notified=1 WHERE id=?')->execute([(int)$user['id']]);
+}
+
 function handle_message(array $message): void {
     $chat_id = (int)($message['chat']['id'] ?? 0);
     $from = $message['from'] ?? [];
@@ -20,9 +59,7 @@ function handle_message(array $message): void {
     $text = trim((string)($message['text'] ?? ''));
 
     $ref = null;
-    $payload = '';
-    $isStart = str_starts_with($text, '/start');
-    if ($isStart) {
+    if (str_starts_with($text, '/start')) {
         $parts = explode(' ', $text, 2);
         $payload = $parts[1] ?? '';
         if (str_starts_with($payload, 'ref_')) $ref = substr($payload, 4);
@@ -30,28 +67,15 @@ function handle_message(array $message): void {
     }
 
     $user = create_or_update_user($from, $ref);
-    if ($isStart) notify_admin_user_start($user, $payload);
 
-    if (isset($message['contact'])) {
-        if (!save_user_contact($chat_id, $message['contact'])) {
-            send_msg($chat_id, 'برای احراز شماره، باید شماره خودت را با دکمه «ارسال شماره موبایل» بفرستی.', contact_request_keyboard());
-            return;
-        }
+    if (save_user_contact_from_message($chat_id, $message)) {
         $user = get_user_by_tid($chat_id);
-        if (!is_joined_channel($chat_id)) {
-            send_msg($chat_id, "✅ شماره ثبت شد. حالا برای فعال شدن رفرال، اول داخل کانال عضو شو و بعد دکمه «عضو شدم» رو بزن 👇", force_join_keyboard());
-            return;
-        }
-        try_reward_referrer($user);
-        $user = get_user_by_tid($chat_id);
-        send_welcome($chat_id, $user);
-        return;
+        maybe_notify_new_start($user);
+        send_msg($chat_id, '✅ شماره شما ثبت شد. خوش آمدی!', main_menu_keyboard(is_admin($chat_id)));
     }
 
-    if (needs_contact_auth($user)) {
-        send_msg($chat_id, "📱 برای ادامه، لطفاً شماره موبایل خودت را با دکمه زیر برای ربات ارسال کن.
-
-این مرحله از تنظیمات ادمین قابل فعال/غیرفعال‌سازی است.", contact_request_keyboard());
+    if (contact_required_for_user($user)) {
+        send_msg($chat_id, '📱 برای ادامه، لطفاً شماره موبایل تلگرام خودت را با دکمه زیر ارسال کن.', contact_request_keyboard());
         return;
     }
 
@@ -62,9 +86,11 @@ function handle_message(array $message): void {
     try_reward_referrer(get_user_by_tid($chat_id));
     $user = get_user_by_tid($chat_id);
 
-    if ($isStart) {
+    if (str_starts_with($text, '/start')) {
         clear_step($chat_id);
-        send_welcome($chat_id, $user);
+        $user = get_user_by_tid($chat_id);
+        maybe_notify_new_start($user);
+        send_home_message($chat_id, $user);
         return;
     }
 
@@ -92,7 +118,7 @@ function handle_keyboard_text(int $chat_id, array $user, string $text): bool {
         '📢 پیام همگانی'=>'adm_broadcast', '🏆 لیدربورد ادمین'=>'adm_leaderboard',
     ];
     if (isset($map[$text])) {
-        if ($map[$text] === 'main') { clear_step($chat_id); send_msg($chat_id, main_text($user), main_menu_keyboard(is_admin($chat_id))); return true; }
+        if ($map[$text] === 'main') { clear_step($chat_id); send_home_message($chat_id, get_user_by_tid($chat_id), false); return true; }
         handle_user_callback($chat_id, null, $user, $map[$text]); return true;
     }
     if (is_admin($chat_id) && isset($adminMap[$text])) { handle_admin_callback($chat_id, null, $user, $adminMap[$text]); return true; }
@@ -109,11 +135,6 @@ function handle_callback(array $cb): void {
     answer_cb($id);
     $user = create_or_update_user($from, null);
 
-    if (needs_contact_auth($user)) {
-        send_msg($chat_id, '📱 برای ادامه، اول شماره موبایل خودت را با دکمه زیر ارسال کن.', contact_request_keyboard());
-        return;
-    }
-
     if ($data === 'check_join') {
         if (!is_joined_channel($chat_id)) {
             send_msg($chat_id, "هنوز عضویت شما تأیید نشد. بعد از عضویت دوباره امتحان کن.", force_join_keyboard());
@@ -121,7 +142,9 @@ function handle_callback(array $cb): void {
         }
         try_reward_referrer(get_user_by_tid($chat_id));
         $user = get_user_by_tid($chat_id);
-        send_welcome($chat_id, get_user_by_tid($chat_id));
+        maybe_notify_new_start($user);
+        send_msg($chat_id, "✅ عضویت تأیید شد. خوش اومدی!", main_menu_keyboard(is_admin($chat_id)));
+        send_home_message($chat_id, $user, false);
         return;
     }
 
@@ -132,7 +155,7 @@ function handle_callback(array $cb): void {
     try_reward_referrer($user);
     $user = get_user_by_tid($chat_id);
 
-    if ($data === 'main') { clear_step($chat_id); send_or_edit($chat_id, $message_id, main_text($user), main_menu_keyboard(is_admin($chat_id))); return; }
+    if ($data === 'main') { clear_step($chat_id); send_or_edit($chat_id, $message_id, main_text($user), miniapp_inline_keyboard(is_admin($chat_id))); return; }
     if (str_starts_with($data, 'u_') || str_starts_with($data, 'shop_') || str_starts_with($data, 'order_')) { handle_user_callback($chat_id, $message_id, $user, $data); return; }
     if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_') || str_starts_with($data, 'prod_') || str_starts_with($data, 'cat_') || str_starts_with($data, 'coupon_') || str_starts_with($data, 'ord_') || str_starts_with($data, 'prodwiz_') || str_starts_with($data, 'catwiz_') || str_starts_with($data, 'varwiz_') || str_starts_with($data, 'invwiz_') || str_starts_with($data, 'inv_') || str_starts_with($data, 'variant_') || str_starts_with($data, 'edit_') || str_starts_with($data, 'hard_') || str_starts_with($data, 'toggle_')) {
         if (!is_admin($chat_id)) { send_msg($chat_id, 'دسترسی ادمین ندارید.'); return; }
@@ -394,38 +417,19 @@ email2@test.com | pass2</code>", admin_shop_keyboard()); return; }
 {$timeline}", admin_order_keyboard($oid)); return; }
 
     if ($data === 'adm_settings') {
-        $contactAuth = setting_bool('auth_contact_required', false) ? 'فعال' : 'غیرفعال';
-        $startNotify = setting_bool('notify_admin_on_start', true) ? 'فعال' : 'غیرفعال';
-        $txt = "⚙️ <b>تنظیمات پاداش‌ها و احراز</b>
-
-پاداش دعوت: <b>".money(setting_int('start_reward', 2000))."</b>
-حداقل برداشت: <b>".money(setting_int('min_withdraw', 50000))."</b>
-پاداش پایه خرید: <b>".money(setting_int('purchase_reward', 10000))."</b>
-هر چند دعوت یک گردونه: <b>".setting_int('spin_referrals_per_chance', 5)."</b>
-حداقل دعوت برای کد اختصاصی: <b>".setting_int('custom_code_min_referrals', 3)."</b>
-احراز شماره موبایل: <b>{$contactAuth}</b>
-اعلان استارت به ادمین: <b>{$startNotify}</b>";
+        $txt = "⚙️ <b>تنظیمات پاداش‌ها</b>\n\nپاداش دعوت: <b>".money(setting_int('start_reward', 2000))."</b>\nحداقل برداشت: <b>".money(setting_int('min_withdraw', 50000))."</b>\nپاداش پایه خرید: <b>".money(setting_int('purchase_reward', 10000))."</b>\nهر چند دعوت یک گردونه: <b>".setting_int('spin_referrals_per_chance', 5)."</b>\nحداقل دعوت برای کد اختصاصی: <b>".setting_int('custom_code_min_referrals', 3)."</b>";
         $kb = json_markup(['inline_keyboard'=>[
             [['text'=>'پاداش دعوت', 'callback_data'=>'set_start_reward'], ['text'=>'حداقل برداشت', 'callback_data'=>'set_min_withdraw']],
             [['text'=>'پاداش خرید', 'callback_data'=>'set_purchase_reward'], ['text'=>'هر چند دعوت گردونه', 'callback_data'=>'set_spin_every']],
             [['text'=>'حداقل کد اختصاصی', 'callback_data'=>'set_custom_code_min']],
+            [['text'=>(setting_bool('require_contact_auth', false)?'غیرفعال‌کردن احراز شماره':'فعال‌کردن احراز شماره'), 'callback_data'=>'toggle_require_contact_auth'], ['text'=>(setting_bool('notify_new_user', true)?'خاموش‌کردن اعلان عضو جدید':'روشن‌کردن اعلان عضو جدید'), 'callback_data'=>'toggle_notify_new_user']],
             [['text'=>'مأموریت ۱', 'callback_data'=>'set_mission1'], ['text'=>'مأموریت ۲', 'callback_data'=>'set_mission2'], ['text'=>'مأموریت ۳', 'callback_data'=>'set_mission3']],
-            [['text'=>'📱 تغییر احراز شماره', 'callback_data'=>'set_contact_auth_toggle']],
-            [['text'=>'🔔 تغییر اعلان استارت', 'callback_data'=>'set_start_notify_toggle']],
             [['text'=>'🔙 پنل ادمین', 'callback_data'=>'adm_home']],
         ]]);
         send_or_edit($chat_id, $message_id, $txt, $kb); return;
     }
-    if ($data === 'set_contact_auth_toggle') {
-        set_setting('auth_contact_required', setting_bool('auth_contact_required', false) ? '0' : '1');
-        handle_admin_callback($chat_id, $message_id, $user, 'adm_settings');
-        return;
-    }
-    if ($data === 'set_start_notify_toggle') {
-        set_setting('notify_admin_on_start', setting_bool('notify_admin_on_start', true) ? '0' : '1');
-        handle_admin_callback($chat_id, $message_id, $user, 'adm_settings');
-        return;
-    }
+    if ($data === 'toggle_require_contact_auth') { set_setting('require_contact_auth', setting_bool('require_contact_auth', false) ? '0' : '1'); handle_admin_callback($chat_id, $message_id, $user, 'adm_settings'); return; }
+    if ($data === 'toggle_notify_new_user') { set_setting('notify_new_user', setting_bool('notify_new_user', true) ? '0' : '1'); handle_admin_callback($chat_id, $message_id, $user, 'adm_settings'); return; }
     if ($data === 'adm_theme') {
         $txt = "🎨 <b>رنگ اصلی Mini App</b>\nرنگ فعلی: <code>".h(setting('theme_color', '#1d9bf0'))."</code>\n\nیک رنگ انتخاب کن یا دکمه «رنگ دلخواه» را بزن.";
         $kb = json_markup(['inline_keyboard'=>[
@@ -496,6 +500,21 @@ function handle_step_message(int $chat_id, array $user, array $message): void {
                 else send_msg($aid, $msg, admin_order_keyboard((int)$order['id']));
             }
         } catch (Throwable $e) { clear_step($chat_id); send_msg($chat_id, 'ثبت رسید ممکن نشد. سفارش پیدا نشد یا قابل پرداخت نیست.', main_menu_keyboard(is_admin($chat_id))); }
+        return;
+    }
+    if ($step === 'order_customer_note') {
+        $oid = (int)$user['step_payload'];
+        $text = trim((string)($message['text'] ?? $message['caption'] ?? ''));
+        if ($text === '') { send_msg($chat_id, 'لطفاً متن یادداشت را ارسال کن.', back_main_keyboard()); return; }
+        try {
+            $order = update_order_customer_note($oid, (int)$user['id'], $text);
+            clear_step($chat_id);
+            send_msg($chat_id, "✅ یادداشت سفارش <code>#{$oid}</code> ثبت شد.", order_user_keyboard($order));
+            notify_admins("📝 یادداشت جدید مشتری برای سفارش <code>#{$oid}</code>
+کاربر: <code>{$chat_id}</code>
+
+".h($text));
+        } catch (Throwable $e) { clear_step($chat_id); send_msg($chat_id, 'ثبت یادداشت ممکن نشد. سفارش پیدا نشد.', main_menu_keyboard(is_admin($chat_id))); }
         return;
     }
     if (handle_shop_admin_v2_message($chat_id, $user, $message)) return;

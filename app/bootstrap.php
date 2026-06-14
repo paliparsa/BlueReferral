@@ -70,10 +70,9 @@ function migrate(): void {
     add_column_if_missing('users', 'spin_balance', 'INT NOT NULL DEFAULT 0 AFTER referrals_count');
     add_column_if_missing('users', 'step_payload', 'TEXT NULL AFTER step');
     add_column_if_missing('users', 'theme_color', 'VARCHAR(16) NULL AFTER step_payload');
-    add_column_if_missing('users', 'phone_number', 'VARCHAR(32) NULL AFTER theme_color');
-    add_column_if_missing('users', 'contact_first_name', 'VARCHAR(255) NULL AFTER phone_number');
-    add_column_if_missing('users', 'contact_last_name', 'VARCHAR(255) NULL AFTER contact_first_name');
-    add_column_if_missing('users', 'contact_shared_at', 'DATETIME NULL AFTER contact_last_name');
+    add_column_if_missing('users', 'phone_number', 'VARCHAR(64) NULL AFTER theme_color');
+    add_column_if_missing('users', 'phone_verified_at', 'DATETIME NULL AFTER phone_number');
+    add_column_if_missing('users', 'start_notified', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER phone_verified_at');
     try { db()->exec('ALTER TABLE transactions MODIFY COLUMN type VARCHAR(64) NOT NULL'); } catch (Throwable $e) {}
     try { db()->exec("UPDATE users u SET ref_rewarded=1 WHERE referrer_id IS NOT NULL AND EXISTS (SELECT 1 FROM transactions t WHERE t.type='ref_start' AND t.related_user_id=u.id)"); } catch (Throwable $e) {}
     try { db()->exec('INSERT IGNORE INTO referrals (referrer_id, referred_id, reward_amount, created_at) SELECT referrer_id, id, 0, created_at FROM users WHERE referrer_id IS NOT NULL'); } catch (Throwable $e) {}
@@ -93,8 +92,8 @@ function migrate(): void {
     seed_setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0'));
     seed_setting('button_colors_enabled', '1');
     seed_setting('button_colors', ['primary'=>'#1d9bf0','secondary'=>'#2563eb','danger'=>'#ef4444','success'=>'#22c55e','warning'=>'#f59e0b']);
-    seed_setting('auth_contact_required', app_config('AUTH_CONTACT_REQUIRED', '0') ? '1' : '0');
-    seed_setting('notify_admin_on_start', '1');
+    seed_setting('require_contact_auth', '0');
+    seed_setting('notify_new_user', '1');
     seed_setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
     seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً مبلغ فاکتور را کارت‌به‌کارت کنید و سپس رسید پرداخت را از دکمه ارسال رسید بفرستید.'));
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
@@ -354,61 +353,7 @@ function json_markup(array $data): string { return json_encode($data, JSON_UNESC
 function keyboard_markup(array $rows, bool $resize=true, bool $oneTime=false): string {
     return json_markup(['keyboard'=>$rows, 'resize_keyboard'=>$resize, 'one_time_keyboard'=>$oneTime, 'is_persistent'=>true]);
 }
-
-function mini_app_inline_keyboard(bool $admin=false): ?string {
-    $mini = app_config('MINIAPP_URL', '');
-    if (!$mini) return null;
-    $url = $admin ? ($mini . (str_contains($mini, '?') ? '&' : '?') . 'admin=1') : $mini;
-    $text = $admin ? '🧑‍💼 باز کردن Mini Panel' : '🚀 باز کردن Mini App';
-    return json_markup(['inline_keyboard'=>[[['text'=>$text, 'web_app'=>['url'=>$url]]]]]);
-}
-function contact_request_keyboard(): string {
-    return json_markup(['keyboard'=>[[['text'=>'📱 ارسال شماره موبایل', 'request_contact'=>true]]], 'resize_keyboard'=>true, 'one_time_keyboard'=>true, 'is_persistent'=>true]);
-}
-function is_contact_auth_required(): bool { return setting_bool('auth_contact_required', false); }
-function needs_contact_auth(array $user): bool {
-    if (!is_contact_auth_required()) return false;
-    if (is_admin((int)$user['telegram_id'])) return false;
-    return empty($user['phone_number']);
-}
-function save_user_contact(int $telegramId, array $contact): bool {
-    $contactUserId = (int)($contact['user_id'] ?? 0);
-    if ($contactUserId !== $telegramId) return false;
-    $phone = preg_replace('/[^0-9+]/', '', (string)($contact['phone_number'] ?? ''));
-    if ($phone === '') return false;
-    db()->prepare('UPDATE users SET phone_number=?, contact_first_name=?, contact_last_name=?, contact_shared_at=NOW() WHERE telegram_id=?')
-        ->execute([$phone, $contact['first_name'] ?? null, $contact['last_name'] ?? null, $telegramId]);
-    return true;
-}
-function user_full_admin_card(array $user, string $title='👤 کاربر'): string {
-    $ref = !empty($user['referrer_id']) ? get_user_by_id((int)$user['referrer_id']) : null;
-    $name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: '—';
-    $username = !empty($user['username']) ? '@'.$user['username'] : '—';
-    $phone = !empty($user['phone_number']) ? $user['phone_number'] : 'ثبت نشده';
-    $referrer = $ref ? display_name($ref).' | <code>'.$ref['telegram_id'].'</code>' : 'ندارد';
-    return $title."\n".
-        "نام: <b>".h($name)."</b>\n".
-        "یوزرنیم: <b>".h($username)."</b>\n".
-        "آیدی عددی: <code>{$user['telegram_id']}</code>\n".
-        "شماره: <code>".h($phone)."</code>\n".
-        "کد دعوت: <code>".h($user['ref_code'])."</code>\n".
-        "معرف: {$referrer}\n".
-        "زیرمجموعه‌ها: <b>{$user['referrals_count']}</b>\n".
-        "موجودی: <b>".money($user['balance'])."</b>\n".
-        "زمان عضویت: <code>".h($user['created_at'] ?? '')."</code>";
-}
-function notify_admin_user_start(array $user, string $payload=''): void {
-    if (!setting_bool('notify_admin_on_start', true)) return;
-    $extra = $payload !== '' ? "\nپیام start: <code>".h($payload)."</code>" : '';
-    notify_admins(user_full_admin_card($user, '🚀 استارت جدید ربات') . $extra);
-}
-function send_welcome(int $chat_id, array $user): void {
-    send_msg($chat_id, main_text($user), mini_app_inline_keyboard(is_admin($chat_id)));
-    send_msg($chat_id, 'منوی سریع پایین صفحه فعاله؛ هر کاری خواستی از دکمه‌ها انتخاب کن 👇', main_menu_keyboard(is_admin($chat_id)));
-}
-
 function main_menu_keyboard(bool $admin=false): string {
-    $mini = app_config('MINIAPP_URL', '');
     $rows = [
         [['text'=>'🏠 صفحه اول'], ['text'=>'🛒 فروشگاه']],
         [['text'=>'🧾 سفارش‌های من'], ['text'=>'👤 پروفایل و کیف پول']],
@@ -418,6 +363,18 @@ function main_menu_keyboard(bool $admin=false): string {
     ];
     if ($admin) $rows[] = [['text'=>'⚙️ پنل ادمین']];
     return keyboard_markup($rows);
+}
+function miniapp_inline_keyboard(bool $admin=false): string {
+    $mini = app_config('MINIAPP_URL', '');
+    $rows = [];
+    if ($mini) {
+        $rows[] = [['text'=>$admin ? '🧑‍💼 باز کردن Mini Panel ادمین' : '🚀 باز کردن Mini App', 'web_app'=>['url'=>$admin ? $mini.'?admin=1' : $mini]]];
+    }
+    $rows[] = [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'👤 پروفایل و کیف پول', 'callback_data'=>'u_wallet']];
+    return json_markup(['inline_keyboard'=>$rows]);
+}
+function contact_request_keyboard(): string {
+    return keyboard_markup([[['text'=>'📱 ارسال شماره موبایل', 'request_contact'=>true]]], true, true);
 }
 function back_main_keyboard(): string { return json_markup(['inline_keyboard'=>[[['text'=>'🔙 بازگشت به منوی اصلی', 'callback_data'=>'main']]]]); }
 
@@ -433,7 +390,7 @@ function order_user_keyboard(array $order): string {
     } elseif ($status === 'rejected') {
         $rows[] = [['text'=>'📤 ارسال مجدد رسید', 'callback_data'=>'order_receipt_'.$order['id']]];
     }
-    $rows[] = [['text'=>'🧾 تایم‌لاین سفارش', 'callback_data'=>'order_timeline_'.$order['id']]];
+    $rows[] = [['text'=>'📝 یادداشت سفارش / اطلاعات اکانت', 'callback_data'=>'order_note_'.$order['id']], ['text'=>'🧾 تایم‌لاین سفارش', 'callback_data'=>'order_timeline_'.$order['id']]];
     $rows[] = [['text'=>'🧾 سفارش‌های من', 'callback_data'=>'u_orders'], ['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop']];
     $rows[] = [['text'=>'🔙 منوی اصلی', 'callback_data'=>'main']];
     return json_markup(['inline_keyboard'=>$rows]);
@@ -449,6 +406,7 @@ function admin_shop_keyboard(): string {
         [['text'=>'🎟 کدهای تخفیف', 'callback_data'=>'adm_coupons'], ['text'=>'📊 گزارش فروش', 'callback_data'=>'adm_sales_report']],
         [['text'=>'💳 متن پرداخت', 'callback_data'=>'adm_payment']],
     ];
+    if ($mini) $rows[] = [['text'=>'🧑‍💼 Mini Panel ادمین', 'web_app'=>['url'=>$mini.'?admin=1']]];
     $rows[] = [['text'=>'🔙 پنل ادمین', 'callback_data'=>'adm_home']];
     return json_markup(['inline_keyboard'=>$rows]);
 }
@@ -528,6 +486,7 @@ function show_order_invoice(int $chat_id, $message_id, array $order): void {
         "وضعیت: <b>".order_status_emoji($order['status']).' '.order_status_fa($order['status'])."</b>\n".
         "نوع تحویل: <b>".delivery_type_fa($order['delivery_type'])."</b>\n";
     if (!empty($order['expires_at'])) $txt .= "انقضا/مدت: <code>".h($order['expires_at'])."</code>\n";
+    if (!empty($order['customer_note'])) $txt .= "\n📝 یادداشت شما:\n".h($order['customer_note'])."\n";
     if (!empty($order['delivery_text']) && normalize_order_status($order['status']) === 'delivered') $txt .= "\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>\n";
     $timeline = order_timeline_text((int)$order['id'], true);
     if ($timeline) $txt .= "\n🧾 <b>تایم‌لاین</b>\n{$timeline}\n";
@@ -614,6 +573,7 @@ function show_admin_order(int $chat_id, $message_id, int $orderId): void {
     if (!$order) { send_or_edit($chat_id, $message_id, 'سفارش پیدا نشد.', admin_shop_keyboard()); return; }
     $txt = order_admin_card($order);
     if (!empty($order['payment_note'])) $txt .= "\n\nرسید/توضیح پرداخت:\n".h($order['payment_note']);
+    if (!empty($order['customer_note'])) $txt .= "\n\n📝 یادداشت مشتری / اطلاعات لازم:\n".h($order['customer_note']);
     if (!empty($order['receipt_file_id'])) $txt .= "\n\n🖼 رسید عکس دارد و قبلاً برای ادمین ارسال شده است.";
     if (!empty($order['admin_note'])) $txt .= "\n\n📝 یادداشت داخلی:\n".h($order['admin_note']);
     if (!empty($order['delivery_text'])) $txt .= "\n\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>";
@@ -681,7 +641,6 @@ function show_sales_report(int $chat_id, $message_id=null): void {
     send_or_edit($chat_id, $message_id, $txt, admin_shop_keyboard());
 }
 function admin_keyboard(): string {
-    $mini = app_config('MINIAPP_URL', '');
     $rows = [
         [['text'=>'🛒 مدیریت فروشگاه'], ['text'=>'📈 آمار کل']],
         [['text'=>'🏧 برداشت‌ها'], ['text'=>'💸 تغییر موجودی']],
@@ -700,7 +659,7 @@ function force_join_keyboard(): string {
 }
 function main_text(array $user): string {
     $brand = h(setting('brand_name', app_config('BRAND_NAME', 'BlueGate')));
-    return "💙 <b>{$brand} Referral Wallet</b>\n\nاز دکمه‌های پایین تلگرام برای کارهای سریع استفاده کن؛ Mini App هم از دکمه زیر همین پیام باز می‌شود. فروشگاه، سفارش‌ها، کیف پول، دعوت دوستان و برداشت همه آماده است.\n\n" . vip_line($user);
+    return "💙 <b>{$brand}</b>\n\nاز دکمه‌های پایین برای فروشگاه، سفارش‌ها، کیف پول و دعوت دوستان استفاده کن. دکمه Mini App هم همیشه همین زیر قرار دارد.\n\n" . vip_line($user);
 }
 function validate_theme_color(string $color): ?string {
     $color = trim($color);
@@ -930,6 +889,15 @@ function submit_order_receipt(int $orderId, int $userId, string $note='', ?strin
     add_order_event($orderId, 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد');
     return order_by_id($orderId);
 }
+function update_order_customer_note(int $orderId, int $userId, string $note): array {
+    $order=order_by_id($orderId);
+    if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
+    $note = trim($note);
+    if ($note === '') throw new RuntimeException('EMPTY_NOTE');
+    db()->prepare('UPDATE orders SET customer_note=? WHERE id=?')->execute([$note,$orderId]);
+    add_order_event($orderId, 'customer_note', 'یادداشت مشتری ثبت شد', $note, false);
+    return order_by_id($orderId);
+}
 function reject_order(int $orderId, string $note=''): ?array {
     $order=order_by_id($orderId); if (!$order) return null;
     db()->prepare('UPDATE orders SET status="rejected", admin_note=?, rejected_at=NOW() WHERE id=?')->execute([$note,$orderId]);
@@ -1010,6 +978,7 @@ function order_public_payload(array $o): array {
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
         'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'], 'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
+        'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
         'created_at'=>$o['created_at']
