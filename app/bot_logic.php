@@ -324,19 +324,28 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
     }
     if (str_starts_with($data, 'order_pay_crypto_')) {
         $oid=(int)substr($data, 17);
-        try { $order=start_swapwallet_invoice($oid, (int)$user['id']); show_order_invoice($chat_id, $message_id, $order); $sw=get_swapwallet_invoice_by_order($oid); if($sw && !empty($sw['payment_url'])) send_msg($chat_id, "🪙 لینک پرداخت SwapWallet سفارش <code>#{$oid}</code> آماده شد:
-".h($sw['payment_url']), order_user_keyboard($order)); }
-        catch(Throwable $e){ send_msg($chat_id, 'امکان ساخت لینک پرداخت SwapWallet نیست. API Key، Application یا نرخ دستی را در پنل ادمین بررسی کن.', main_menu_keyboard(is_admin($chat_id))); }
+        $wallets = crypto_wallets(true);
+        if (!$wallets) { send_msg($chat_id, 'فعلاً کیف پول رمزارز فعالی تعریف نشده است.', main_menu_keyboard(is_admin($chat_id))); return; }
+        $rows=[]; foreach($wallets as $w){ $rows[] = [['text'=>'🪙 '.($w['title'] ?: ($w['asset'].' '.$w['network'])), 'callback_data'=>'order_crypto_wallet_'.$oid.'_'.$w['id']]]; }
+        $rows[]=[['text'=>'🔙 بازگشت', 'callback_data'=>'order_view_'.$oid]];
+        send_msg($chat_id, 'کیف پول رمزارز را انتخاب کن:', json_markup(['inline_keyboard'=>$rows]));
+        return;
+    }
+    if (str_starts_with($data, 'order_crypto_wallet_')) {
+        $parts=explode('_',$data); $oid=(int)($parts[3]??0); $wid=(int)($parts[4]??0);
+        try { $order=start_crypto_payment($oid, (int)$user['id'], $wid); show_order_invoice($chat_id, $message_id, $order); }
+        catch(Throwable $e){ send_msg($chat_id, 'امکان انتخاب کیف پول رمزارز نیست. نرخ یا ولت را در پنل ادمین بررسی کن.', main_menu_keyboard(is_admin($chat_id))); }
         return;
     }
     if (str_starts_with($data, 'order_crypto_hash_')) {
         $oid=(int)substr($data, 18);
-        send_msg($chat_id, "پرداخت رمزارز به SwapWallet منتقل شده و نیازی به ارسال TXID نیست. از دکمه پرداخت SwapWallet استفاده کن.", back_main_keyboard()); return;
+        set_step($chat_id, 'order_crypto_hash', (string)$oid);
+        send_msg($chat_id, "TXID / Hash پرداخت رمزارز سفارش <code>#{$oid}</code> را ارسال کن.", back_main_keyboard()); return;
     }
     if (str_starts_with($data, 'order_check_crypto_')) {
         $oid=(int)substr($data, 19);
-        try { swapwallet_refresh_invoice($oid); show_order_invoice($chat_id, $message_id, order_by_id($oid)); }
-        catch(Throwable $e){ send_msg($chat_id, 'بررسی پرداخت SwapWallet انجام نشد؛ کمی بعد دوباره امتحان کن.', main_menu_keyboard(is_admin($chat_id))); }
+        try { crypto_verify_order($oid); show_order_invoice($chat_id, $message_id, order_by_id($oid)); }
+        catch(Throwable $e){ send_msg($chat_id, 'بررسی پرداخت رمزارز انجام نشد؛ کمی بعد دوباره امتحان کن.', main_menu_keyboard(is_admin($chat_id))); }
         return;
     }
     if (str_starts_with($data, 'order_receipt_')) {
@@ -576,6 +585,8 @@ function handle_step_message(int $chat_id, array $user, array $message): void {
 
     if ($step === 'order_crypto_hash') {
         $oid=(int)$user['step_payload'];
+        $text=trim((string)($message['text'] ?? $message['caption'] ?? ''));
+        if ($text==='') { send_msg($chat_id, 'لطفاً TXID / Hash را به صورت متن ارسال کن.', back_main_keyboard()); return; }
         try {
             $order=submit_crypto_hash($oid, (int)$user['id'], $text);
             clear_step($chat_id);

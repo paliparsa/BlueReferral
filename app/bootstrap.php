@@ -99,7 +99,7 @@ function migrate(): void {
     seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
     seed_setting('card_accounts', app_config('CARD_ACCOUNTS', []));
     seed_setting('stars_rate_toman', app_config('STARS_RATE_TOMAN', 3200));
-    seed_setting('crypto_rate_source', app_config('CRYPTO_RATE_SOURCE', 'manual')); // legacy raw crypto rates are manual-only
+    seed_setting('crypto_rate_source', app_config('CRYPTO_RATE_SOURCE', 'nobitex')); // Nobitex rates are refreshed by cron only
     seed_setting('crypto_manual_rates', app_config('CRYPTO_MANUAL_RATES', ['USDT'=>0,'TRX'=>0,'TON'=>0]));
     seed_setting('crypto_rate_markup_percent', app_config('CRYPTO_RATE_MARKUP_PERCENT', 1));
     seed_setting('crypto_notify_rate_fail', '1');
@@ -177,7 +177,7 @@ function seed_payment_methods(): void {
         ['wallet','کیف پول داخلی','wallet',1, ['description'=>'پرداخت از موجودی کیف پول کاربر'], 1],
         ['card','کارت به کارت','card',1, ['description'=>'پرداخت دستی با ارسال رسید'], 2],
         ['stars','Telegram Stars','stars',0, ['description'=>'پرداخت مستقیم با استار تلگرام'], 3],
-        ['crypto','SwapWallet Pay','crypto',0, ['description'=>'پرداخت رمزارز با invoice امن سواپ‌ولت'], 4],
+        ['crypto','پرداخت رمزارز','crypto',0, ['description'=>'پرداخت با کیف پول دستی و بررسی TXID'], 4],
     ];
     $q = db()->prepare('INSERT IGNORE INTO payment_methods (method_key,title,method_type,is_active,settings_json,sort_order) VALUES (?,?,?,?,?,?)');
     foreach ($defaults as $m) $q->execute([$m[0],$m[1],$m[2],$m[3],json_encode($m[4], JSON_UNESCAPED_UNICODE),$m[5]]);
@@ -231,7 +231,7 @@ function payment_methods_public(?array $user=null): array {
         'wallet'=>['enabled'=>payment_enabled('wallet'), 'title'=>'کیف پول داخلی', 'balance'=>$user?(int)($user['balance']??0):0],
         'card'=>['enabled'=>payment_enabled('card'), 'title'=>'کارت به کارت', 'accounts'=>$cards, 'instructions'=>setting('payment_instructions','')],
         'stars'=>['enabled'=>payment_enabled('stars'), 'title'=>'Telegram Stars', 'rate_toman'=>$rate],
-        'crypto'=>['enabled'=>payment_enabled('crypto'), 'title'=>'SwapWallet Pay', 'gateway'=>'swapwallet', 'auto_token'=>strtoupper((string)setting('swapwallet_auto_token','USDT')), 'rate_toman'=>(float)setting('swapwallet_usdt_rate_toman',0), 'markup_percent'=>(float)setting('swapwallet_rate_markup_percent','1'), 'configured'=>swapwallet_configured()],
+        'crypto'=>['enabled'=>payment_enabled('crypto'), 'title'=>'رمزارز', 'gateway'=>'manual_txid', 'wallets'=>crypto_wallets_public(null), 'rate_source'=>setting('crypto_rate_source','nobitex'), 'markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'rate_cache'=>crypto_rate_cache()],
     ];
 }
 
@@ -345,17 +345,71 @@ function http_json_get(string $url, array $headers=[]): array {
     $j=json_decode($body, true); if(!is_array($j)) throw new RuntimeException('JSON_FAILED');
     return $j;
 }
-function nobitex_rate_toman(string $asset): float {
-    // Deprecated. Direct external rate fetching was removed to keep Mini App fast.
-    throw new RuntimeException('EXTERNAL_RATE_DISABLED');
+function crypto_rate_cache(): array {
+    $raw = setting('crypto_rate_cache', '');
+    $d = json_decode((string)$raw, true);
+    return is_array($d) ? $d : [];
+}
+function set_crypto_rate_cache(array $cache): void { set_setting('crypto_rate_cache', $cache); }
+function nobitex_rate_toman_live(string $asset): float {
+    $asset = strtoupper($asset ?: 'USDT');
+    if ($asset==='IRT' || $asset==='TOMAN') return 1.0;
+    $symbols = [$asset.'IRT', $asset.'RLS'];
+    foreach ($symbols as $symbol) {
+        $urls = ["https://api.nobitex.ir/v2/orderbook/{$symbol}", "https://api.nobitex.ir/v2/orderbook?symbol={$symbol}"];
+        foreach ($urls as $url) {
+            try {
+                $j = http_json_get($url);
+                $price = 0;
+                foreach(['lastTradePrice','latest','last','close'] as $k) if(isset($j[$k])) { $price=(float)$j[$k]; break; }
+                if(!$price && !empty($j['asks'][0][0])) $price=(float)$j['asks'][0][0];
+                if(!$price && !empty($j['bids'][0][0])) $price=(float)$j['bids'][0][0];
+                if(!$price && isset($j[$symbol]['lastTradePrice'])) $price=(float)$j[$symbol]['lastTradePrice'];
+                if ($price > 0) {
+                    // Nobitex RLS market is in Rial; convert to Toman.
+                    if (str_ends_with($symbol, 'RLS')) $price = $price / 10;
+                    return $price;
+                }
+            } catch (Throwable $e) {}
+        }
+    }
+    throw new RuntimeException('NOBITEX_RATE_FAILED');
 }
 function crypto_rate_toman(string $asset, bool $notify=true): float {
-    // Legacy raw-TXID crypto pricing is disabled for new payments.
-    // Never call Nobitex/Tron/Ton from Mini App/API paths; use manual rates only.
+    // Fast path only. Never fetch external APIs from Mini App / bot webhook.
     $asset = strtoupper($asset ?: 'USDT');
     if ($asset === 'IRT' || $asset === 'TOMAN') return 1.0;
     $manual = crypto_manual_rates();
+    $source = setting('crypto_rate_source','nobitex');
+    if ($source === 'nobitex') {
+        $cache = crypto_rate_cache();
+        $row = $cache[$asset] ?? null;
+        if (is_array($row) && (float)($row['rate'] ?? 0) > 0) return (float)$row['rate'];
+        if (isset($cache[$asset]) && is_numeric($cache[$asset]) && (float)$cache[$asset] > 0) return (float)$cache[$asset];
+    }
     return (float)($manual[$asset] ?? 0);
+}
+function crypto_refresh_rates_from_nobitex(bool $notify=true): array {
+    $assets = ['USDT','TRX','TON'];
+    foreach (crypto_wallets(false) as $w) {
+        $assets[] = strtoupper((string)($w['rate_symbol'] ?: $w['asset'] ?: 'USDT'));
+    }
+    $assets = array_values(array_unique(array_filter($assets)));
+    $cache = crypto_rate_cache();
+    $updated = 0; $failed = [];
+    foreach ($assets as $asset) {
+        if ($asset === 'IRT' || $asset === 'TOMAN') continue;
+        try {
+            $rate = nobitex_rate_toman_live($asset);
+            if ($rate > 0) { $cache[$asset] = ['rate'=>$rate,'updated_at'=>date('c'),'source'=>'nobitex']; $updated++; }
+        } catch (Throwable $e) { $failed[$asset] = $e->getMessage(); }
+    }
+    if ($updated > 0) set_crypto_rate_cache($cache);
+    if ($failed && $notify && setting_bool('crypto_notify_rate_fail', true)) {
+        $key='crypto_rate_last_fail_alert'; $last=(int)setting($key, 0);
+        if(time()-$last>1800){ notify_admins("⚠️ دریافت نرخ از نوبیتکس برای برخی ارزها ناموفق بود و نرخ دستی/cache استفاده می‌شود.\n".h(implode(', ', array_keys($failed)))); set_setting($key, (string)time()); }
+    }
+    return ['updated'=>$updated,'failed'=>$failed,'cache'=>$cache];
 }
 function get_crypto_check_by_order(int $orderId): ?array {
     if(!table_exists('crypto_payment_checks')) return null;
@@ -486,7 +540,7 @@ function order_set_payment_method(int $orderId, int $userId, string $method, arr
     return order_by_id($orderId);
 }
 function payment_method_fa(?string $m): string {
-    return ['wallet'=>'کیف پول داخلی','card'=>'کارت به کارت','stars'=>'Telegram Stars','crypto'=>'SwapWallet Pay'][$m ?: ''] ?? 'انتخاب نشده';
+    return ['wallet'=>'کیف پول داخلی','card'=>'کارت به کارت','stars'=>'Telegram Stars','crypto'=>'رمزارز'][$m ?: ''] ?? 'انتخاب نشده';
 }
 function send_stars_invoice_for_order(array $order): array {
     if (!payment_enabled('stars')) throw new RuntimeException('STARS_DISABLED');
@@ -1109,14 +1163,14 @@ function order_user_keyboard(array $order): string {
         if (payment_enabled('card')) $payRows[]=['text'=>'💳 کارت به کارت', 'callback_data'=>'order_pay_card_'.$order['id']];
         if ($payRows) $rows[]=$payRows;
         if (payment_enabled('stars')) $rows[] = [['text'=>'⭐ پرداخت با Telegram Stars', 'callback_data'=>'order_pay_stars_'.$order['id']]];
-        if (payment_enabled('crypto')) $rows[] = [['text'=>'🪙 پرداخت با SwapWallet', 'callback_data'=>'order_pay_crypto_'.$order['id']]];
-        if (($order['payment_method'] ?? '') === 'crypto') $rows[] = [['text'=>'🔄 بررسی پرداخت SwapWallet', 'callback_data'=>'order_check_crypto_'.$order['id']]];
+        if (payment_enabled('crypto')) $rows[] = [['text'=>'🪙 پرداخت رمزارز', 'callback_data'=>'order_pay_crypto_'.$order['id']]];
+        if (($order['payment_method'] ?? '') === 'crypto') $rows[] = [['text'=>'🔄 بررسی پرداخت رمزارز', 'callback_data'=>'order_check_crypto_'.$order['id']]];
         $rows[] = [['text'=>'📤 ارسال رسید پرداخت', 'callback_data'=>'order_receipt_'.$order['id']]];
         $rows[] = [['text'=>'🎟 ثبت کد تخفیف', 'callback_data'=>'order_coupon_'.$order['id']], ['text'=>'❌ لغو سفارش', 'callback_data'=>'order_cancel_'.$order['id']]];
     } elseif ($status === 'rejected') {
         if (payment_enabled('card')) $rows[] = [['text'=>'💳 کارت به کارت', 'callback_data'=>'order_pay_card_'.$order['id']]];
-        if (payment_enabled('crypto')) $rows[] = [['text'=>'🪙 پرداخت با SwapWallet', 'callback_data'=>'order_pay_crypto_'.$order['id']]];
-        if (($order['payment_method'] ?? '') === 'crypto') $rows[] = [['text'=>'🔄 بررسی پرداخت SwapWallet', 'callback_data'=>'order_check_crypto_'.$order['id']]];
+        if (payment_enabled('crypto')) $rows[] = [['text'=>'🪙 پرداخت رمزارز', 'callback_data'=>'order_pay_crypto_'.$order['id']]];
+        if (($order['payment_method'] ?? '') === 'crypto') $rows[] = [['text'=>'🔄 بررسی پرداخت رمزارز', 'callback_data'=>'order_check_crypto_'.$order['id']]];
         $rows[] = [['text'=>'📤 ارسال مجدد رسید', 'callback_data'=>'order_receipt_'.$order['id']]];
     }
     $rows[] = [['text'=>'📝 یادداشت سفارش / اطلاعات اکانت', 'callback_data'=>'order_note_'.$order['id']], ['text'=>'🧾 تایم‌لاین سفارش', 'callback_data'=>'order_timeline_'.$order['id']]];
@@ -1225,7 +1279,16 @@ function show_order_invoice(int $chat_id, $message_id, array $order): void {
     if (!empty($order['expires_at'])) $txt .= "انقضا/مدت: <code>".h($order['expires_at'])."</code>\n";
     if (!empty($order['customer_note'])) $txt .= "\n📝 یادداشت شما:\n".h($order['customer_note'])."\n";
     if (!empty($order['delivery_text']) && normalize_order_status($order['status']) === 'delivered') $txt .= "\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>\n";
-    if (($order['payment_method'] ?? '') === 'crypto') { $sw = get_swapwallet_invoice_by_order((int)$order['id']); if ($sw) { $txt .= "\n🪙 <b>پرداخت SwapWallet</b>\n".'وضعیت: <b>'.h($sw['status'])."</b>\n".'مبلغ: <b>'.h($sw['amount_usd']).' '.h($sw['token'])."</b>\n"; if (!empty($sw['payment_url'])) $txt .= "لینک پرداخت:\n".h($sw['payment_url'])."\n"; if (!empty($sw['fail_reason'])) $txt .= "خطا: <code>".h($sw['fail_reason'])."</code>\n"; } }
+    if (($order['payment_method'] ?? '') === 'crypto') { $cc = get_crypto_check_by_order((int)$order['id']); if ($cc) { $txt .= "
+🪙 <b>پرداخت رمزارز</b>
+".'شبکه/ارز: <b>'.h($cc['network']).' / '.h($cc['asset'])."</b>
+".'مبلغ: <b>'.h($cc['expected_amount']).' '.h($cc['asset'])."</b>
+".'آدرس ولت:
+<code>'.h($cc['address'])."</code>
+"; if (!empty($cc['tx_hash'])) $txt .= "TXID:
+<code>".h($cc['tx_hash'])."</code>
+"; if (!empty($cc['fail_reason'])) $txt .= "وضعیت/خطا: <code>".h($cc['fail_reason'])."</code>
+"; } }
     $timeline = order_timeline_text((int)$order['id'], true);
     if ($timeline) $txt .= "\n🧾 <b>تایم‌لاین</b>\n{$timeline}\n";
     if (in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) $txt .= "\n💳 <b>راهنمای پرداخت</b>\n".h(setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'));
