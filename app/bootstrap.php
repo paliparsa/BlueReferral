@@ -103,6 +103,7 @@ function migrate(): void {
     seed_setting('crypto_manual_rates', app_config('CRYPTO_MANUAL_RATES', ['USDT'=>0,'TRX'=>0,'TON'=>0]));
     seed_setting('crypto_rate_markup_percent', app_config('CRYPTO_RATE_MARKUP_PERCENT', 1));
     seed_setting('crypto_notify_rate_fail', '1');
+    seed_setting('crypto_rate_refresh_interval_seconds', app_config('CRYPTO_RATE_REFRESH_INTERVAL_SECONDS', 60));
     seed_setting('swapwallet_api_key', app_config('SWAPPAY_API_KEY', ''));
     seed_setting('swapwallet_application', app_config('SWAPPAY_APPLICATION', ''));
     seed_setting('swapwallet_username', app_config('SWAPPAY_USERNAME', app_config('SWAPPAY_APPLICATION', '')));
@@ -143,6 +144,9 @@ function migrate(): void {
     add_column_if_missing('orders', 'crypto_amount', 'DECIMAL(24,8) NULL AFTER stars_amount');
     add_column_if_missing('orders', 'crypto_asset', 'VARCHAR(32) NULL AFTER crypto_amount');
     add_column_if_missing('orders', 'crypto_network', 'VARCHAR(32) NULL AFTER crypto_asset');
+    add_column_if_missing('crypto_payment_checks', 'rate_toman', 'DECIMAL(24,6) NULL AFTER expected_amount');
+    add_column_if_missing('crypto_payment_checks', 'rate_updated_at', 'DATETIME NULL AFTER rate_toman');
+    add_column_if_missing('crypto_payment_checks', 'rate_source', 'VARCHAR(32) NULL AFTER rate_updated_at');
     add_column_if_missing('swapwallet_invoices', 'request_url', 'TEXT NULL AFTER payment_links_json');
     add_column_if_missing('swapwallet_invoices', 'request_body', 'LONGTEXT NULL AFTER request_url');
     add_column_if_missing('swapwallet_invoices', 'api_version', 'VARCHAR(64) NULL AFTER request_body');
@@ -320,8 +324,29 @@ function set_crypto_wallets_lines(string $text): void {
         throw $e;
     }
 }
+function crypto_rate_meta(string $asset): array {
+    $asset = strtoupper($asset ?: 'USDT');
+    $cache = crypto_rate_cache();
+    $manual = crypto_manual_rates();
+    $row = $cache[$asset] ?? null;
+    if (is_array($row) && (float)($row['rate'] ?? 0) > 0) {
+        return [
+            'asset'=>$asset,
+            'rate'=>(float)$row['rate'],
+            'source'=>(string)($row['source'] ?? 'nobitex_cache'),
+            'updated_at'=>$row['updated_at'] ?? null,
+            'is_live'=>((string)($row['source'] ?? '') === 'nobitex'),
+        ];
+    }
+    if (isset($cache[$asset]) && is_numeric($cache[$asset]) && (float)$cache[$asset] > 0) {
+        return ['asset'=>$asset,'rate'=>(float)$cache[$asset],'source'=>'cache','updated_at'=>null,'is_live'=>false];
+    }
+    return ['asset'=>$asset,'rate'=>(float)($manual[$asset] ?? 0),'source'=>'manual','updated_at'=>null,'is_live'=>false];
+}
 function crypto_wallet_payload(array $w, ?int $tomanAmount=null): array {
-    $rate = crypto_rate_toman((string)($w['rate_symbol'] ?: $w['asset']), false);
+    $symbol = strtoupper((string)($w['rate_symbol'] ?: $w['asset']));
+    $meta = crypto_rate_meta($symbol);
+    $rate = (float)$meta['rate'];
     $amount = null;
     if ($tomanAmount !== null && $rate > 0) {
         $markup = max(0, (float)setting('crypto_rate_markup_percent', '1')) / 100;
@@ -329,8 +354,8 @@ function crypto_wallet_payload(array $w, ?int $tomanAmount=null): array {
     }
     return [
         'id'=>(int)$w['id'], 'title'=>$w['title'], 'network'=>strtoupper($w['network']), 'asset'=>strtoupper($w['asset']), 'address'=>$w['address'],
-        'rate_symbol'=>strtoupper($w['rate_symbol'] ?: $w['asset']), 'is_active'=>(int)$w['is_active'], 'sort_order'=>(int)$w['sort_order'],
-        'rate_toman'=>$rate, 'estimated_amount'=>$amount,
+        'rate_symbol'=>$symbol, 'is_active'=>(int)$w['is_active'], 'sort_order'=>(int)$w['sort_order'],
+        'rate_toman'=>$rate, 'rate_source'=>$meta['source'], 'rate_updated_at'=>$meta['updated_at'], 'estimated_amount'=>$amount,
     ];
 }
 function crypto_wallets_public(?int $tomanAmount=null): array {
@@ -391,6 +416,7 @@ function crypto_rate_toman(string $asset, bool $notify=true): float {
 }
 function crypto_refresh_rates_from_nobitex(bool $notify=true): array {
     $assets = ['USDT','TRX','TON'];
+    foreach (array_keys(crypto_manual_rates()) as $manualAsset) { $assets[] = strtoupper((string)$manualAsset); }
     foreach (crypto_wallets(false) as $w) {
         $assets[] = strtoupper((string)($w['rate_symbol'] ?: $w['asset'] ?: 'USDT'));
     }
@@ -418,7 +444,12 @@ function get_crypto_check_by_order(int $orderId): ?array {
 }
 function crypto_check_payload(?array $c): ?array {
     if(!$c) return null;
-    return ['id'=>(int)$c['id'],'order_id'=>(int)$c['order_id'],'wallet_id'=>(int)$c['wallet_id'],'wallet_title'=>$c['wallet_title'] ?? null,'network'=>$c['network'],'asset'=>$c['asset'],'address'=>$c['address'],'expected_amount'=>(float)$c['expected_amount'],'tx_hash'=>$c['tx_hash'],'status'=>$c['status'],'check_count'=>(int)$c['check_count'],'last_checked_at'=>$c['last_checked_at'],'confirmed_at'=>$c['confirmed_at'],'fail_reason'=>$c['fail_reason']];
+    return [
+        'id'=>(int)$c['id'],'order_id'=>(int)$c['order_id'],'wallet_id'=>(int)$c['wallet_id'],'wallet_title'=>$c['wallet_title'] ?? null,
+        'network'=>$c['network'],'asset'=>$c['asset'],'address'=>$c['address'],'expected_amount'=>(float)$c['expected_amount'],
+        'rate_toman'=>isset($c['rate_toman'])?(float)$c['rate_toman']:null,'rate_updated_at'=>$c['rate_updated_at'] ?? null,'rate_source'=>$c['rate_source'] ?? null,
+        'tx_hash'=>$c['tx_hash'],'status'=>$c['status'],'check_count'=>(int)$c['check_count'],'last_checked_at'=>$c['last_checked_at'],'confirmed_at'=>$c['confirmed_at'],'fail_reason'=>$c['fail_reason']
+    ];
 }
 function start_crypto_payment(int $orderId, int $userId, int $walletId): array {
     if(!payment_enabled('crypto')) throw new RuntimeException('CRYPTO_DISABLED');
@@ -429,9 +460,10 @@ function start_crypto_payment(int $orderId, int $userId, int $walletId): array {
     if($rate<=0) throw new RuntimeException('CRYPTO_RATE_NOT_AVAILABLE');
     $markup=max(0,(float)setting('crypto_rate_markup_percent','1'))/100;
     $expected=round(((int)$order['final_amount']/$rate)*(1+$markup), 6);
-    $details=['wallet_id'=>$walletId,'network'=>$wallet['network'],'asset'=>$wallet['asset'],'address'=>$wallet['address'],'expected_amount'=>$expected,'rate_toman'=>$rate,'markup_percent'=>(float)setting('crypto_rate_markup_percent','1')];
-    db()->prepare('UPDATE orders SET payment_method="crypto", payment_details=?, crypto_amount=?, crypto_asset=?, crypto_network=? WHERE id=?')->execute([json_encode($details,JSON_UNESCAPED_UNICODE),(string)$expected,$wallet['asset'],$wallet['network'],$orderId]);
-    db()->prepare('INSERT INTO crypto_payment_checks (order_id,wallet_id,network,asset,address,expected_amount,status) VALUES (?,?,?,?,?,?,"waiting_hash") ON DUPLICATE KEY UPDATE wallet_id=VALUES(wallet_id),network=VALUES(network),asset=VALUES(asset),address=VALUES(address),expected_amount=VALUES(expected_amount),status="waiting_hash",tx_hash=NULL,fail_reason=NULL,raw_response=NULL')->execute([$orderId,$walletId,$wallet['network'],$wallet['asset'],$wallet['address'],(string)$expected]);
+    $meta=crypto_rate_meta((string)($wallet['rate_symbol'] ?: $wallet['asset']));
+    $details=['wallet_id'=>$walletId,'network'=>$wallet['network'],'asset'=>$wallet['asset'],'address'=>$wallet['address'],'expected_amount'=>$expected,'rate_toman'=>$rate,'rate_source'=>$meta['source'],'rate_updated_at'=>$meta['updated_at'],'markup_percent'=>(float)setting('crypto_rate_markup_percent','1'),'fee_note'=>'کارمزد صرافی/شبکه با پرداخت‌کننده است. مبلغ درج‌شده باید دقیقاً به کیف پول مقصد برسد.'];
+    db()->prepare('UPDATE orders SET payment_method="crypto", payment_details=?, crypto_amount=?, crypto_asset=?, crypto_network=? WHERE id=?')->execute([json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)$expected,$wallet['asset'],$wallet['network'],$orderId]);
+    db()->prepare('INSERT INTO crypto_payment_checks (order_id,wallet_id,network,asset,address,expected_amount,rate_toman,rate_updated_at,rate_source,status) VALUES (?,?,?,?,?,?,?,?,?,"waiting_hash") ON DUPLICATE KEY UPDATE wallet_id=VALUES(wallet_id),network=VALUES(network),asset=VALUES(asset),address=VALUES(address),expected_amount=VALUES(expected_amount),rate_toman=VALUES(rate_toman),rate_updated_at=VALUES(rate_updated_at),rate_source=VALUES(rate_source),status="waiting_hash",tx_hash=NULL,fail_reason=NULL,raw_response=NULL')->execute([$orderId,$walletId,$wallet['network'],$wallet['asset'],$wallet['address'],(string)$expected,(string)$rate, date('Y-m-d H:i:s'), (string)$meta['source']]);
     add_order_event($orderId, 'pending_payment', 'پرداخت رمزارز انتخاب شد', strtoupper($wallet['asset']).' / '.strtoupper($wallet['network']).' / مقدار: '.$expected, true);
     return order_by_id($orderId);
 }
@@ -444,7 +476,7 @@ function submit_crypto_hash(int $orderId, int $userId, string $txHash): array {
     catch(Throwable $e){ throw new RuntimeException('TX_HASH_ALREADY_USED'); }
     add_order_event($orderId, 'pending_payment', 'هش پرداخت رمزارز ثبت شد', $txHash, true);
     notify_admins("🪙 هش پرداخت رمزارز ثبت شد\nسفارش: <code>#{$orderId}</code>\nTXID: <code>".h($txHash)."</code>");
-    crypto_verify_order($orderId);
+    // Verification is intentionally deferred to cron so user/bot requests stay fast.
     return order_by_id($orderId);
 }
 function crypto_verify_order(int $orderId): ?array {
@@ -1890,14 +1922,44 @@ function inventory_count(int $productId, ?int $variantId=null): int {
     else { $q=db()->prepare('SELECT COUNT(*) c FROM inventory_items WHERE product_id=? AND status="available"'); $q->execute([$productId]); }
     return (int)$q->fetch()['c'];
 }
+
+function refresh_crypto_order_amount_if_open(int $orderId): ?array {
+    $order = order_by_id($orderId);
+    if (!$order || ($order['payment_method'] ?? '') !== 'crypto') return $order;
+    if (!in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) return $order;
+    $check = get_crypto_check_by_order($orderId);
+    if (!$check || !empty($check['tx_hash']) || !in_array((string)$check['status'], ['waiting_hash','pending'], true)) return $order;
+    if ((string)$check['status'] === 'pending') return $order;
+    $wallet = crypto_wallet_by_id((int)$check['wallet_id']);
+    if (!$wallet || !(int)$wallet['is_active']) return $order;
+    $rate = crypto_rate_toman((string)($wallet['rate_symbol'] ?: $wallet['asset']), false);
+    if ($rate <= 0) return $order;
+    $markup = max(0, (float)setting('crypto_rate_markup_percent','1')) / 100;
+    $expected = round(((int)$order['final_amount'] / $rate) * (1 + $markup), 6);
+    $meta = crypto_rate_meta((string)($wallet['rate_symbol'] ?: $wallet['asset']));
+    $details = json_decode((string)($order['payment_details'] ?? '{}'), true);
+    if (!is_array($details)) $details = [];
+    $details = array_merge($details, [
+        'wallet_id'=>(int)$wallet['id'], 'network'=>$wallet['network'], 'asset'=>$wallet['asset'], 'address'=>$wallet['address'],
+        'expected_amount'=>$expected, 'rate_toman'=>$rate, 'rate_source'=>$meta['source'], 'rate_updated_at'=>$meta['updated_at'],
+        'markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'fee_note'=>'کارمزد صرافی/شبکه با پرداخت‌کننده است. مبلغ درج‌شده باید دقیقاً به کیف پول مقصد برسد.'
+    ]);
+    db()->prepare('UPDATE orders SET payment_details=?, crypto_amount=?, crypto_asset=?, crypto_network=? WHERE id=?')
+        ->execute([json_encode($details, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES), (string)$expected, $wallet['asset'], $wallet['network'], $orderId]);
+    db()->prepare('UPDATE crypto_payment_checks SET expected_amount=?, rate_toman=?, rate_updated_at=NOW(), rate_source=? WHERE order_id=? AND (tx_hash IS NULL OR tx_hash="")')
+        ->execute([(string)$expected, (string)$rate, (string)$meta['source'], $orderId]);
+    return order_by_id($orderId);
+}
+
 function order_public_payload(array $o): array {
+    if (!empty($o['id']) && ($o['payment_method'] ?? '') === 'crypto') { $o = refresh_crypto_order_amount_if_open((int)$o['id']) ?: $o; }
     $name = $o['product_name'].(!empty($o['variant_title']) ? ' - '.$o['variant_title'] : '');
     return [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
         'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'],
         'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
-        'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])), 'swapwallet_invoice'=>swapwallet_invoice_payload(get_swapwallet_invoice_by_order((int)$o['id'])),
+        'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])), 'crypto_fee_notice'=>'این مبلغ باید دقیقاً به کیف پول مقصد برسد؛ کارمزد صرافی/شبکه بر عهده شماست.', 'swapwallet_invoice'=>null,
         'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
