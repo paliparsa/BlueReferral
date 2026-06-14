@@ -277,8 +277,9 @@ step_config() {
 \$FORCE_JOIN_CHANNEL = '$(php_escape "$FORCE_JOIN_CHANNEL")';
 \$DEFAULT_THEME_COLOR = '$(php_escape "$THEME_COLOR")';
 \$BRAND_NAME = '$(php_escape "$BRAND_NAME")';
-\$CRYPTO_RATE_SOURCE = 'nobitex';
+\$CRYPTO_RATE_SOURCE = 'auto';
 \$CRYPTO_RATE_MARKUP_PERCENT = 1;
+\$CRYPTO_RATE_PROVIDER_PRIORITY = 'wallex,ramzinex,nobitex';
 \$CRYPTO_MANUAL_RATES = ['USDT'=>0,'TRX'=>0,'TON'=>0];
 \$TRONSCAN_API_KEY = '';
 \$TONCENTER_API_KEY = '';
@@ -381,11 +382,11 @@ step_crypto_cron() {
 # BlueReferral crypto jobs
 # Check submitted TXIDs every minute so payments are confirmed quickly.
 * * * * * www-data php ${APP_DIR}/public/cron_crypto.php --check-payments >/dev/null 2>&1
-# Refresh Nobitex cached rates every 10 minutes so Mini App/API stays fast.
+# Refresh cached rates from Wallex/Ramzinex/Nobitex every 10 minutes so Mini App/API stays fast.
 */10 * * * * www-data php ${APP_DIR}/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
 CRON
   chmod 644 /etc/cron.d/blue-ref-crypto
-  ok "Crypto cron installed: payments every 1 min, rates every 10 min (/etc/cron.d/blue-ref-crypto)"
+  ok "Crypto cron installed: payments every 1 min, multi-provider rates every 10 min (/etc/cron.d/blue-ref-crypto)"
 }
 
 step_update() {

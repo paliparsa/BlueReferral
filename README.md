@@ -1112,3 +1112,38 @@ public/cron_crypto.php
 install.sh
 README.md
 ```
+
+
+## Update: Multi-provider crypto rates
+
+در این نسخه منبع نرخ رمزارز از حالت تک‌منبعی خارج شد. cron نرخ‌ها را فقط در حالت `--refresh-rates` می‌گیرد و ترتیب پیش‌فرض این است:
+
+```text
+Wallex → Ramzinex → Nobitex → last cache/manual fallback
+```
+
+فاکتور و Mini App هیچ درخواست مستقیم به صرافی‌ها نمی‌زنند و فقط از cache استفاده می‌کنند، بنابراین باز شدن پنل مشتری کند نمی‌شود. اگر یکی از Providerها DNS/timeout/JSON error بدهد، Provider بعدی امتحان می‌شود. اگر هیچ‌کدام جواب ندادند، آخرین cache معتبر یا نرخ دستی ادمین استفاده می‌شود.
+
+تست دستی روی سرور:
+
+```bash
+cd /var/www/bluereferral
+php public/cron_crypto.php --refresh-rates
+php public/cron_crypto.php --check-payments
+```
+
+cron پیشنهادی:
+
+```cron
+* * * * * www-data php /var/www/bluereferral/public/cron_crypto.php --check-payments >/dev/null 2>&1
+*/10 * * * * www-data php /var/www/bluereferral/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
+```
+
+تنظیمات مهم:
+
+```php
+$CRYPTO_RATE_SOURCE = 'auto'; // auto, wallex, ramzinex, nobitex, manual
+$CRYPTO_RATE_PROVIDER_PRIORITY = 'wallex,ramzinex,nobitex';
+```
+
+در پنل ادمین دکمه «رفرش نرخ از Wallex/Ramzinex/Nobitex» نرخ را دستی refresh می‌کند و آخرین cache، Provider موفق و خطاهای fallback نمایش داده می‌شود.
