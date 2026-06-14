@@ -81,7 +81,7 @@ function handle_callback(array $cb): void {
 
     if ($data === 'main') { clear_step($chat_id); send_or_edit($chat_id, $message_id, main_text($user), main_menu_keyboard(is_admin($chat_id))); return; }
     if (str_starts_with($data, 'u_') || str_starts_with($data, 'shop_') || str_starts_with($data, 'order_')) { handle_user_callback($chat_id, $message_id, $user, $data); return; }
-    if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_') || str_starts_with($data, 'prod_') || str_starts_with($data, 'cat_') || str_starts_with($data, 'coupon_') || str_starts_with($data, 'ord_')) {
+    if (str_starts_with($data, 'adm_') || str_starts_with($data, 'set_') || str_starts_with($data, 'theme_') || str_starts_with($data, 'wd_') || str_starts_with($data, 'prod_') || str_starts_with($data, 'cat_') || str_starts_with($data, 'coupon_') || str_starts_with($data, 'ord_') || str_starts_with($data, 'prodwiz_') || str_starts_with($data, 'catwiz_') || str_starts_with($data, 'varwiz_') || str_starts_with($data, 'invwiz_') || str_starts_with($data, 'inv_delete_') || str_starts_with($data, 'variant_delete_')) {
         if (!is_admin($chat_id)) { send_msg($chat_id, 'دسترسی ادمین ندارید.'); return; }
         handle_admin_callback($chat_id, $message_id, $user, $data); return;
     }
@@ -246,6 +246,7 @@ function handle_user_callback(int $chat_id, $message_id, array $user, string $da
 
 function handle_admin_callback(int $chat_id, $message_id, array $user, string $data): void {
     if ($data === 'adm_home') { clear_step($chat_id); send_or_edit($chat_id, $message_id, '⚙️ <b>پنل ادمین</b>\nهمه مدیریت‌ها با دکمه انجام می‌شود.', admin_keyboard()); return; }
+    if (handle_shop_admin_v2_callback($chat_id, $message_id, $user, $data)) return;
     if ($data === 'adm_stats') {
         $u = db()->query('SELECT COUNT(*) c, COALESCE(SUM(balance),0) b, COALESCE(SUM(total_earned),0) e, COALESCE(SUM(referrals_count),0) r, COALESCE(SUM(spin_balance),0) s FROM users')->fetch();
         $w = db()->query('SELECT COUNT(*) c FROM withdrawals WHERE status="pending"')->fetch();
@@ -417,6 +418,7 @@ function handle_step_message(int $chat_id, array $user, array $message): void {
         } catch (Throwable $e) { clear_step($chat_id); send_msg($chat_id, 'ثبت رسید ممکن نشد. سفارش پیدا نشد یا قابل پرداخت نیست.', main_menu_keyboard(is_admin($chat_id))); }
         return;
     }
+    if (handle_shop_admin_v2_message($chat_id, $user, $message)) return;
     handle_step_input($chat_id, $user, trim((string)($message['text'] ?? '')));
 }
 
@@ -601,4 +603,206 @@ function handle_step_input(int $chat_id, array $user, string $text): void {
 
     clear_step($chat_id);
     send_msg($chat_id, 'مرحله ناشناخته بود؛ به منوی اصلی برگشتیم.', main_menu_keyboard(is_admin($chat_id)));
+}
+
+function handle_shop_admin_v2_callback(int $chat_id, $message_id, array $user, string $data): bool {
+    if ($data === 'adm_add_product') {
+        clear_step($chat_id);
+        set_step_payload($chat_id, 'admin_product_wizard', ['stage'=>'category']);
+        $rows = category_rows_keyboard('prodwiz_cat_');
+        $rows[] = [['text'=>'➕ اول دسته جدید بساز', 'callback_data'=>'adm_add_category']];
+        $rows[] = [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']];
+        send_or_edit($chat_id, $message_id, "➕ <b>افزودن محصول مرحله‌ای</b>\n\nاول انتخاب کن محصول داخل کدام دسته‌بندی باشد:", json_markup(['inline_keyboard'=>$rows]));
+        return true;
+    }
+    if ($data === 'adm_add_category') {
+        set_step_payload($chat_id, 'admin_category_wizard', ['stage'=>'title']);
+        send_msg($chat_id, "📂 <b>افزودن دسته مرحله‌ای</b>\n\nاسم دسته را بفرست.\nمثال: <code>گیفت‌کارت‌ها</code>", shop_cancel_keyboard());
+        return true;
+    }
+    if ($data === 'adm_add_variant_manual') {
+        set_step_payload($chat_id, 'admin_variant_wizard', ['stage'=>'product']);
+        $rows = product_rows_keyboard('varwiz_product_', true);
+        $rows[] = [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']];
+        send_or_edit($chat_id, $message_id, "🧩 <b>افزودن پلن مرحله‌ای</b>\n\nاول محصول را انتخاب کن:", json_markup(['inline_keyboard'=>$rows]));
+        return true;
+    }
+    if ($data === 'adm_add_inventory') {
+        set_step_payload($chat_id, 'admin_inventory_wizard', ['stage'=>'product','count'=>0]);
+        $rows = product_rows_keyboard('invwiz_product_', true);
+        $rows[] = [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']];
+        send_or_edit($chat_id, $message_id, "📥 <b>افزودن انبار دستی مرحله‌ای</b>\n\nاول محصول را انتخاب کن:", json_markup(['inline_keyboard'=>$rows]));
+        return true;
+    }
+    if (str_starts_with($data, 'prodwiz_cat_')) {
+        $catId=(int)substr($data,12);
+        set_step_payload($chat_id, 'admin_product_wizard', ['stage'=>'name','category_id'=>$catId ?: null]);
+        send_msg($chat_id, "نام محصول را بفرست.\nمثال: <code>تلگرام پریمیوم ۳ ماهه</code>", shop_cancel_keyboard());
+        return true;
+    }
+    if (str_starts_with($data, 'prodwiz_delivery_')) {
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $payload['delivery_type']=substr($data,17);
+        $payload['stage']='commission_type';
+        set_step_payload($chat_id, 'admin_product_wizard', $payload);
+        send_msg($chat_id, "نوع پورسانت معرف را انتخاب کن:", json_markup(['inline_keyboard'=>[
+            [['text'=>'بدون پورسانت', 'callback_data'=>'prodwiz_commission_none']],
+            [['text'=>'مبلغ ثابت', 'callback_data'=>'prodwiz_commission_fixed'], ['text'=>'درصدی', 'callback_data'=>'prodwiz_commission_percent']],
+            [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']],
+        ]]));
+        return true;
+    }
+    if (str_starts_with($data, 'prodwiz_commission_')) {
+        $type=substr($data,19);
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $payload['commission_type']=$type;
+        if ($type==='none') {
+            $payload['commission_value']=0; $payload['stage']='duration';
+            set_step_payload($chat_id, 'admin_product_wizard', $payload);
+            send_msg($chat_id, "مدت محصول به روز را بفرست. اگر مدت ندارد، <code>0</code> بفرست.", shop_cancel_keyboard());
+        } else {
+            $payload['stage']='commission_value';
+            set_step_payload($chat_id, 'admin_product_wizard', $payload);
+            $label = $type==='fixed' ? 'مبلغ ثابت پورسانت به تومان' : 'درصد پورسانت از مبلغ سفارش';
+            send_msg($chat_id, "{$label} را بفرست.\nمثال: <code>20000</code> یا <code>10</code>", shop_cancel_keyboard());
+        }
+        return true;
+    }
+    if ($data === 'prodwiz_skip_image') {
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $payload['image_url']=null; $payload['stage']='featured';
+        set_step_payload($chat_id, 'admin_product_wizard', $payload);
+        send_msg($chat_id, "محصول ویژه باشد؟", json_markup(['inline_keyboard'=>[
+            [['text'=>'⭐ بله ویژه باشد', 'callback_data'=>'prodwiz_featured_1'], ['text'=>'معمولی باشد', 'callback_data'=>'prodwiz_featured_0']],
+            [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']],
+        ]]));
+        return true;
+    }
+    if (str_starts_with($data, 'prodwiz_featured_')) {
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $payload['is_featured']=(int)substr($data,17) ? 1 : 0;
+        $pid=create_product_from_wizard($payload);
+        clear_step($chat_id);
+        send_msg($chat_id, "✅ محصول مرحله‌ای ساخته شد.\nمحصول: <code>#{$pid}</code>\nنام: <b>".h($payload['name'] ?? '')."</b>", admin_shop_keyboard());
+        show_admin_products($chat_id);
+        return true;
+    }
+    if ($data === 'catwiz_skip_image') {
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $payload['image_url']=null;
+        $cid=create_category_from_wizard($payload);
+        clear_step($chat_id);
+        send_msg($chat_id, "✅ دسته ساخته شد: <code>#{$cid}</code>", admin_shop_keyboard());
+        return true;
+    }
+    if (str_starts_with($data, 'varwiz_product_')) {
+        $pid=(int)substr($data,15);
+        set_step_payload($chat_id, 'admin_variant_wizard', ['stage'=>'title','product_id'=>$pid]);
+        send_msg($chat_id, "نام پلن را بفرست.\nمثال: <code>۱۰ گیگ - ۳۰ روزه</code>", shop_cancel_keyboard());
+        return true;
+    }
+    if (str_starts_with($data, 'invwiz_product_')) {
+        $pid=(int)substr($data,15);
+        set_step_payload($chat_id, 'admin_inventory_wizard', ['stage'=>'variant','product_id'=>$pid,'count'=>0]);
+        $rows=variant_rows_keyboard($pid, 'invwiz_variant_');
+        $rows[]=[['text'=>'❌ لغو', 'callback_data'=>'adm_shop']];
+        send_msg($chat_id, "اگر این آیتم انبار برای یک پلن خاص است، پلن را انتخاب کن؛ وگرنه «بدون پلن» را بزن.", json_markup(['inline_keyboard'=>$rows]));
+        return true;
+    }
+    if (str_starts_with($data, 'invwiz_variant_')) {
+        $vid=(int)substr($data,15);
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $payload['variant_id']=$vid ?: null; $payload['stage']='content'; $payload['count']=$payload['count'] ?? 0;
+        set_step_payload($chat_id, 'admin_inventory_wizard', $payload);
+        send_msg($chat_id, "حالا آیتم انبار را بفرست.\nمثال برای اکانت: <code>email@test.com | pass123</code>\nمثال برای VPN: <code>https://sub...</code>\n\nهر پیام = یک آیتم. برای پایان دکمه «تمام» را بزن.", json_markup(['inline_keyboard'=>[[['text'=>'✅ تمام', 'callback_data'=>'invwiz_finish']], [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']]]]));
+        return true;
+    }
+    if ($data === 'invwiz_finish') {
+        $payload=step_payload_array(get_user_by_tid($chat_id));
+        $count=(int)($payload['count'] ?? 0);
+        clear_step($chat_id);
+        send_msg($chat_id, "✅ افزودن انبار تمام شد.\nتعداد آیتم‌های اضافه‌شده: <b>{$count}</b>", admin_shop_keyboard());
+        return true;
+    }
+    if (str_starts_with($data, 'prod_image_')) {
+        $pid=(int)substr($data,11);
+        set_step($chat_id, 'admin_product_image', (string)$pid);
+        send_msg($chat_id, "🖼 عکس جدید محصول <code>#{$pid}</code> را بفرست.\nمی‌توانی عکس را همینجا آپلود کنی یا لینک عکس را بفرستی.", json_markup(['inline_keyboard'=>[[['text'=>'حذف عکس', 'callback_data'=>'prod_image_clear_'.$pid]], [['text'=>'❌ لغو', 'callback_data'=>'adm_products']]]]));
+        return true;
+    }
+    if (str_starts_with($data, 'prod_image_clear_')) {
+        $pid=(int)substr($data,17); set_product_image($pid, null); clear_step($chat_id); send_msg($chat_id, "✅ عکس محصول #{$pid} حذف شد.", admin_shop_keyboard()); return true;
+    }
+    if (str_starts_with($data, 'cat_image_')) {
+        $cid=(int)substr($data,10);
+        set_step($chat_id, 'admin_category_image', (string)$cid);
+        send_msg($chat_id, "🖼 عکس جدید دسته <code>#{$cid}</code> را بفرست.\nمی‌توانی عکس را آپلود کنی یا لینک عکس را بفرستی.", json_markup(['inline_keyboard'=>[[['text'=>'حذف عکس', 'callback_data'=>'cat_image_clear_'.$cid]], [['text'=>'❌ لغو', 'callback_data'=>'adm_categories']]]]));
+        return true;
+    }
+    if (str_starts_with($data, 'cat_image_clear_')) {
+        $cid=(int)substr($data,16); set_category_image($cid, null); clear_step($chat_id); send_msg($chat_id, "✅ عکس دسته #{$cid} حذف شد.", admin_shop_keyboard()); return true;
+    }
+    if (str_starts_with($data, 'prod_delete_')) { $pid=(int)substr($data,12); soft_delete_product($pid); send_msg($chat_id, "✅ محصول #{$pid} از فروشگاه حذف/غیرفعال شد؛ سفارش‌های قبلی حفظ شدند.", admin_shop_keyboard()); return true; }
+    if (str_starts_with($data, 'cat_delete_')) { $cid=(int)substr($data,11); soft_delete_category($cid); send_msg($chat_id, "✅ دسته #{$cid} از فروشگاه پنهان شد.", admin_shop_keyboard()); return true; }
+    if (str_starts_with($data, 'inv_delete_')) { $iid=(int)substr($data,11); $ok=delete_available_inventory($iid); send_msg($chat_id, $ok ? "✅ آیتم انبار #{$iid} حذف شد." : "این آیتم قابل حذف نیست یا قبلاً تحویل شده.", admin_shop_keyboard()); return true; }
+    if (str_starts_with($data, 'variant_delete_')) { $vid=(int)substr($data,15); soft_delete_variant($vid); send_msg($chat_id, "✅ پلن #{$vid} حذف/غیرفعال شد.", admin_shop_keyboard()); return true; }
+    return false;
+}
+
+function handle_shop_admin_v2_message(int $chat_id, array $user, array $message): bool {
+    $step=(string)($user['step'] ?? '');
+    if (!in_array($step, ['admin_product_wizard','admin_category_wizard','admin_variant_wizard','admin_inventory_wizard','admin_product_image','admin_category_image'], true)) return false;
+    if (!is_admin($chat_id)) { clear_step($chat_id); send_msg($chat_id, 'این مرحله فقط برای ادمین است.', main_menu_keyboard(false)); return true; }
+    $text=trim((string)($message['text'] ?? $message['caption'] ?? ''));
+    $payload=step_payload_array($user);
+    if ($step === 'admin_product_image') {
+        $pid=(int)$user['step_payload']; $url=image_url_from_message($message, 'products');
+        if (!$url) { send_msg($chat_id, 'عکس یا لینک معتبر دریافت نشد. دوباره بفرست یا لغو کن.', shop_cancel_keyboard()); return true; }
+        set_product_image($pid, $url); clear_step($chat_id); send_msg($chat_id, "✅ عکس محصول #{$pid} ذخیره شد.", admin_shop_keyboard()); return true;
+    }
+    if ($step === 'admin_category_image') {
+        $cid=(int)$user['step_payload']; $url=image_url_from_message($message, 'categories');
+        if (!$url) { send_msg($chat_id, 'عکس یا لینک معتبر دریافت نشد. دوباره بفرست یا لغو کن.', shop_cancel_keyboard()); return true; }
+        set_category_image($cid, $url); clear_step($chat_id); send_msg($chat_id, "✅ عکس دسته #{$cid} ذخیره شد.", admin_shop_keyboard()); return true;
+    }
+    if ($step === 'admin_category_wizard') {
+        $stage=$payload['stage'] ?? 'title';
+        if ($stage==='title') { if ($text==='') { send_msg($chat_id, 'اسم دسته خالی است.', shop_cancel_keyboard()); return true; } $payload['title']=$text; $payload['stage']='emoji'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, "اموجی دسته را بفرست. اگر نمی‌خوای، <code>-</code> بفرست.", shop_cancel_keyboard()); return true; }
+        if ($stage==='emoji') { $payload['emoji']=($text==='-'||$text==='')?'🛒':mb_substr($text,0,4); $payload['stage']='image'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, "عکس دسته را بفرست یا لینک عکس بده. اگر عکس نمی‌خوای دکمه زیر را بزن.", json_markup(['inline_keyboard'=>[[['text'=>'بدون عکس ادامه بده', 'callback_data'=>'catwiz_skip_image']], [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']]]])); return true; }
+        if ($stage==='image') { $url=image_url_from_message($message, 'categories'); if (!$url) { send_msg($chat_id, 'لطفاً عکس/لینک معتبر بفرست یا دکمه بدون عکس را بزن.', shop_cancel_keyboard()); return true; } $payload['image_url']=$url; $cid=create_category_from_wizard($payload); clear_step($chat_id); send_msg($chat_id, "✅ دسته ساخته شد: <code>#{$cid}</code>", admin_shop_keyboard()); return true; }
+    }
+    if ($step === 'admin_product_wizard') {
+        $stage=$payload['stage'] ?? 'name';
+        if ($stage==='name') { if ($text==='') { send_msg($chat_id, 'نام محصول خالی است.', shop_cancel_keyboard()); return true; } $payload['name']=$text; $payload['stage']='price'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'قیمت پایه محصول را به تومان بفرست. مثال: <code>276000</code>', shop_cancel_keyboard()); return true; }
+        if ($stage==='price') { $amount=parse_amount($text); if($amount<=0){send_msg($chat_id,'قیمت معتبر نیست.',shop_cancel_keyboard()); return true;} $payload['price']=$amount; $payload['stage']='delivery'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'نوع تحویل را انتخاب کن:', json_markup(['inline_keyboard'=>[
+            [['text'=>'دستی', 'callback_data'=>'prodwiz_delivery_manual'], ['text'=>'اکانت', 'callback_data'=>'prodwiz_delivery_account']],
+            [['text'=>'VPN / لینک ساب', 'callback_data'=>'prodwiz_delivery_vpn'], ['text'=>'کد/گیفت', 'callback_data'=>'prodwiz_delivery_code']],
+            [['text'=>'فایل/متن', 'callback_data'=>'prodwiz_delivery_file']],
+            [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']],
+        ]])); return true; }
+        if ($stage==='commission_value') { $val=parse_amount($text); if(($payload['commission_type']??'')==='percent') $val=min(100,$val); $payload['commission_value']=$val; $payload['stage']='duration'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'مدت محصول به روز را بفرست. اگر مدت ندارد، <code>0</code> بفرست.', shop_cancel_keyboard()); return true; }
+        if ($stage==='duration') { $payload['duration_days']=parse_amount($text); $payload['stage']='short'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'توضیح کوتاه محصول را بفرست. این متن روی کارت محصول نمایش داده می‌شود.', shop_cancel_keyboard()); return true; }
+        if ($stage==='short') { $payload['short_description']=$text; $payload['stage']='full'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'توضیح کامل محصول را بفرست. اگر همان توضیح کوتاه کافی است، <code>-</code> بفرست.', shop_cancel_keyboard()); return true; }
+        if ($stage==='full') { $payload['full_description']=($text==='-'||$text==='')?($payload['short_description']??''):$text; $payload['stage']='image'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'عکس محصول را بفرست یا لینک عکس بده. اگر عکس نمی‌خوای دکمه زیر را بزن.', json_markup(['inline_keyboard'=>[[['text'=>'بدون عکس ادامه بده', 'callback_data'=>'prodwiz_skip_image']], [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']]]])); return true; }
+        if ($stage==='image') { $url=image_url_from_message($message, 'products'); if (!$url) { send_msg($chat_id, 'لطفاً عکس/لینک معتبر بفرست یا دکمه بدون عکس را بزن.', shop_cancel_keyboard()); return true; } $payload['image_url']=$url; $payload['stage']='featured'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'محصول ویژه باشد؟', json_markup(['inline_keyboard'=>[[['text'=>'⭐ بله ویژه باشد', 'callback_data'=>'prodwiz_featured_1'], ['text'=>'معمولی باشد', 'callback_data'=>'prodwiz_featured_0']], [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']]]])); return true; }
+    }
+    if ($step === 'admin_variant_wizard') {
+        $stage=$payload['stage'] ?? 'title';
+        if ($stage==='title') { $payload['title']=$text; $payload['stage']='price'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'قیمت این پلن را بفرست.', shop_cancel_keyboard()); return true; }
+        if ($stage==='price') { $amount=parse_amount($text); if($amount<=0){send_msg($chat_id,'قیمت معتبر نیست.',shop_cancel_keyboard());return true;} $payload['price']=$amount; $payload['stage']='duration'; set_step_payload($chat_id,$step,$payload); send_msg($chat_id, 'مدت این پلن به روز را بفرست. اگر ندارد 0 بفرست.', shop_cancel_keyboard()); return true; }
+        if ($stage==='duration') { $duration=parse_amount($text); db()->prepare('INSERT INTO product_variants (product_id,title,price,duration_days,sort_order) VALUES (?,?,?,?,99)')->execute([(int)$payload['product_id'], $payload['title'], (int)$payload['price'], $duration]); $vid=(int)db()->lastInsertId(); clear_step($chat_id); send_msg($chat_id, "✅ پلن ساخته شد: <code>#{$vid}</code>", admin_shop_keyboard()); return true; }
+    }
+    if ($step === 'admin_inventory_wizard') {
+        $stage=$payload['stage'] ?? 'content';
+        if ($stage==='content') {
+            if ($text==='') { send_msg($chat_id, 'آیتم خالی است. متن/لینک/ایمیل‌پسورد را بفرست یا تمام کن.', shop_cancel_keyboard()); return true; }
+            $items = array_values(array_filter(array_map('trim', preg_split('/\R/u', $text))));
+            $q=db()->prepare('INSERT INTO inventory_items (product_id, variant_id, content) VALUES (?,?,?)'); $added=0;
+            foreach ($items as $item) { if ($item==='') continue; $q->execute([(int)$payload['product_id'], !empty($payload['variant_id'])?(int)$payload['variant_id']:null, $item]); $added++; }
+            $payload['count']=(int)($payload['count'] ?? 0)+$added; set_step_payload($chat_id,$step,$payload);
+            send_msg($chat_id, "✅ {$added} آیتم ذخیره شد. مجموع این مرحله: <b>{$payload['count']}</b>\nآیتم بعدی را بفرست یا تمام کن.", json_markup(['inline_keyboard'=>[[['text'=>'✅ تمام', 'callback_data'=>'invwiz_finish']], [['text'=>'❌ لغو', 'callback_data'=>'adm_shop']]]]));
+            return true;
+        }
+    }
+    return false;
 }

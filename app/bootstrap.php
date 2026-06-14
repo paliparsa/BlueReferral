@@ -95,6 +95,7 @@ function migrate(): void {
     seed_setting('delivery_template_manual', "📦 سفارش شما آماده شد\n\n{delivery}");
 
     // Safe Commerce Plus upgrade columns. These commands are idempotent and keep older installs intact.
+    add_column_if_missing('product_categories', 'image_url', 'VARCHAR(1024) NULL AFTER emoji');
     add_column_if_missing('products', 'image_url', 'VARCHAR(1024) NULL AFTER full_description');
     add_column_if_missing('products', 'is_featured', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active');
     add_column_if_missing('orders', 'variant_id', 'BIGINT UNSIGNED NULL AFTER product_id');
@@ -378,13 +379,15 @@ function order_user_keyboard(array $order): string {
 function admin_shop_keyboard(): string {
     $mini = app_config('MINIAPP_URL', '');
     $rows = [
-        [['text'=>'➕ افزودن محصول', 'callback_data'=>'adm_add_product'], ['text'=>'📦 محصولات', 'callback_data'=>'adm_products']],
-        [['text'=>'🧩 پلن/Variant', 'callback_data'=>'adm_variants'], ['text'=>'📥 انبار دستی', 'callback_data'=>'adm_inventory']],
+        [['text'=>'➕ محصول مرحله‌ای', 'callback_data'=>'adm_add_product'], ['text'=>'📦 مدیریت محصولات', 'callback_data'=>'adm_products']],
+        [['text'=>'➕ دسته مرحله‌ای', 'callback_data'=>'adm_add_category'], ['text'=>'📂 مدیریت دسته‌بندی‌ها', 'callback_data'=>'adm_categories']],
+        [['text'=>'➕ پلن مرحله‌ای', 'callback_data'=>'adm_add_variant_manual'], ['text'=>'🧩 مدیریت پلن‌ها', 'callback_data'=>'adm_variants']],
+        [['text'=>'➕ انبار مرحله‌ای', 'callback_data'=>'adm_add_inventory'], ['text'=>'📥 مدیریت انبار دستی', 'callback_data'=>'adm_inventory']],
         [['text'=>'🧾 سفارش‌ها', 'callback_data'=>'adm_orders'], ['text'=>'🔎 جستجوی سفارش', 'callback_data'=>'adm_order_search']],
-        [['text'=>'📂 دسته‌بندی‌ها', 'callback_data'=>'adm_categories'], ['text'=>'🎟 کدهای تخفیف', 'callback_data'=>'adm_coupons']],
-        [['text'=>'📊 گزارش فروش', 'callback_data'=>'adm_sales_report'], ['text'=>'💳 متن پرداخت', 'callback_data'=>'adm_payment']],
+        [['text'=>'🎟 کدهای تخفیف', 'callback_data'=>'adm_coupons'], ['text'=>'📊 گزارش فروش', 'callback_data'=>'adm_sales_report']],
+        [['text'=>'💳 متن پرداخت', 'callback_data'=>'adm_payment']],
     ];
-    if ($mini) $rows[] = [['text'=>'🧑‍💼 Admin Mini Panel', 'web_app'=>['url'=>$mini.'?admin=1']]];
+    if ($mini) $rows[] = [['text'=>'🧑‍💼 Mini Panel ادمین', 'web_app'=>['url'=>$mini.'?admin=1']]];
     $rows[] = [['text'=>'🔙 پنل ادمین', 'callback_data'=>'adm_home']];
     return json_markup(['inline_keyboard'=>$rows]);
 }
@@ -496,26 +499,34 @@ function show_admin_shop_home(int $chat_id, $message_id=null): void {
 }
 function show_admin_products(int $chat_id, $message_id=null): void {
     $products = shop_products(null, false);
-    $txt = "📦 <b>محصولات</b>\n\n";
+    $txt = "📦 <b>مدیریت محصولات</b>\n\nمحصول‌ها را می‌توانی فعال/غیرفعال کنی، عکس اضافه کنی، پلن بسازی یا از فروشگاه حذف کنی. حذف محصول، سفارش‌های قبلی را پاک نمی‌کند و فقط از فروشگاه پنهان می‌شود.\n\n";
     $rows = [];
     if (!$products) $txt .= "هنوز محصولی اضافه نشده.";
     foreach ($products as $p) {
-        $status = (int)$p['is_active'] ? '✅ فعال' : '⛔️ غیرفعال';
-        $txt .= "#{$p['id']} | {$status} | <b>".h($p['name'])."</b> | ".product_price_label($p)." | پلن: ".(int)$p['variant_count']." | موجودی: ".(int)$p['inventory_available']."\n";
-        $rows[] = [[ 'text'=>((int)$p['is_active'] ? '⛔️ غیرفعال ' : '✅ فعال ').'#'.$p['id'], 'callback_data'=>'prod_toggle_'.$p['id'] ], ['text'=>'🧩 پلن #'.$p['id'], 'callback_data'=>'adm_add_variant_'.$p['id']]];
+        $status = (int)$p['is_active'] ? '✅ فعال' : '⛔️ حذف/غیرفعال';
+        $img = !empty($p['image_url']) ? '🖼' : 'بدون عکس';
+        $txt .= "#{$p['id']} | {$status} | <b>".h($p['name'])."</b> | ".product_price_label($p)." | پلن: ".(int)$p['variant_count']." | موجودی: ".(int)$p['inventory_available']." | {$img}\n";
+        $rows[] = [['text'=>((int)$p['is_active'] ? '⛔️ حذف ' : '✅ فعال ').'#'.$p['id'], 'callback_data'=>'prod_delete_'.$p['id']], ['text'=>'🔁 وضعیت #'.$p['id'], 'callback_data'=>'prod_toggle_'.$p['id']]];
+        $rows[] = [['text'=>'🖼 عکس #'.$p['id'], 'callback_data'=>'prod_image_'.$p['id']], ['text'=>'🧩 پلن #'.$p['id'], 'callback_data'=>'adm_add_variant_'.$p['id']]];
+        $rows[] = [['text'=>'📥 انبار #'.$p['id'], 'callback_data'=>'invwiz_product_'.$p['id']]];
     }
-    $rows[] = [['text'=>'➕ افزودن محصول', 'callback_data'=>'adm_add_product'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    $rows[] = [['text'=>'➕ افزودن محصول مرحله‌ای', 'callback_data'=>'adm_add_product'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
 }
 function show_admin_categories(int $chat_id, $message_id=null): void {
     $cats = shop_categories(false);
-    $txt = "📂 <b>دسته‌بندی‌ها</b>\n\n";
-    foreach ($cats as $c) $txt .= "#{$c['id']} | ".h(trim(($c['emoji'] ?: '').' '.$c['title']))." | ".((int)$c['is_active']?'فعال':'غیرفعال')."\n";
+    $txt = "📂 <b>مدیریت دسته‌بندی‌ها</b>\n\nدسته‌ها را مرحله‌ای بساز، عکس بده یا از فروشگاه پنهان کن.\n\n";
+    $rows = [];
+    foreach ($cats as $c) {
+        $status = (int)$c['is_active'] ? '✅ فعال' : '⛔️ حذف/غیرفعال';
+        $img = !empty($c['image_url']) ? '🖼' : 'بدون عکس';
+        $txt .= "#{$c['id']} | ".h(trim(($c['emoji'] ?: '').' '.$c['title']))." | {$status} | {$img}\n";
+        $rows[] = [['text'=>((int)$c['is_active']?'⛔️ حذف ':'✅ فعال ').'#'.$c['id'], 'callback_data'=>'cat_delete_'.$c['id']], ['text'=>'🖼 عکس #'.$c['id'], 'callback_data'=>'cat_image_'.$c['id']]];
+    }
     if (!$cats) $txt .= "دسته‌ای ثبت نشده.";
-    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
-        [['text'=>'➕ افزودن دسته', 'callback_data'=>'adm_add_category']],
-        [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
-    ]]));
+    $rows[] = [['text'=>'➕ افزودن دسته مرحله‌ای', 'callback_data'=>'adm_add_category']];
+    $rows[] = [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
 }
 function show_admin_coupons(int $chat_id, $message_id=null): void {
     $rows = db()->query('SELECT * FROM coupons ORDER BY id DESC LIMIT 30')->fetchAll();
@@ -573,23 +584,31 @@ function show_admin_orders(int $chat_id, $message_id, string $filter='all'): voi
     send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$rows]));
 }
 function show_admin_inventory(int $chat_id, $message_id=null): void {
-    $rows = db()->query('SELECT p.id, p.name, COUNT(i.id) available FROM products p LEFT JOIN inventory_items i ON i.product_id=p.id AND i.status="available" GROUP BY p.id ORDER BY p.id DESC LIMIT 30')->fetchAll();
-    $txt="📥 <b>انبار دستی</b>\n\n";
-    foreach ($rows as $r) $txt .= "#{$r['id']} | ".h($r['name'])." | موجودی آماده: <b>{$r['available']}</b>\n";
-    if (!$rows) $txt .= "هنوز محصولی نیست.";
-    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
-        [['text'=>'➕ افزودن آیتم انبار', 'callback_data'=>'adm_add_inventory']],
-        [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
-    ]]));
+    $rows = db()->query('SELECT i.*, p.name product_name, v.title variant_title FROM inventory_items i JOIN products p ON p.id=i.product_id LEFT JOIN product_variants v ON v.id=i.variant_id ORDER BY i.id DESC LIMIT 40')->fetchAll();
+    $txt="📥 <b>مدیریت انبار دستی</b>\n\nآیتم‌های آماده را می‌توانی تک‌تک حذف کنی. فقط آیتم‌های آماده قابل حذف هستند.\n\n";
+    $kb=[];
+    if (!$rows) $txt .= "هنوز آیتمی در انبار نیست.";
+    foreach ($rows as $r) {
+        $name = $r['product_name'].(!empty($r['variant_title']) ? ' - '.$r['variant_title'] : '');
+        $preview = mb_substr(preg_replace('/\s+/u',' ', (string)$r['content']), 0, 38);
+        $txt .= "#{$r['id']} | ".h($name)." | ".h($r['status'])." | <code>".h($preview)."</code>\n";
+        if ($r['status']==='available') $kb[] = [['text'=>'🗑 حذف آیتم #'.$r['id'], 'callback_data'=>'inv_delete_'.$r['id']]];
+    }
+    $kb[] = [['text'=>'➕ افزودن انبار مرحله‌ای', 'callback_data'=>'adm_add_inventory'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb]));
 }
 function show_admin_variants(int $chat_id, $message_id=null): void {
-    $rows = db()->query('SELECT p.id, p.name, COUNT(v.id) vc FROM products p LEFT JOIN product_variants v ON v.product_id=p.id GROUP BY p.id ORDER BY p.id DESC LIMIT 30')->fetchAll();
-    $txt="🧩 <b>پلن‌ها / Variants</b>\n\n";
-    foreach ($rows as $r) $txt .= "#{$r['id']} | ".h($r['name'])." | پلن‌ها: <b>{$r['vc']}</b>\n";
-    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>[
-        [['text'=>'➕ افزودن پلن', 'callback_data'=>'adm_add_variant_manual']],
-        [['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']],
-    ]]));
+    $rows = db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 50')->fetchAll();
+    $txt="🧩 <b>مدیریت پلن‌ها / Variants</b>\n\n";
+    $kb=[];
+    if (!$rows) $txt .= "هنوز پلنی ثبت نشده.";
+    foreach ($rows as $r) {
+        $status = (int)$r['is_active'] ? '✅ فعال' : '⛔️ حذف/غیرفعال';
+        $txt .= "#{$r['id']} | محصول #{$r['product_id']} ".h($r['product_name'])." | <b>".h($r['title'])."</b> | ".money((int)$r['price'])." | {$status}\n";
+        $kb[] = [['text'=>'🗑 حذف پلن #'.$r['id'], 'callback_data'=>'variant_delete_'.$r['id']]];
+    }
+    $kb[] = [['text'=>'➕ افزودن پلن مرحله‌ای', 'callback_data'=>'adm_add_variant_manual'], ['text'=>'🔙 فروشگاه ادمین', 'callback_data'=>'adm_shop']];
+    send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb]));
 }
 function show_sales_report(int $chat_id, $message_id=null): void {
     $r=sales_report();
@@ -952,6 +971,81 @@ function sales_report(): array {
     $pending=db()->query('SELECT COUNT(*) c FROM orders WHERE status IN ("receipt_submitted","reviewing","payment_confirmed","preparing")')->fetch();
     $top=db()->query('SELECT p.name, COUNT(*) c, COALESCE(SUM(o.final_amount),0) s FROM orders o JOIN products p ON p.id=o.product_id WHERE o.status="delivered" GROUP BY p.id ORDER BY s DESC LIMIT 5')->fetchAll();
     return ['today'=>$today,'month'=>$month,'pending'=>(int)$pending['c'],'top'=>$top];
+}
+
+
+// Admin Shop UX v2 helpers: image upload, delete-safe management and step-by-step wizards.
+function parse_amount($value): int { return max(0, (int)preg_replace('/\D+/', '', (string)$value)); }
+function step_payload_array(array $user): array {
+    $raw = (string)($user['step_payload'] ?? '');
+    $d = json_decode($raw, true);
+    return is_array($d) ? $d : [];
+}
+function set_step_payload(int $telegram_id, string $step, array $payload): void { set_step($telegram_id, $step, json_encode($payload, JSON_UNESCAPED_UNICODE)); }
+function shop_cancel_keyboard(): string { return json_markup(['inline_keyboard'=>[[['text'=>'❌ لغو و بازگشت', 'callback_data'=>'adm_shop']]]]); }
+function public_base_url(): string { return rtrim((string)app_config('PUBLIC_BASE_URL',''), '/'); }
+function public_url_for_path(string $relative): string { return public_base_url() . '/' . ltrim($relative, '/'); }
+function telegram_file_to_public_url(string $fileId, string $folder='shop'): ?string {
+    $info = tg('getFile', ['file_id'=>$fileId]);
+    if (empty($info['ok']) || empty($info['result']['file_path'])) return null;
+    $filePath = $info['result']['file_path'];
+    $ext = pathinfo($filePath, PATHINFO_EXTENSION) ?: 'jpg';
+    $safe = preg_replace('/[^A-Za-z0-9_\-]/', '', substr($fileId, 0, 28));
+    $dir = __DIR__ . '/../public/uploads/' . trim($folder, '/') . '/' . date('Ymd');
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $relative = 'uploads/' . trim($folder, '/') . '/' . date('Ymd') . '/' . $safe . '.' . $ext;
+    $dest = __DIR__ . '/../public/' . $relative;
+    $url = 'https://api.telegram.org/file/bot' . app_config('BOT_TOKEN') . '/' . $filePath;
+    $bin = @file_get_contents($url);
+    if ($bin === false || strlen($bin) < 10) return null;
+    file_put_contents($dest, $bin);
+    return public_url_for_path($relative);
+}
+function image_url_from_message(array $message, string $folder='shop'): ?string {
+    $text = trim((string)($message['text'] ?? $message['caption'] ?? ''));
+    if ($text !== '' && preg_match('/^https?:\/\//i', $text)) return $text;
+    if (!empty($message['photo']) && is_array($message['photo'])) { $last = end($message['photo']); if (!empty($last['file_id'])) return telegram_file_to_public_url((string)$last['file_id'], $folder); }
+    if (!empty($message['document']['file_id']) && str_starts_with((string)($message['document']['mime_type'] ?? ''), 'image/')) return telegram_file_to_public_url((string)$message['document']['file_id'], $folder);
+    return null;
+}
+function product_rows_keyboard(string $prefix, bool $includeInactive=false): array {
+    $products = shop_products(null, !$includeInactive);
+    $rows=[];
+    foreach ($products as $p) $rows[] = [['text'=>'#'.$p['id'].' - '.$p['name'], 'callback_data'=>$prefix.$p['id']]];
+    if (!$rows) $rows[] = [['text'=>'محصولی نیست', 'callback_data'=>'adm_shop']];
+    return $rows;
+}
+function category_rows_keyboard(string $prefix): array {
+    $rows=[];
+    foreach (shop_categories(true) as $c) $rows[] = [['text'=>trim(($c['emoji']?:'🛒').' '.$c['title']), 'callback_data'=>$prefix.$c['id']]];
+    $rows[] = [['text'=>'بدون دسته‌بندی', 'callback_data'=>$prefix.'0']];
+    return $rows;
+}
+function variant_rows_keyboard(int $productId, string $prefix): array {
+    $rows=[];
+    foreach (product_variants($productId, true) as $v) $rows[] = [['text'=>'#'.$v['id'].' - '.$v['title'].' | '.money((int)$v['price']), 'callback_data'=>$prefix.$v['id']]];
+    $rows[] = [['text'=>'بدون پلن / برای کل محصول', 'callback_data'=>$prefix.'0']];
+    return $rows;
+}
+function soft_delete_product(int $productId): void { db()->prepare('UPDATE products SET is_active=0 WHERE id=?')->execute([$productId]); }
+function soft_delete_category(int $categoryId): void { db()->prepare('UPDATE product_categories SET is_active=0 WHERE id=?')->execute([$categoryId]); }
+function delete_available_inventory(int $inventoryId): bool { $q=db()->prepare('DELETE FROM inventory_items WHERE id=? AND status="available"'); $q->execute([$inventoryId]); return $q->rowCount() > 0; }
+function soft_delete_variant(int $variantId): void { db()->prepare('UPDATE product_variants SET is_active=0 WHERE id=?')->execute([$variantId]); }
+function set_product_image(int $productId, ?string $url): void { db()->prepare('UPDATE products SET image_url=? WHERE id=?')->execute([$url, $productId]); }
+function set_category_image(int $categoryId, ?string $url): void { db()->prepare('UPDATE product_categories SET image_url=? WHERE id=?')->execute([$url, $categoryId]); }
+function create_product_from_wizard(array $p): int {
+    $commission = $p['commission_type'] ?? 'none'; if (!in_array($commission, ['none','fixed','percent'], true)) $commission='none';
+    db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([!empty($p['category_id'])?(int)$p['category_id']:null, $p['name'] ?? '', (int)($p['price'] ?? 0), $p['short_description'] ?? '', $p['full_description'] ?? ($p['short_description'] ?? ''), $p['image_url'] ?? null, normalize_delivery_type($p['delivery_type'] ?? 'manual'), $commission, (int)($p['commission_value'] ?? 0), (int)($p['duration_days'] ?? 0), !empty($p['is_featured'])?1:0]);
+    return (int)db()->lastInsertId();
+}
+function create_category_from_wizard(array $p): int {
+    db()->prepare('INSERT INTO product_categories (emoji,title,image_url,sort_order,is_active) VALUES (?,?,?,?,1)')->execute([$p['emoji'] ?? '🛒', $p['title'] ?? 'دسته جدید', $p['image_url'] ?? null, 99]);
+    return (int)db()->lastInsertId();
+}
+function inventory_items_for_admin(int $limit=80): array {
+    $q=db()->prepare('SELECT i.*, p.name product_name, v.title variant_title FROM inventory_items i JOIN products p ON p.id=i.product_id LEFT JOIN product_variants v ON v.id=i.variant_id ORDER BY i.id DESC LIMIT ?');
+    $q->bindValue(1, $limit, PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
 }
 
 function verify_webapp_init_data(string $initData): array|false {
