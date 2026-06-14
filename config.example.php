@@ -51,5 +51,8 @@ $FORCE_JOIN_CHANNEL = '';
 $DEFAULT_THEME_COLOR = '#1d9bf0';
 $BRAND_NAME = 'BlueGate';
 
+// Ask users to share their own Telegram contact before using the bot.
+$AUTH_CONTACT_REQUIRED = false;
+
 // Shop payment text shown under invoices. You can also edit it from admin panel.
 $PAYMENT_INSTRUCTIONS = 'شماره کارت/اطلاعات پرداخت را اینجا بنویسید. بعد از پرداخت، کاربر رسید را از دکمه ارسال رسید می‌فرستد.';

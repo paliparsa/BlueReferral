@@ -37,12 +37,28 @@ if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
   exec > >(tee -a "$LOG_FILE") 2>&1
 fi
 
-line() { printf '%*s\n' "${COLUMNS:-72}" '' | tr ' ' '-'; }
-info() { echo "[INFO] $*"; }
-ok() { echo "[OK] $*"; }
-warn() { echo "[WARN] $*"; }
-fail() { echo "[ERROR] $*"; }
-pause() { echo; read -rp "Press Enter to return to menu..." _ || true; }
+if [[ -t 1 ]]; then
+  BOLD='\033[1m'; DIM='\033[2m'; BLUE='\033[38;5;39m'; CYAN='\033[38;5;51m'; GREEN='\033[38;5;46m'; YELLOW='\033[38;5;220m'; RED='\033[38;5;196m'; MAGENTA='\033[38;5;141m'; NC='\033[0m'
+else
+  BOLD=''; DIM=''; BLUE=''; CYAN=''; GREEN=''; YELLOW=''; RED=''; MAGENTA=''; NC=''
+fi
+line() { printf '%*s
+' "${COLUMNS:-76}" '' | tr ' ' '━'; }
+soft_line() { printf '%*s
+' "${COLUMNS:-76}" '' | tr ' ' '─'; }
+info() { echo -e "${BLUE}●${NC} $*"; }
+ok() { echo -e "${GREEN}✔${NC} $*"; }
+warn() { echo -e "${YELLOW}⚠${NC} $*"; }
+fail() { echo -e "${RED}✖${NC} $*"; }
+pause() { echo; read -rp "↩ Press Enter to return to menu..." _ || true; }
+box_title() {
+  echo -e "${BLUE}╭────────────────────────────────────────────────────────────╮${NC}"
+  echo -e "${BLUE}│${NC} ${BOLD}BlueReferral Manager${NC} ${DIM}— installer / updater / repair${NC}          ${BLUE}│${NC}"
+  echo -e "${BLUE}╰────────────────────────────────────────────────────────────╯${NC}"
+}
+menu_item() { printf "  ${CYAN}%2s${NC}) %s
+" "$1" "$2"; }
+
 
 require_root() {
   if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
@@ -134,8 +150,9 @@ try_extract_php_config() {
 
 collect_settings() {
   clear
-  echo "BlueReferral setup wizard"
-  line
+  box_title
+  echo -e "${BOLD}Setup wizard${NC}"
+  soft_line
   try_extract_php_config
   [[ -z "$DB_PASS" ]] && DB_PASS="$(rand_hex 16)"
   [[ -z "$WEBHOOK_SECRET" ]] && WEBHOOK_SECRET="$(rand_hex 20)"
@@ -277,6 +294,7 @@ step_config() {
 \$FORCE_JOIN_CHANNEL = '$(php_escape "$FORCE_JOIN_CHANNEL")';
 \$DEFAULT_THEME_COLOR = '$(php_escape "$THEME_COLOR")';
 \$BRAND_NAME = '$(php_escape "$BRAND_NAME")';
+\$AUTH_CONTACT_REQUIRED = false;
 PHP
   php -l "$APP_DIR/config.php" || return 1
   chmod 640 "$APP_DIR/config.php"
@@ -432,27 +450,27 @@ menu() {
   require_root
   while true; do
     clear
-    echo "BlueReferral Installer / Manager"
-    line
-    echo "1) Full install / reinstall recommended path"
-    echo "2) Setup wizard only: domain, token, database, theme"
-    echo "3) Install/repair system packages"
-    echo "4) Clone/update GitHub repository"
-    echo "5) Generate/repair config.php"
-    echo "6) Create/update database user and DB"
-    echo "7) Configure nginx"
-    echo "8) Request/repair SSL certificate"
-    echo "9) Run database migrations"
-    echo "10) Set Telegram webhook"
-    echo "11) Install/repair blue-ref command"
-    echo "12) Update project from GitHub"
-    echo "13) Status / diagnostics"
-    echo "14) Remove app files only"
-    echo "0) Exit"
-    line
-    echo "After installation you can run this menu anytime with: blue-ref"
-    echo "Log: $LOG_FILE"
-    line
+    box_title
+    echo -e "${DIM}Domain:${NC} ${DOMAIN:-not set}   ${DIM}App:${NC} ${APP_DIR}"
+    echo -e "${DIM}Log:${NC} $LOG_FILE"
+    soft_line
+    menu_item 1  "Full install / reinstall recommended path"
+    menu_item 2  "Setup wizard only: domain, token, database, theme"
+    menu_item 3  "Install/repair system packages"
+    menu_item 4  "Clone/update GitHub repository"
+    menu_item 5  "Generate/repair config.php"
+    menu_item 6  "Create/update database user and DB"
+    menu_item 7  "Configure nginx"
+    menu_item 8  "Request/repair SSL certificate"
+    menu_item 9  "Run database migrations"
+    menu_item 10 "Set Telegram webhook"
+    menu_item 11 "Install/repair blue-ref command"
+    menu_item 12 "Update project from GitHub"
+    menu_item 13 "Status / diagnostics"
+    menu_item 14 "Remove app files only"
+    menu_item 0  "Exit"
+    soft_line
+    echo -e "${GREEN}Tip:${NC} after the first setup, run this anytime with ${BOLD}sudo blue-ref${NC}"
     read -rp "Choose an option: " choice || true
     case "$choice" in
       1) full_install ;;
