@@ -5,7 +5,15 @@ if (tg) { tg.ready(); tg.expand(); }
 // Zoom is controlled by the viewport meta and CSS; global preventDefault breaks scrolling on some Android builds.
 try { tg?.disableVerticalSwipes?.(); } catch(e) {}
 const initData = tg?.initData || '';
-const isAdminMode = new URLSearchParams(location.search).get('admin') === '1';
+function getUrlFlag(name){
+  const search=new URLSearchParams(location.search||'');
+  if(search.get(name)) return search.get(name);
+  const hash=(location.hash||'').replace(/^#/,'');
+  try{const hp=new URLSearchParams(hash); if(hp.get(name)) return hp.get(name);}catch(e){}
+  return null;
+}
+const adminFlag = getUrlFlag('admin') || getUrlFlag('mode') || getUrlFlag('startapp') || tg?.initDataUnsafe?.start_param || '';
+const isAdminMode = adminFlag === '1' || String(adminFlag).toLowerCase() === 'admin';
 let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, orderFilter = 'all', lastSpinPrize = null;
 let adminUiCards = [], adminUiWallets = [], adminUiRates = [];
 const $ = (id) => document.getElementById(id);
@@ -85,8 +93,19 @@ async function doSpinWheel(){const btn=$('spinBtn'), wheel=$('spinWheel'), resul
 
 function renderWallet(){const u=state.user;const today=Number(u.today_referrals||0);$('walletPage').innerHTML=`<section class="wallet-dashboard"><div class="wallet-card-main"><small>موجودی قابل خرج در فروشگاه</small><strong>${fmt(u.balance)}</strong><p>این موجودی برای کم‌کردن مبلغ سفارش‌های فروشگاه استفاده می‌شود.</p><button class="primary" data-tab-jump="shop">خرج در فروشگاه</button></div><div class="wallet-mini-grid"><div><b>${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div><b>${fmt(u.total_withdrawn)}</b><span>برداشت موفق</span></div><div><b>${nf(u.referrals_count)}</b><span>دعوت موفق</span></div><div><b>${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div></section><article class="wallet-card referral-card"><h3>🔗 دعوت دوستان</h3><p class="muted">لینک خام نمایش داده نمی‌شود؛ با دکمه زیر کپی کن و برای دوستانت بفرست.</p><button class="secondary" id="copyLink">کپی لینک دعوت</button></article>${renderSpinWheel()}<article class="wallet-card missions-panel"><div class="section-title"><h2>🎯 ماموریت‌های امروز</h2><small>${nf(today)} دعوت امروز</small></div><div class="missions-grid">${(state.missions||[]).map(missionCard).join('')||'<p class="muted">مأموریتی نیست.</p>'}</div><button class="success" id="claimBtn">دریافت پاداش‌های آماده</button></article><article class="wallet-card"><h3>تراکنش‌های اخیر</h3><div class="tx-list">${(state.transactions||[]).map(t=>`<div class="tx-row"><span>${esc(t.description||t.type)}</span><b class="${Number(t.amount)<0?'negative':'positive'}">${fmt(t.amount)}</b><small>${esc(t.created_at)}</small></div>`).join('')||'<p class="muted">تراکنشی نیست.</p>'}</div></article>`}
 async function reload(){state=await api('me');applyTheme(state);renderUser()}
-async function load(){if(!initData){showStatus('Mini App باید داخل تلگرام باز شود.','error');return}try{render(await api('me'))}catch(e){showStatus(e.message,'error')}}
-async function loadAdmin(){try{adminState=await api('admin_summary');applyTheme(adminState.settings||{});renderAdmin()}catch(e){showStatus(e.message,'error')}}
+function showFatalPanel(message){
+  const html=`<section class="hero error-panel"><h2>⚠️ خطا</h2><p class="muted">${esc(message||'خطا در بارگذاری')}</p><button class="primary" id="reloadAdmin">تلاش دوباره</button></section>`;
+  if(isAdminMode){$('userApp').classList.add('hidden');$('adminApp').classList.remove('hidden');$('adminContent').innerHTML=html;}
+  else {$('userApp').classList.remove('hidden');$('adminApp').classList.add('hidden');$('homePage').innerHTML=html;}
+}
+async function load(){
+  if(!initData){showFatalPanel('Mini App باید داخل تلگرام باز شود.');showStatus('Mini App باید داخل تلگرام باز شود.','error');return}
+  try{
+    if(isAdminMode){$('userApp').classList.add('hidden');$('adminApp').classList.remove('hidden');await loadAdmin();return}
+    render(await api('me'))
+  }catch(e){showFatalPanel(e.message);showStatus(e.message,'error')}
+}
+async function loadAdmin(){try{adminState=await api('admin_summary');applyTheme(adminState.settings||{});renderAdmin()}catch(e){showFatalPanel(e.message);showStatus(e.message,'error')}}
 function renderAdmin(){const r=adminState.report||{};$('adminStats').innerHTML=`<div class="mini-stat"><b>${nf(r.today?.c||0)}</b><span>سفارش امروز<br>${fmt(r.today?.s||0)}</span></div><div class="mini-stat"><b>${nf(r.month?.c||0)}</b><span>سفارش ماه<br>${fmt(r.month?.s||0)}</span></div><div class="mini-stat"><b>${nf(r.pending||0)}</b><span>نیازمند اقدام</span></div>`;document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===currentAdminTab));const fn={dashboard:renderAdminDashboard,products:renderAdminProducts,categories:renderAdminCategories,variants:renderAdminVariants,inventory:renderAdminInventory,orders:renderAdminOrders,settings:renderAdminSettings}[currentAdminTab];$('adminContent').innerHTML=fn?fn():'';setTimeout(()=>{if($('as_crypto_source'))$('as_crypto_source').value=(adminState.settings?.crypto_rate_source||'nobitex');if(currentAdminTab==='settings')initSettingsUi();},0)}
 function catOptions(selected=''){return `<option value="">بدون دسته</option>`+(adminState.categories||[]).map(c=>`<option value="${c.id}" ${Number(selected)===Number(c.id)?'selected':''}>${esc(c.emoji||'🛒')} ${esc(c.title)}</option>`).join('')}
 function productOptions(selected=''){return (adminState.products||[]).map(p=>`<option value="${p.id}" ${Number(selected)===Number(p.id)?'selected':''}>#${p.id} ${esc(p.name)}</option>`).join('')}
@@ -121,9 +140,9 @@ function paymentListHtml(items,type){
   }).join('')+`</div>`;
 }
 function syncPaymentBuilders(){
-  if($('as_cards')) $('as_cards').value=adminUiCards.map(cardLine).join('\n');
-  if($('as_crypto_wallets')) $('as_crypto_wallets').value=adminUiWallets.map(walletLine).join('\n');
-  if($('as_crypto_rates')) $('as_crypto_rates').value=adminUiRates.map(rateLine).join('\n');
+  if($('as_cards') && adminUiCards.length) $('as_cards').value=adminUiCards.map(cardLine).join('\n');
+  if($('as_crypto_wallets') && adminUiWallets.length) $('as_crypto_wallets').value=adminUiWallets.map(walletLine).join('\n');
+  if($('as_crypto_rates') && adminUiRates.length) $('as_crypto_rates').value=adminUiRates.map(rateLine).join('\n');
   if($('cardBuilderList')) $('cardBuilderList').innerHTML=paymentListHtml(adminUiCards,'card');
   if($('walletBuilderList')) $('walletBuilderList').innerHTML=paymentListHtml(adminUiWallets,'wallet');
   if($('rateBuilderList')) $('rateBuilderList').innerHTML=paymentListHtml(adminUiRates,'rate');
@@ -219,7 +238,14 @@ function editProduct(id){const p=adminState.products.find(x=>Number(x.id)===Numb
 function editCategory(id){const c=adminState.categories.find(x=>Number(x.id)===Number(id));if(!c)return;openEdit(`ویرایش دسته #${id}`,[`<input id="ec_title" value="${esc(c.title)}" placeholder="نام">`,`<input id="ec_emoji" value="${esc(c.emoji||'')}" placeholder="اموجی">`,`<input id="ec_img" value="${esc(c.image_url||'')}" placeholder="لینک عکس">`,`<input id="ec_sort" value="${c.sort_order||0}" placeholder="ترتیب">`,`<label class="switch-line">فعال <input id="ec_active" type="checkbox" ${Number(c.is_active)?'checked':''}></label>`],async()=>adminAction('admin_update_category',{category_id:id,title:val('ec_title'),emoji:val('ec_emoji'),image_url:val('ec_img'),sort_order:val('ec_sort'),is_active:val('ec_active')?1:0}))}
 function editVariant(id){const v=adminState.variants.find(x=>Number(x.id)===Number(id));if(!v)return;openEdit(`ویرایش پلن #${id}`,[`<input id="ev_title" value="${esc(v.title)}" placeholder="نام پلن">`,`<input id="ev_price" value="${v.price}" placeholder="قیمت">`,`<input id="ev_duration" value="${v.duration_days||0}" placeholder="مدت روز">`,`<input id="ev_sort" value="${v.sort_order||0}" placeholder="ترتیب">`,`<label class="switch-line">فعال <input id="ev_active" type="checkbox" ${Number(v.is_active)?'checked':''}></label>`],async()=>adminAction('admin_update_variant',{variant_id:id,title:val('ev_title'),price:val('ev_price'),duration_days:val('ev_duration'),sort_order:val('ev_sort'),is_active:val('ev_active')?1:0}))}
 function editInventory(id){const i=adminState.inventory.find(x=>Number(x.id)===Number(id));if(!i)return;openEdit(`ویرایش آیتم انبار #${id}`,[`<select id="ei_product">${productOptions(i.product_id)}</select>`,`<select id="ei_variant">${variantOptions(i.variant_id)}</select>`,`<select id="ei_status"><option value="available">available</option><option value="reserved">reserved</option><option value="delivered">delivered</option><option value="disabled">disabled</option></select>`,`<textarea id="ei_content">${esc(i.content||'')}</textarea>`],async()=>adminAction('admin_update_inventory',{inventory_id:id,product_id:val('ei_product'),variant_id:val('ei_variant'),status:val('ei_status'),content:val('ei_content')}));setTimeout(()=>{if($('ei_status'))$('ei_status').value=i.status||'available'},0)}
-async function adminAction(action,payload={}){try{adminState=await api(action,payload);applyTheme(adminState.settings||{});renderAdmin();showStatus('ذخیره شد');return true}catch(e){showStatus(e.message,'error');return false}}
+async function adminAction(action,payload={}){
+  try{
+    adminState=await api(action,payload);
+    if(!adminState || adminState.ok===false) throw new Error(adminState?.message||'خطا در ذخیره');
+    $('userApp').classList.add('hidden');$('adminApp').classList.remove('hidden');
+    applyTheme(adminState.settings||{});renderAdmin();showStatus('ذخیره شد');return true
+  }catch(e){showStatus(e.message||'خطا در ذخیره','error');return false}
+}
 async function loadAfterAction(action,payload={}){try{state=await api(action,payload);applyTheme(state);renderUser();showStatus('انجام شد');return true}catch(e){showStatus(e.message,'error');return false}}
 
 document.addEventListener('click',async(e)=>{
