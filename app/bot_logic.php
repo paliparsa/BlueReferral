@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/bootstrap.php';
-migrate();
+// Do not run migrations on every webhook/API request. Use install.php or blue-ref.
 
 function handle_update(array $update): void {
     if (isset($update['pre_checkout_query'])) {
