@@ -3,152 +3,55 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>BlueGate Referral Wallet</title>
+  <title>BlueReferral Shop</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="bg-orb orb-1"></div>
-  <div class="bg-orb orb-2"></div>
+  <div id="status" class="toast hidden"></div>
 
-  <main class="app-shell">
-    <section class="hero glass">
-      <div>
-        <p class="eyebrow">Referral Wallet</p>
-        <h1 id="brand">BlueGate</h1>
-        <p class="muted">فروشگاه، سفارش دستی، رفرال، کیف پول و همکاری در فروش — همه داخل یک Mini App.</p>
-      </div>
-      <button id="refreshBtn" class="icon-btn" aria-label="refresh">↻</button>
-    </section>
-
-    <section id="status" class="status glass hidden"></section>
-
-    <section class="grid stats-grid">
-      <article class="stat glass">
-        <span>موجودی</span>
-        <strong id="balance">—</strong>
-      </article>
-      <article class="stat glass">
-        <span>کل درآمد</span>
-        <strong id="earned">—</strong>
-      </article>
-      <article class="stat glass">
-        <span>زیرمجموعه‌ها</span>
-        <strong id="refs">—</strong>
-      </article>
-      <article class="stat glass">
-        <span>شانس گردونه</span>
-        <strong id="spins">—</strong>
-      </article>
-    </section>
-
-
-    <section class="glass panel shop-panel">
-      <div class="panel-title">
-        <h2>فروشگاه</h2>
-        <span class="pill">Manual Delivery</span>
-      </div>
-      <input id="shopSearch" class="search-input" placeholder="جستجوی محصول..." />
-      <div id="shopCats" class="chip-row"></div>
-      <div id="products" class="product-list"></div>
-    </section>
-
-    <section class="glass panel">
-      <div class="panel-title">
-        <h2>سفارش‌های من</h2>
-        <span class="pill">Invoices</span>
-      </div>
-      <div id="orders" class="order-list"></div>
-    </section>
-
-    <section id="adminPanel" class="glass panel hidden">
-      <div class="panel-title">
-        <h2>پنل فروشگاه ادمین</h2>
-        <span class="pill">Admin</span>
-      </div>
-      <div id="adminSummary" class="mini-grid"></div>
-      <button id="adminRefresh" class="secondary full">رفرش آمار ادمین</button>
-    </section>
-
-    <section class="vip-card glass">
-      <div class="vip-ring" id="vipEmoji">💎</div>
-      <div>
-        <p class="muted">سطح همکاری</p>
-        <h2 id="vipTitle">—</h2>
-        <p id="vipText" class="muted">—</p>
-      </div>
-    </section>
-
-    <section class="glass panel">
-      <div class="panel-title">
-        <h2>لینک دعوت من</h2>
-        <span id="startReward" class="pill">—</span>
-      </div>
-      <div class="copy-box">
-        <code id="refLink">—</code>
-        <button id="copyLink" class="primary small">کپی</button>
-      </div>
-      <button id="shareBtn" class="secondary full">ارسال متن تبلیغ آماده</button>
-    </section>
-
-    <section class="glass panel">
-      <div class="panel-title">
-        <h2>مأموریت روزانه</h2>
-        <span id="todayRefs" class="pill">—</span>
-      </div>
-      <div id="missions" class="mission-list"></div>
-      <button id="claimBtn" class="primary full">دریافت پاداش‌های آماده</button>
-    </section>
-
-    <section class="grid action-grid">
-      <button id="spinBtn" class="action-card glass">
-        <b>🎡 گردونه شانس</b>
-        <span>با دعوت بیشتر شانس بگیر</span>
-      </button>
-      <button id="withdrawBtn" class="action-card glass">
-        <b>🏧 درخواست برداشت</b>
-        <span id="minWithdraw">حداقل برداشت: —</span>
-      </button>
-      <button id="customCodeBtn" class="action-card glass">
-        <b>🔥 کد دعوت اختصاصی</b>
-        <span>لینکت رو برند کن</span>
-      </button>
-      <button id="supportBtn" class="action-card glass">
-        <b>📞 پشتیبانی</b>
-        <span>ارتباط سریع در تلگرام</span>
-      </button>
-    </section>
-
-    <section class="glass panel">
-      <div class="panel-title">
-        <h2>لیدربورد</h2>
-        <span class="pill">Top 10</span>
-      </div>
-      <div id="leaderboard" class="leaderboard"></div>
-    </section>
-
-    <section class="glass panel">
-      <div class="panel-title">
-        <h2>رنگ Mini App</h2>
-        <span class="pill">Local</span>
-      </div>
-      <div class="theme-row">
-        <button data-color="#1d9bf0" style="--sw:#1d9bf0"></button>
-        <button data-color="#8b5cf6" style="--sw:#8b5cf6"></button>
-        <button data-color="#22c55e" style="--sw:#22c55e"></button>
-        <button data-color="#ef4444" style="--sw:#ef4444"></button>
-        <button data-color="#f97316" style="--sw:#f97316"></button>
-        <button data-color="#ec4899" style="--sw:#ec4899"></button>
-      </div>
-    </section>
+  <main id="userApp" class="app-shell">
+    <header class="shop-header">
+      <button id="searchToggle" class="top-icon">⌕</button>
+      <h1>محصولات</h1>
+      <button id="refreshBtn" class="top-icon">‹</button>
+    </header>
+    <input id="shopSearch" class="shop-search hidden" placeholder="جستجوی محصول..." />
+    <section id="shopLanding" class="shop-landing"></section>
+    <section id="productPage" class="product-page hidden"></section>
+    <section id="ordersPage" class="orders-page hidden"></section>
+    <section id="walletPage" class="wallet-page hidden"></section>
+    <nav class="bottom-nav">
+      <button data-tab="shop" class="active">🛍<span>فروشگاه</span></button>
+      <button data-tab="orders">🧾<span>سفارش‌های من</span></button>
+      <button data-tab="wallet">💰<span>کیف پول</span></button>
+      <button id="supportBtn">❔<span>پشتیبانی</span></button>
+    </nav>
   </main>
 
-  <dialog id="inputDialog" class="glass dialog">
+  <main id="adminApp" class="admin-shell hidden">
+    <header class="shop-header admin-head">
+      <button id="adminBack" class="top-icon">↻</button>
+      <h1>مینی پنل ادمین</h1>
+      <button id="adminClose" class="top-icon">×</button>
+    </header>
+    <section id="adminStats" class="admin-stats"></section>
+    <nav class="admin-tabs">
+      <button data-admin-tab="products" class="active">محصولات</button>
+      <button data-admin-tab="categories">دسته‌ها</button>
+      <button data-admin-tab="inventory">انبار</button>
+      <button data-admin-tab="orders">سفارش‌ها</button>
+      <button data-admin-tab="variants">پلن‌ها</button>
+    </nav>
+    <section id="adminContent" class="admin-content"></section>
+  </main>
+
+  <dialog id="inputDialog" class="dialog-card">
     <h3 id="dialogTitle">—</h3>
-    <p id="dialogText" class="muted">—</p>
-    <textarea id="dialogInput" rows="3" placeholder="اینجا بنویس..."></textarea>
+    <p id="dialogText">—</p>
+    <textarea id="dialogInput" rows="4" placeholder="اینجا بنویس..."></textarea>
     <div class="dialog-actions">
-      <button id="dialogCancel" class="secondary">لغو</button>
+      <button id="dialogCancel">لغو</button>
       <button id="dialogSubmit" class="primary">ثبت</button>
     </div>
   </dialog>

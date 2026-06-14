@@ -1,88 +1,70 @@
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 const initData = tg?.initData || '';
-let state = null;
-let pendingDialog = null;
-let selectedCategory = 0;
-let searchTerm = '';
-
+const isAdminMode = new URLSearchParams(location.search).get('admin') === '1';
+let state = null, adminState = null, currentTab = 'shop', currentAdminTab = 'products', searchTerm = '', pendingDialog = null;
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => `${Number(n || 0).toLocaleString('fa-IR')} تومان`;
-const numberFa = (n) => Number(n || 0).toLocaleString('fa-IR');
-const escapeHtml = (str) => String(str ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-
-function setAccent(color) { if (!color) return; document.documentElement.style.setProperty('--accent', color); localStorage.setItem('bg_accent', color); tg?.setHeaderColor?.(color); tg?.setBackgroundColor?.('#07111f'); }
-function showStatus(text, type = 'success') { const el = $('status'); el.textContent = text; el.className = `status glass ${type}`; setTimeout(() => el.classList.add('hidden'), 4500); }
-async function api(action, payload = {}) { const res = await fetch('/api.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action, initData, ...payload }) }); const data = await res.json().catch(() => ({})); if (!res.ok || data.ok === false) throw new Error(data.message || data.error || 'خطا در ارتباط با سرور'); return data; }
-function statusSteps(timeline = []) { if (!timeline.length) return ''; return `<div class="timeline">${timeline.map(e => `<div><b>${escapeHtml(e.title)}</b><small>${escapeHtml(e.created_at || '')}</small></div>`).join('')}</div>`; }
-
-function render(data) {
-  state = data;
-  setAccent(localStorage.getItem('bg_accent') || data.theme_color || '#1d9bf0');
-  $('brand').textContent = data.brand || 'BlueGate';
-  $('balance').textContent = fmt(data.user.balance);
-  $('earned').textContent = fmt(data.user.total_earned);
-  $('refs').textContent = numberFa(data.user.referrals_count);
-  $('spins').textContent = numberFa(data.user.spin_balance);
-  $('vipEmoji').textContent = data.user.vip.emoji || '💎';
-  $('vipTitle').textContent = data.user.vip.fa || data.user.vip.name;
-  $('vipText').textContent = data.user.vip.next ? `تا سطح بعدی ${numberFa(data.user.vip.next - data.user.referrals_count)} دعوت دیگر لازم داری. سطح مشتری: ${data.user.customer?.tier?.emoji || ''} ${data.user.customer?.tier?.fa || ''}` : `بالاترین سطح همکاری فعال است. سطح مشتری: ${data.user.customer?.tier?.emoji || ''} ${data.user.customer?.tier?.fa || ''}`;
-  $('refLink').textContent = data.user.referral_link;
-  $('startReward').textContent = `هر دعوت ${fmt(data.start_reward)}`;
-  $('todayRefs').textContent = `امروز ${numberFa(data.user.today_referrals)} دعوت`;
-  $('minWithdraw').textContent = `حداقل برداشت: ${fmt(data.min_withdraw)}`;
-  $('missions').innerHTML = (data.missions || []).map(m => `<div class="mission"><div><b>${m.claimed ? '✅' : (m.done ? '🎁' : '⏳')} ${numberFa(m.target)} دعوت امروز</b><br><span>${m.claimed ? 'دریافت شد' : (m.done ? 'آماده دریافت' : 'در حال انجام')}</span></div><strong>${fmt(m.reward)}</strong></div>`).join('') || '<p class="muted">مأموریتی فعال نیست.</p>';
-  renderShop(data);
-  renderOrders(data);
-  renderAdmin(data);
-  $('leaderboard').innerHTML = (data.leaderboard || []).map((r, i) => `<div class="rank"><div><b>${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':numberFa(i+1)))} ${escapeHtml(r.name || 'کاربر')}</b><br><small>${numberFa(r.referrals)} دعوت</small></div><strong>${fmt(r.earned)}</strong></div>`).join('') || '<p class="muted">هنوز کسی وارد لیدربورد نشده.</p>';
-}
-
-function renderShop(data) {
-  const cats = data.shop_categories || [];
-  let products = data.shop_products || [];
-  if (!$('shopCats') || !$('products')) return;
-  $('shopCats').innerHTML = `<button class="${selectedCategory===0?'active':''}" data-cat="0">همه</button><button class="${selectedCategory===-1?'active':''}" data-cat="-1">⭐ ویژه</button>` + cats.map(c => `<button class="${selectedCategory===c.id?'active':''}" data-cat="${c.id}">${escapeHtml(c.emoji || '🛒')} ${escapeHtml(c.title)}</button>`).join('');
-  if (selectedCategory === -1) products = products.filter(p => Number(p.is_featured) === 1);
-  else if (selectedCategory) products = products.filter(p => Number(p.category_id) === Number(selectedCategory));
-  if (searchTerm) products = products.filter(p => `${p.name} ${p.short_description} ${p.full_description}`.toLowerCase().includes(searchTerm.toLowerCase()));
-  $('products').innerHTML = products.map(p => {
-    const variants = (p.variants || []).map(v => `<button class="secondary" data-buy="${p.id}" data-variant="${v.id}">${escapeHtml(v.title)} — ${fmt(v.price)}</button>`).join('');
-    const img = p.image_url ? `<img class="product-img" src="${escapeHtml(p.image_url)}" alt="">` : '';
-    return `<article class="product-card">${img}<h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.short_description || p.full_description || 'بدون توضیح')}</p><div class="product-meta"><span class="badge">${escapeHtml(p.delivery_type_fa)}</span><strong>${escapeHtml(p.price_label || fmt(p.price))}</strong></div><div class="product-meta"><small>پورسانت: ${escapeHtml(p.commission || '—')}</small><small>موجودی آماده: ${numberFa(p.inventory_available || 0)}</small></div><div class="card-actions">${variants || `<button class="primary" data-buy="${p.id}">ثبت سفارش</button>`}</div></article>`;
-  }).join('') || '<p class="muted">فعلاً محصولی در این دسته نیست.</p>';
-}
-function renderOrders(data) {
-  const orders = data.orders || [];
-  $('orders').innerHTML = orders.map(o => `<article class="order-card"><h3>سفارش #${numberFa(o.id)} — ${escapeHtml(o.display_name || o.product_name)}</h3><div class="order-meta"><span class="badge">${escapeHtml(o.status_fa)}</span><strong>${fmt(o.final_amount)}</strong></div>${o.discount_amount > 0 ? `<p>تخفیف: ${fmt(o.discount_amount)} ${o.coupon_code ? ' | کد: ' + escapeHtml(o.coupon_code) : ''}</p>` : ''}${o.expires_at ? `<p>انقضا/مدت: ${escapeHtml(o.expires_at)}</p>` : ''}${statusSteps(o.timeline || [])}${o.delivery_text ? `<div class="delivery-box">${escapeHtml(o.delivery_text)}</div>` : ''}<div class="card-actions">${(o.status === 'pending_payment' || o.status === 'rejected') ? `<button class="primary" data-receipt="${o.id}">ارسال رسید</button>` : ''}${o.status === 'pending_payment' ? `<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="secondary" data-cancel="${o.id}">لغو</button>` : ''}</div></article>`).join('') || '<p class="muted">هنوز سفارشی نداری.</p>';
-}
-function renderAdmin(data) {
-  if (!data.is_admin) { $('adminPanel')?.classList.add('hidden'); return; }
-  $('adminPanel')?.classList.remove('hidden');
-  $('adminSummary').innerHTML = `<div class="mini-stat"><b>ادمین</b><span>برای مدیریت کامل، از دکمه‌های پنل ادمین داخل ربات یا همین Mini Panel استفاده کن.</span></div><button class="primary" id="adminLoadBtn">بارگذاری گزارش فروش</button>`;
-}
-async function loadAdminSummary() { const data = await api('admin_summary'); const r = data.report || {}; $('adminSummary').innerHTML = `<div class="mini-stat"><b>امروز</b><span>${numberFa(r.today?.c || 0)} سفارش | ${fmt(r.today?.s || 0)}</span></div><div class="mini-stat"><b>این ماه</b><span>${numberFa(r.month?.c || 0)} سفارش | ${fmt(r.month?.s || 0)}</span></div><div class="mini-stat"><b>نیازمند اقدام</b><span>${numberFa(r.pending || 0)} سفارش</span></div>`; }
-async function load() { if (!initData) { showStatus('این Mini App باید داخل تلگرام باز شود.', 'error'); return; } try { render(await api('me')); } catch(e) { showStatus(e.message, 'error'); } }
-function openDialog(title, text, placeholder, onSubmit) { pendingDialog = onSubmit; $('dialogTitle').textContent = title; $('dialogText').textContent = text; $('dialogInput').value = ''; $('dialogInput').placeholder = placeholder || 'اینجا بنویس...'; $('inputDialog').showModal(); }
-
-document.addEventListener('click', async (e) => {
-  const cat = e.target.closest('[data-cat]'); if (cat) { selectedCategory = Number(cat.dataset.cat || 0); renderShop(state || {}); return; }
-  const buy = e.target.closest('[data-buy]'); if (buy) { try { const data = await api('create_order', { product_id: Number(buy.dataset.buy), variant_id: buy.dataset.variant ? Number(buy.dataset.variant) : null }); render(data); showStatus(`سفارش #${numberFa(data.order?.id)} ثبت شد. حالا رسید پرداخت را ارسال کن.`); } catch(err) { showStatus(err.message, 'error'); } return; }
-  const coupon = e.target.closest('[data-coupon]'); if (coupon) { const oid = Number(coupon.dataset.coupon); openDialog('ثبت کد تخفیف', `کد تخفیف سفارش #${numberFa(oid)} را وارد کن.`, 'BLUE10', async (value) => { const data = await api('apply_coupon', { order_id: oid, code: value }); render(data); return 'کد تخفیف اعمال شد.'; }); return; }
-  const receipt = e.target.closest('[data-receipt]'); if (receipt) { const oid = Number(receipt.dataset.receipt); openDialog('ارسال رسید پرداخت', `توضیح پرداخت سفارش #${numberFa(oid)} را بنویس.`, 'شماره پیگیری / چهار رقم آخر کارت / توضیح پرداخت', async (value) => { const data = await api('submit_receipt', { order_id: oid, note: value }); render(data); return 'رسید پرداخت ثبت شد و منتظر بررسی ادمین است.'; }); return; }
-  const cancel = e.target.closest('[data-cancel]'); if (cancel) { try { const data = await api('cancel_order', { order_id: Number(cancel.dataset.cancel) }); render(data); showStatus('سفارش لغو شد.'); } catch(err) { showStatus(err.message, 'error'); } return; }
-  if (e.target.id === 'adminLoadBtn' || e.target.id === 'adminRefresh') { try { await loadAdminSummary(); } catch(err) { showStatus(err.message, 'error'); } }
-});
-$('shopSearch')?.addEventListener('input', (e) => { searchTerm = e.target.value || ''; renderShop(state || {}); });
-$('refreshBtn').addEventListener('click', load);
-$('copyLink').addEventListener('click', async () => { await navigator.clipboard.writeText(state?.user?.referral_link || ''); tg?.HapticFeedback?.notificationOccurred?.('success'); showStatus('لینک دعوت کپی شد.'); });
-$('shareBtn').addEventListener('click', () => { const link = state?.user?.referral_link || ''; const text = `💙 با BlueGate هم اینترنت آزاد داشته باش، هم از دعوت دوستات درآمد بگیر!\n\n👥 با لینک من وارد ربات شو؛ فعالیتت زیرمجموعه من حساب می‌شه.\n🎁 پاداش دعوت، کیف پول، گردونه شانس و برداشت نقدی فعال است.\n\n🔗 ${link}`; tg?.openTelegramLink?.(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`); });
-$('claimBtn').addEventListener('click', async () => { try { render(await api('claim_missions')); tg?.HapticFeedback?.notificationOccurred?.('success'); showStatus('مأموریت‌ها بررسی و پاداش‌های آماده ثبت شد.'); } catch(e) { showStatus(e.message, 'error'); } });
-$('spinBtn').addEventListener('click', async () => { try { const data = await api('spin'); render(data); tg?.HapticFeedback?.impactOccurred?.('heavy'); showStatus(`جایزه گردونه: ${data.prize?.title || 'ثبت شد'}`); } catch(e) { showStatus(e.message, 'error'); } });
-$('withdrawBtn').addEventListener('click', () => openDialog('درخواست برداشت', 'شماره کارت/شبا و نام صاحب حساب را وارد کن.', 'مثال: 6037... به نام ...', async (value) => { const data = await api('withdraw', { card_info: value }); render(data); return `درخواست برداشت ${fmt(data.withdraw_amount)} ثبت شد.`; }));
-$('customCodeBtn').addEventListener('click', () => openDialog('کد دعوت اختصاصی', 'کد دلخواهت را وارد کن. فقط حروف انگلیسی، عدد و _ مجاز است.', 'parsa_blue', async (value) => { const data = await api('custom_code', { code: value }); render(data); return 'کد اختصاصی ذخیره شد.'; }));
-$('supportBtn').addEventListener('click', () => tg?.openTelegramLink?.(`https://t.me/${state?.support_username || 'BlueGateSupport'}`));
-$('dialogCancel').addEventListener('click', () => $('inputDialog').close());
-$('dialogSubmit').addEventListener('click', async () => { const value = $('dialogInput').value.trim(); if (!value) return showStatus('ورودی خالی است.', 'error'); try { const msg = await pendingDialog(value); $('inputDialog').close(); tg?.HapticFeedback?.notificationOccurred?.('success'); showStatus(msg || 'ثبت شد.'); } catch(e) { showStatus(e.message, 'error'); } });
-document.querySelectorAll('.theme-row button').forEach(btn => btn.addEventListener('click', () => setAccent(btn.dataset.color)));
-setAccent(localStorage.getItem('bg_accent') || '#1d9bf0'); load();
+const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
+const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function setAccent(color){document.documentElement.style.setProperty('--accent', color || '#1d9bf0'); tg?.setHeaderColor?.(color || '#1d9bf0'); tg?.setBackgroundColor?.('#101010');}
+function showStatus(text,type='success'){const el=$('status');el.textContent=text;el.className=`toast ${type}`;setTimeout(()=>el.classList.add('hidden'),4200)}
+async function api(action,payload={}){const res=await fetch('/api.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,initData,...payload})});const data=await res.json().catch(()=>({}));if(!res.ok||data.ok===false)throw new Error(data.message||data.error||'خطا در ارتباط');return data}
+function openDialog(title,text,placeholder,onSubmit){pendingDialog=onSubmit;$('dialogTitle').textContent=title;$('dialogText').textContent=text;$('dialogInput').value='';$('dialogInput').placeholder=placeholder||'';$('inputDialog').showModal()}
+function timeline(t=[]){return t?.length?`<div class="timeline">${t.map(e=>`<div><b>${esc(e.title)}</b><small>${esc(e.created_at||'')}</small></div>`).join('')}</div>`:''}
+function cardImage(obj, emoji='🛒'){return obj.image_url?`<img src="${esc(obj.image_url)}" alt="">`:`<div class="tile-placeholder">${emoji}</div>`}
+function priceLabel(p){return esc(p.price_label || fmt(p.price))}
+function render(data){state=data;setAccent(data.theme_color);$('userApp').classList.toggle('hidden',isAdminMode);$('adminApp').classList.toggle('hidden',!isAdminMode);if(isAdminMode){loadAdmin();return}renderUser()}
+function renderUser(){renderTab();}
+function renderTab(){['shopLanding','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.bottom-nav [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===currentTab));if(currentTab==='shop'){ $('shopLanding').classList.remove('hidden'); renderShopLanding(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }}
+function renderShopLanding(){const cats=state.shop_categories||[];const products=(state.shop_products||[]).filter(p=>!searchTerm||`${p.name} ${p.short_description} ${p.full_description}`.toLowerCase().includes(searchTerm.toLowerCase()));let html='';const featured=products.filter(p=>Number(p.is_featured)===1);if(featured.length) html+=sectionHtml('⭐ محصولات ویژه',featured);for(const c of cats){const list=products.filter(p=>Number(p.category_id)===Number(c.id));if(list.length) html+=sectionHtml(`${esc(c.emoji||'🛒')} ${esc(c.title)}`,list,c.image_url)}if(!html) html='<p class="muted">فعلاً محصولی برای نمایش نیست.</p>';$('shopLanding').innerHTML=html}
+function sectionHtml(title,products){return `<section class="section-row"><div class="section-title"><h2>${title}</h2><button>مشاهده همه ‹</button></div><div class="h-scroll">${products.map(p=>`<article class="product-tile" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}</div><div class="tile-body"><h3>${esc(p.name)}</h3><span class="price-pill">از ${priceLabel(p)}</span>${Number(p.inventory_available||0)<=0&&p.delivery_type!=='manual'?'<span class="soon">آنی</span>':''}</div></article>`).join('')}</div></section>`}
+function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';['shopLanding','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));$('productPage').classList.remove('hidden');const variants=(p.variants||[]).map(v=>`<button class="variant-btn" data-buy="${p.id}" data-variant="${v.id}"><b>${esc(v.title)}</b><br><span>${fmt(v.price)}</span></button>`).join('');$('productPage').innerHTML=`<div class="detail-hero">${cardImage(p,'🛍')}</div><article class="detail-card"><button class="secondary" data-back-shop>بازگشت به محصولات</button><h2>${esc(p.name)}</h2><p class="muted">${esc(p.full_description||p.short_description||'بدون توضیح')}</p><div class="meta-row"><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">${priceLabel(p)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="actions">${variants||`<button class="primary" data-buy="${p.id}">ثبت سفارش</button>`}</div></article>`}
+function renderOrders(){const orders=state.orders||[];$('ordersPage').innerHTML=orders.map(o=>`<article class="order-card"><h3>سفارش #${nf(o.id)} — ${esc(o.display_name)}</h3><div class="meta-row"><span class="badge">${esc(o.status_fa)}</span><b>${fmt(o.final_amount)}</b></div>${timeline(o.timeline)}${o.delivery_text?`<div class="delivery-box">${esc(o.delivery_text)}</div>`:''}<div class="actions">${(o.status==='pending_payment'||o.status==='rejected')?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}</div></article>`).join('')||'<p class="muted">هنوز سفارشی نداری.</p>'}
+function renderWallet(){const u=state.user;$('walletPage').innerHTML=`<article class="wallet-card"><h3>💰 کیف پول</h3><p>موجودی: <b>${fmt(u.balance)}</b></p><p>کل درآمد: <b>${fmt(u.total_earned)}</b></p><p>زیرمجموعه‌ها: <b>${nf(u.referrals_count)}</b></p><p>سطح همکاری: ${u.vip?.emoji||''} <b>${esc(u.vip?.fa||'')}</b></p><div class="actions"><button class="primary" id="withdrawBtn">درخواست برداشت</button><button class="secondary" id="copyLink">کپی لینک دعوت</button></div></article><article class="wallet-card"><h3>🎯 مأموریت‌ها</h3>${(state.missions||[]).map(m=>`<p>${m.claimed?'✅':(m.done?'🎁':'⏳')} ${nf(m.target)} دعوت = <b>${fmt(m.reward)}</b></p>`).join('')||'<p class="muted">مأموریتی نیست.</p>'}<button class="primary" id="claimBtn">دریافت پاداش‌های آماده</button></article>`}
+async function load(){if(!initData){showStatus('Mini App باید داخل تلگرام باز شود.','error');return}try{render(await api('me'))}catch(e){showStatus(e.message,'error')}}
+async function loadAdmin(){try{adminState=await api('admin_summary');setAccent(state?.theme_color||adminState?.settings?.theme_color||'#1d9bf0');renderAdmin()}catch(e){showStatus(e.message,'error')}}
+function renderAdmin(){const r=adminState.report||{};$('adminStats').innerHTML=`<div class="mini-stat"><b>امروز</b><span>${nf(r.today?.c||0)} سفارش<br>${fmt(r.today?.s||0)}</span></div><div class="mini-stat"><b>این ماه</b><span>${nf(r.month?.c||0)} سفارش<br>${fmt(r.month?.s||0)}</span></div><div class="mini-stat"><b>نیازمند اقدام</b><span>${nf(r.pending||0)} سفارش</span></div>`;document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===currentAdminTab));const fn={products:renderAdminProducts,categories:renderAdminCategories,inventory:renderAdminInventory,orders:renderAdminOrders,variants:renderAdminVariants}[currentAdminTab];$('adminContent').innerHTML=fn?fn():''}
+function catOptions(){return (adminState.categories||[]).filter(c=>Number(c.is_active)===1).map(c=>`<option value="${c.id}">${esc(c.emoji||'🛒')} ${esc(c.title)}</option>`).join('')}
+function productOptions(){return (adminState.products||[]).map(p=>`<option value="${p.id}">#${p.id} ${esc(p.name)}</option>`).join('')}
+function variantOptions(){return `<option value="">بدون پلن</option>`+(adminState.variants||[]).map(v=>`<option value="${v.id}">#${v.id} ${esc(v.product_name)} - ${esc(v.title)}</option>`).join('')}
+function renderAdminProducts(){return `<article class="admin-card"><h3>➕ افزودن محصول</h3><div class="form-grid"><input id="ap_name" placeholder="نام محصول"><input id="ap_price" placeholder="قیمت تومان" inputmode="numeric"><select id="ap_cat">${catOptions()}</select><select id="ap_delivery"><option value="manual">دستی</option><option value="account">اکانت</option><option value="vpn">VPN / لینک ساب</option><option value="code">کد</option><option value="file">فایل/متن</option></select><input id="ap_img" placeholder="لینک عکس محصول"><textarea id="ap_desc" placeholder="توضیح محصول"></textarea><button class="primary" data-admin-add-product>ثبت محصول</button></div></article>`+(adminState.products||[]).map(p=>`<div class="admin-item"><h4>#${p.id} ${esc(p.name)}</h4><p class="muted">${priceLabel(p)} | ${Number(p.is_featured)?'ویژه':''} | موجودی: ${nf(p.inventory_available||0)}</p><div class="admin-actions"><button data-admin-toggle-product="${p.id}">تغییر وضعیت</button><button data-admin-product-image="${p.id}">عکس</button><button class="danger" data-admin-delete-product="${p.id}">حذف</button></div></div>`).join('')}
+function renderAdminCategories(){return `<article class="admin-card"><h3>➕ افزودن دسته</h3><div class="form-grid"><input id="ac_title" placeholder="نام دسته"><input id="ac_emoji" placeholder="اموجی"><input id="ac_img" placeholder="لینک عکس دسته"><button class="primary" data-admin-add-category>ثبت دسته</button></div></article>`+(adminState.categories||[]).map(c=>`<div class="admin-item"><h4>#${c.id} ${esc(c.emoji||'')} ${esc(c.title)}</h4><p class="muted">${Number(c.is_active)?'فعال':'حذف/غیرفعال'}</p><div class="admin-actions"><button data-admin-category-image="${c.id}">عکس</button><button class="danger" data-admin-delete-category="${c.id}">حذف</button></div></div>`).join('')}
+function renderAdminInventory(){return `<article class="admin-card"><h3>➕ افزودن انبار</h3><div class="form-grid"><select id="ai_product">${productOptions()}</select><select id="ai_variant">${variantOptions()}</select><textarea id="ai_content" placeholder="هر آیتم یک خط: ایمیل/پسورد، لینک ساب، کد و..."></textarea><button class="primary" data-admin-add-inventory>ثبت انبار</button></div></article>`+(adminState.inventory||[]).map(i=>`<div class="admin-item"><h4>#${i.id} ${esc(i.product_name)} ${i.variant_title?'- '+esc(i.variant_title):''}</h4><p class="muted">${esc(i.status)} | ${esc(String(i.content||'').slice(0,80))}</p>${i.status==='available'?`<div class="admin-actions"><button class="danger" data-admin-delete-inventory="${i.id}">حذف</button></div>`:''}</div>`).join('')}
+function renderAdminVariants(){return `<article class="admin-card"><h3>➕ افزودن پلن</h3><div class="form-grid"><select id="av_product">${productOptions()}</select><input id="av_title" placeholder="نام پلن"><input id="av_price" placeholder="قیمت" inputmode="numeric"><input id="av_days" placeholder="مدت روز"><button class="primary" data-admin-add-variant>ثبت پلن</button></div></article>`+(adminState.variants||[]).map(v=>`<div class="admin-item"><h4>#${v.id} ${esc(v.product_name)} - ${esc(v.title)}</h4><p class="muted">${fmt(v.price)} | ${Number(v.is_active)?'فعال':'غیرفعال'}</p><div class="admin-actions"><button class="danger" data-admin-delete-variant="${v.id}">حذف</button></div></div>`).join('')}
+function renderAdminOrders(){return (adminState.orders||[]).map(o=>`<div class="admin-item"><h4>#${o.id} ${esc(o.display_name)}</h4><p class="muted">${esc(o.status_fa)} | ${fmt(o.final_amount)}</p>${timeline(o.timeline)}<div class="admin-actions"><button data-admin-order-status="${o.id}:reviewing">بررسی</button><button data-admin-order-status="${o.id}:payment_confirmed">تایید پرداخت</button><button data-admin-order-status="${o.id}:preparing">آماده‌سازی</button><button data-admin-deliver="${o.id}">تحویل</button><button class="danger" data-admin-order-status="${o.id}:rejected">رد</button></div></div>`).join('')||'<p class="muted">سفارشی نیست.</p>'}
+async function refreshAdmin(){adminState=await api('admin_summary');renderAdmin()}
+document.addEventListener('click',async e=>{try{
+  const tab=e.target.closest('[data-tab]'); if(tab){currentTab=tab.dataset.tab;renderTab();return}
+  const product=e.target.closest('[data-product]'); if(product){showProduct(product.dataset.product);return}
+  if(e.target.closest('[data-back-shop]')){currentTab='shop';renderTab();return}
+  const buy=e.target.closest('[data-buy]'); if(buy){const data=await api('create_order',{product_id:Number(buy.dataset.buy),variant_id:buy.dataset.variant?Number(buy.dataset.variant):null});state=data;currentTab='orders';renderTab();showStatus(`سفارش #${nf(data.order?.id)} ثبت شد`);return}
+  const receipt=e.target.closest('[data-receipt]'); if(receipt){const id=Number(receipt.dataset.receipt);openDialog('ارسال رسید',`توضیح رسید سفارش #${nf(id)} را بنویس.`,'شماره پیگیری / توضیح پرداخت',async v=>{state=await api('submit_receipt',{order_id:id,note:v});currentTab='orders';renderTab();return 'رسید ثبت شد'});return}
+  const coupon=e.target.closest('[data-coupon]'); if(coupon){const id=Number(coupon.dataset.coupon);openDialog('کد تخفیف',`کد تخفیف سفارش #${nf(id)} را وارد کن.`,'BLUE10',async v=>{state=await api('apply_coupon',{order_id:id,code:v});renderOrders();return 'کد اعمال شد'});return}
+  const cancel=e.target.closest('[data-cancel]'); if(cancel){state=await api('cancel_order',{order_id:Number(cancel.dataset.cancel)});renderOrders();showStatus('سفارش لغو شد');return}
+  if(e.target.id==='searchToggle'){$('shopSearch').classList.toggle('hidden');$('shopSearch').focus();return}
+  if(e.target.id==='refreshBtn'){await load();return}
+  if(e.target.id==='supportBtn'){tg?.openTelegramLink?.(`https://t.me/${state?.support_username||'BlueGateSupport'}`);return}
+  if(e.target.id==='withdrawBtn'){openDialog('درخواست برداشت','شماره کارت/شبا و نام صاحب حساب را وارد کن.','6037... به نام ...',async v=>{state=await api('withdraw',{card_info:v});renderWallet();return 'درخواست برداشت ثبت شد'});return}
+  if(e.target.id==='copyLink'){await navigator.clipboard.writeText(state?.user?.referral_link||'');showStatus('لینک دعوت کپی شد');return}
+  if(e.target.id==='claimBtn'){state=await api('claim_missions');renderWallet();showStatus('مأموریت‌ها بررسی شد');return}
+  const at=e.target.closest('[data-admin-tab]'); if(at){currentAdminTab=at.dataset.adminTab;renderAdmin();return}
+  if(e.target.id==='adminBack'){await refreshAdmin();return} if(e.target.id==='adminClose'){tg?.close?.();return}
+  if(e.target.closest('[data-admin-add-product]')){await api('admin_add_product',{name:$('ap_name').value,price:$('ap_price').value,category_id:$('ap_cat').value,delivery_type:$('ap_delivery').value,image_url:$('ap_img').value,short_description:$('ap_desc').value,full_description:$('ap_desc').value});await refreshAdmin();showStatus('محصول اضافه شد');return}
+  if(e.target.closest('[data-admin-add-category]')){await api('admin_add_category',{title:$('ac_title').value,emoji:$('ac_emoji').value,image_url:$('ac_img').value});await refreshAdmin();showStatus('دسته اضافه شد');return}
+  if(e.target.closest('[data-admin-add-inventory]')){await api('admin_add_inventory',{product_id:$('ai_product').value,variant_id:$('ai_variant').value,content:$('ai_content').value});await refreshAdmin();showStatus('انبار ثبت شد');return}
+  if(e.target.closest('[data-admin-add-variant]')){await api('admin_add_variant',{product_id:$('av_product').value,title:$('av_title').value,price:$('av_price').value,duration_days:$('av_days').value});await refreshAdmin();showStatus('پلن اضافه شد');return}
+  const delp=e.target.closest('[data-admin-delete-product]'); if(delp&&confirm('محصول از فروشگاه حذف/غیرفعال شود؟')){await api('admin_delete_product',{product_id:delp.dataset.adminDeleteProduct});await refreshAdmin();return}
+  const togg=e.target.closest('[data-admin-toggle-product]'); if(togg){await api('admin_toggle_product',{product_id:togg.dataset.adminToggleProduct});await refreshAdmin();return}
+  const delc=e.target.closest('[data-admin-delete-category]'); if(delc&&confirm('دسته حذف/غیرفعال شود؟')){await api('admin_delete_category',{category_id:delc.dataset.adminDeleteCategory});await refreshAdmin();return}
+  const deli=e.target.closest('[data-admin-delete-inventory]'); if(deli&&confirm('آیتم انبار حذف شود؟')){await api('admin_delete_inventory',{inventory_id:deli.dataset.adminDeleteInventory});await refreshAdmin();return}
+  const delv=e.target.closest('[data-admin-delete-variant]'); if(delv&&confirm('پلن حذف شود؟')){await api('admin_delete_variant',{variant_id:delv.dataset.adminDeleteVariant});await refreshAdmin();return}
+  const pi=e.target.closest('[data-admin-product-image]'); if(pi){openDialog('عکس محصول','لینک عکس جدید را وارد کن. برای حذف خالی بگذار و ثبت کن.','https://...',async v=>{await api('admin_update_product_image',{product_id:pi.dataset.adminProductImage,image_url:v});await refreshAdmin();return 'عکس محصول ذخیره شد'});return}
+  const ci=e.target.closest('[data-admin-category-image]'); if(ci){openDialog('عکس دسته','لینک عکس جدید را وارد کن. برای حذف خالی بگذار و ثبت کن.','https://...',async v=>{await api('admin_update_category_image',{category_id:ci.dataset.adminCategoryImage,image_url:v});await refreshAdmin();return 'عکس دسته ذخیره شد'});return}
+  const os=e.target.closest('[data-admin-order-status]'); if(os){const [order_id,status]=os.dataset.adminOrderStatus.split(':');await api('admin_order_status',{order_id,status});await refreshAdmin();return}
+  const od=e.target.closest('[data-admin-deliver]'); if(od){openDialog('تحویل سفارش','متن تحویل را وارد کن.','email/pass یا لینک ساب یا کد',async v=>{await api('admin_deliver_order',{order_id:od.dataset.adminDeliver,delivery:v});await refreshAdmin();return 'سفارش تحویل شد'});return}
+}catch(err){showStatus(err.message,'error')}});
+$('shopSearch')?.addEventListener('input',e=>{searchTerm=e.target.value||'';renderShopLanding()});
+$('dialogCancel').addEventListener('click',()=>$('inputDialog').close());
+$('dialogSubmit').addEventListener('click',async()=>{try{const v=$('dialogInput').value.trim();const msg=await pendingDialog(v);$('inputDialog').close();showStatus(msg||'ثبت شد')}catch(e){showStatus(e.message,'error')}});
+load();
