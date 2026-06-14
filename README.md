@@ -736,3 +736,56 @@ sudo blue-ref
 - Fixed Android Telegram Mini App scrolling issue where the page could stop scrolling.
 - Removed global touch prevention from WebApp JS.
 - Added CSS scroll-safety overrides for body/app containers while keeping compact UI and wheel features.
+
+## Payment Methods Engine - Phase 1
+
+این نسخه مرحله اول پرداخت چندروشی را اضافه می‌کند:
+
+- کیف پول داخلی برای پرداخت سفارش داخل فروشگاه
+- کارت‌به‌کارت چندحسابی با تنظیم از Mini App Admin
+- پایه Telegram Stars با ارسال فاکتور Stars داخل چت تلگرام
+- ذخیره روش پرداخت انتخاب‌شده روی سفارش
+- تنظیم نرخ هر Star به تومان از پنل ادمین
+
+### فایل‌های مهم این آپدیت
+
+اگر از نسخه قبلی فقط می‌خواهید این آپدیت را اعمال کنید، این فایل‌ها تغییر کرده‌اند:
+
+```text
+app/bootstrap.php
+app/bot_logic.php
+public/api.php
+public/miniapp/index.html
+public/miniapp/style.css
+public/miniapp/app.js
+schema.sql
+config.example.php
+README.md
+```
+
+بعد از آپدیت روی سرور، حتماً از منوی `blue-ref` گزینه‌های زیر را اجرا کنید:
+
+```text
+Update project from GitHub
+Run database migration
+Set Telegram webhook
+```
+
+### فرمت کارت‌های پرداخت
+
+در Mini App Admin > تنظیمات، هر کارت را در یک خط وارد کنید:
+
+```text
+عنوان کارت|شماره کارت|صاحب کارت|شبا
+```
+
+مثال:
+
+```text
+کارت اصلی|6037990000000000|BlueGate|IR000000000000000000000000
+کارت دوم|5892000000000000|BlueGate|IR111111111111111111111111
+```
+
+### Telegram Stars
+
+Telegram Stars در این مرحله به شکل پایه اضافه شده است. وقتی فعال باشد، کاربر روی سفارش دکمه پرداخت Stars می‌زند و ربات یک فاکتور Stars داخل چت برای او ارسال می‌کند. بعد از پرداخت موفق، سفارش خودکار به وضعیت «پرداخت تایید شد» می‌رود.

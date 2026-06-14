@@ -93,6 +93,23 @@ CREATE TABLE IF NOT EXISTS settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+
+
+-- Payment methods engine: card accounts, internal wallet and Telegram Stars base settings.
+CREATE TABLE IF NOT EXISTS payment_methods (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  method_key VARCHAR(64) NOT NULL UNIQUE,
+  title VARCHAR(255) NOT NULL,
+  method_type VARCHAR(32) NOT NULL DEFAULT 'manual',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  settings_json TEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX(is_active),
+  INDEX(sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS product_categories (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -148,6 +165,9 @@ CREATE TABLE IF NOT EXISTS orders (
   discount_amount BIGINT NOT NULL DEFAULT 0,
   wallet_amount BIGINT NOT NULL DEFAULT 0,
   final_amount BIGINT NOT NULL DEFAULT 0,
+  payment_method VARCHAR(32) NULL,
+  payment_details TEXT NULL,
+  stars_amount INT NOT NULL DEFAULT 0,
   coupon_code VARCHAR(64) NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'pending_payment',
   payment_note TEXT NULL,

@@ -53,3 +53,9 @@ $BRAND_NAME = 'BlueGate';
 
 // Shop payment text shown under invoices. You can also edit it from admin panel.
 $PAYMENT_INSTRUCTIONS = 'شماره کارت/اطلاعات پرداخت را اینجا بنویسید. بعد از پرداخت، کاربر رسید را از دکمه ارسال رسید می‌فرستد.';
+
+// Payment methods defaults. Admin can edit them later from Mini App admin settings.
+$CARD_ACCOUNTS = [
+    ['title' => 'کارت اصلی BlueGate', 'card' => '6037-0000-0000-0000', 'owner' => 'نام صاحب کارت', 'sheba' => 'IR000000000000000000000000'],
+];
+$STARS_RATE_TOMAN = 3200; // value of 1 Telegram Star in Toman for invoice conversion.
