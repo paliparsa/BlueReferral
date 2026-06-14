@@ -99,11 +99,14 @@ function migrate(): void {
     seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
     seed_setting('card_accounts', app_config('CARD_ACCOUNTS', []));
     seed_setting('stars_rate_toman', app_config('STARS_RATE_TOMAN', 3200));
-    seed_setting('crypto_rate_source', app_config('CRYPTO_RATE_SOURCE', 'nobitex')); // Nobitex rates are refreshed by cron only
+    seed_setting('crypto_rate_source', app_config('CRYPTO_RATE_SOURCE', 'auto')); // auto = Wallex -> Ramzinex -> Nobitex -> manual/cache
     seed_setting('crypto_manual_rates', app_config('CRYPTO_MANUAL_RATES', ['USDT'=>0,'TRX'=>0,'TON'=>0]));
     seed_setting('crypto_rate_markup_percent', app_config('CRYPTO_RATE_MARKUP_PERCENT', 1));
     seed_setting('crypto_notify_rate_fail', '1');
-    seed_setting('crypto_rate_refresh_interval_seconds', app_config('CRYPTO_RATE_REFRESH_INTERVAL_SECONDS', 60));
+    seed_setting('crypto_rate_refresh_interval_seconds', app_config('CRYPTO_RATE_REFRESH_INTERVAL_SECONDS', 600));
+    seed_setting('crypto_rate_provider_priority', app_config('CRYPTO_RATE_PROVIDER_PRIORITY', 'wallex,ramzinex,nobitex'));
+    seed_setting('crypto_rate_last_result', []);
+    try { if (strtolower((string)setting('crypto_rate_source','auto')) === 'nobitex') set_setting('crypto_rate_source','auto'); } catch (Throwable $e) {}
     seed_setting('swapwallet_api_key', app_config('SWAPPAY_API_KEY', ''));
     seed_setting('swapwallet_application', app_config('SWAPPAY_APPLICATION', ''));
     seed_setting('swapwallet_username', app_config('SWAPPAY_USERNAME', app_config('SWAPPAY_APPLICATION', '')));
@@ -235,7 +238,7 @@ function payment_methods_public(?array $user=null): array {
         'wallet'=>['enabled'=>payment_enabled('wallet'), 'title'=>'کیف پول داخلی', 'balance'=>$user?(int)($user['balance']??0):0],
         'card'=>['enabled'=>payment_enabled('card'), 'title'=>'کارت به کارت', 'accounts'=>$cards, 'instructions'=>setting('payment_instructions','')],
         'stars'=>['enabled'=>payment_enabled('stars'), 'title'=>'Telegram Stars', 'rate_toman'=>$rate],
-        'crypto'=>['enabled'=>payment_enabled('crypto'), 'title'=>'رمزارز', 'gateway'=>'manual_txid', 'wallets'=>crypto_wallets_public(null), 'rate_source'=>setting('crypto_rate_source','nobitex'), 'markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'rate_cache'=>crypto_rate_cache()],
+        'crypto'=>['enabled'=>payment_enabled('crypto'), 'title'=>'رمزارز', 'gateway'=>'manual_txid', 'wallets'=>crypto_wallets_public(null), 'rate_source'=>setting('crypto_rate_source','auto'), 'markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'rate_cache'=>crypto_rate_cache()],
     ];
 }
 
@@ -333,9 +336,9 @@ function crypto_rate_meta(string $asset): array {
         return [
             'asset'=>$asset,
             'rate'=>(float)$row['rate'],
-            'source'=>(string)($row['source'] ?? 'nobitex_cache'),
+            'source'=>(string)($row['source'] ?? 'provider_cache'),
             'updated_at'=>$row['updated_at'] ?? null,
-            'is_live'=>((string)($row['source'] ?? '') === 'nobitex'),
+            'is_live'=>in_array((string)($row['source'] ?? ''), ['wallex','ramzinex','nobitex'], true),
         ];
     }
     if (isset($cache[$asset]) && is_numeric($cache[$asset]) && (float)$cache[$asset] > 0) {
@@ -362,12 +365,38 @@ function crypto_wallets_public(?int $tomanAmount=null): array {
     return array_map(fn($w)=>crypto_wallet_payload($w, $tomanAmount), crypto_wallets(true));
 }
 function http_json_get(string $url, array $headers=[]): array {
+    return crypto_http_json_request('GET', $url, null, $headers);
+}
+function http_json_post(string $url, array $payload=[], array $headers=[]): array {
+    $headers[] = 'Content-Type: application/json';
+    return crypto_http_json_request('POST', $url, json_encode($payload, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES), $headers);
+}
+function crypto_http_json_request(string $method, string $url, ?string $body=null, array $headers=[]): array {
     $ch=curl_init($url);
-    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>2,CURLOPT_TIMEOUT=>5,CURLOPT_FOLLOWLOCATION=>true]);
-    if ($headers) curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $body=curl_exec($ch); $err=curl_error($ch); $code=(int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
-    if ($body===false || $code>=400) throw new RuntimeException('HTTP_FAILED '.($err ?: $code));
-    $j=json_decode($body, true); if(!is_array($j)) throw new RuntimeException('JSON_FAILED');
+    curl_setopt_array($ch,[
+        CURLOPT_RETURNTRANSFER=>true,
+        CURLOPT_CONNECTTIMEOUT=>4,
+        CURLOPT_TIMEOUT=>10,
+        CURLOPT_FOLLOWLOCATION=>true,
+        CURLOPT_SSL_VERIFYPEER=>true,
+        CURLOPT_SSL_VERIFYHOST=>2,
+        CURLOPT_USERAGENT=>'BlueReferral/1.0 RateFetcher',
+        CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,
+    ]);
+    if (strtoupper($method) !== 'GET') {
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+        if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    }
+    if ($headers) curl_setopt($ch, CURLOPT_HTTPHEADER, array_values(array_unique($headers)));
+    $resp=curl_exec($ch);
+    $err=curl_error($ch);
+    $errno=(int)curl_errno($ch);
+    $code=(int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    if ($resp===false) throw new RuntimeException('HTTP_CURL_'.$errno.($err?': '.$err:''));
+    if ($code>=400 || $code===0) throw new RuntimeException('HTTP_'.$code.': '.substr((string)$resp,0,160));
+    $j=json_decode((string)$resp, true);
+    if(!is_array($j)) throw new RuntimeException('JSON_FAILED: '.substr((string)$resp,0,120));
     return $j;
 }
 function crypto_rate_cache(): array {
@@ -376,37 +405,151 @@ function crypto_rate_cache(): array {
     return is_array($d) ? $d : [];
 }
 function set_crypto_rate_cache(array $cache): void { set_setting('crypto_rate_cache', $cache); }
+function crypto_num($v): float {
+    if (is_int($v) || is_float($v)) return (float)$v;
+    if (!is_string($v)) return 0.0;
+    $v = trim(str_replace([',',' '], '', $v));
+    if ($v === '') return 0.0;
+    return is_numeric($v) ? (float)$v : 0.0;
+}
+function crypto_market_price_from_row(array $row): float {
+    $paths = [
+        ['stats','lastPrice'], ['stats','askPrice'], ['stats','bidPrice'],
+        ['lastPrice'], ['last_trade_price'], ['lastTradePrice'], ['last_price'], ['last'], ['latest'], ['price'], ['close'],
+        ['sell'], ['buy'], ['ask'], ['bid'], ['bestSell'], ['bestBuy'], ['amount'],
+    ];
+    foreach ($paths as $path) {
+        $cur = $row;
+        foreach ($path as $k) {
+            if (!is_array($cur) || !array_key_exists($k, $cur)) { $cur = null; break; }
+            $cur = $cur[$k];
+        }
+        $n = crypto_num($cur);
+        if ($n > 0) return $n;
+    }
+    return 0.0;
+}
+function crypto_collect_market_rows(array $data): array {
+    $rows = [];
+    $walk = function($node, $key=null) use (&$walk, &$rows) {
+        if (!is_array($node)) return;
+        $isAssoc = array_keys($node) !== range(0, count($node)-1);
+        $symbol = strtoupper((string)($node['symbol'] ?? $node['market'] ?? $node['pair'] ?? $node['pair_symbol'] ?? ($isAssoc ? (string)$key : '')));
+        $base = strtoupper((string)($node['baseAsset'] ?? $node['base_asset'] ?? $node['baseCurrency'] ?? $node['base_currency'] ?? $node['base_currency_symbol'] ?? $node['srcCurrency'] ?? $node['currency1'] ?? ''));
+        $quote = strtoupper((string)($node['quoteAsset'] ?? $node['quote_asset'] ?? $node['quoteCurrency'] ?? $node['quote_currency'] ?? $node['quote_currency_symbol'] ?? $node['dstCurrency'] ?? $node['currency2'] ?? ''));
+        if (($base === '' || $quote === '') && preg_match('/^([A-Z0-9]{2,12})(TMN|IRT|IRR|RLS|USDT)$/', $symbol, $m)) { $base=$m[1]; $quote=$m[2]; }
+        if (($base === '' || $quote === '') && preg_match('/^([A-Z0-9]{2,12})[-_\/](TMN|IRT|IRR|RLS|USDT)$/', $symbol, $m)) { $base=$m[1]; $quote=$m[2]; }
+        $price = crypto_market_price_from_row($node);
+        if ($base !== '' && $quote !== '' && $price > 0) $rows[] = ['base'=>$base,'quote'=>$quote,'symbol'=>$symbol,'price'=>$price,'row'=>$node];
+        foreach ($node as $k=>$v) if (is_array($v)) $walk($v, $k);
+    };
+    $walk($data);
+    return $rows;
+}
+function crypto_price_from_rows(array $rows, string $base, array $quotes=['TMN','IRT','IRR','RLS','USDT']): ?array {
+    $base = strtoupper($base);
+    foreach ($quotes as $quote) {
+        foreach ($rows as $r) {
+            if (($r['base'] ?? '') === $base && ($r['quote'] ?? '') === $quote) {
+                $price = (float)$r['price'];
+                if (in_array($quote, ['RLS','IRR'], true)) $price /= 10;
+                return ['price'=>$price, 'quote'=>$quote, 'symbol'=>$r['symbol'] ?? ($base.$quote)];
+            }
+        }
+    }
+    return null;
+}
+function crypto_asset_rate_from_rows(array $rows, string $asset): float {
+    $asset = strtoupper($asset ?: 'USDT');
+    if ($asset==='IRT' || $asset==='TOMAN' || $asset==='TMN') return 1.0;
+    $direct = crypto_price_from_rows($rows, $asset, ['TMN','IRT','RLS','IRR']);
+    if ($direct && (float)$direct['price'] > 0) return (float)$direct['price'];
+    if ($asset === 'USDT') throw new RuntimeException('USDT_TOMAN_MARKET_NOT_FOUND');
+    $assetUsd = crypto_price_from_rows($rows, $asset, ['USDT']);
+    $usdtTmn = crypto_price_from_rows($rows, 'USDT', ['TMN','IRT','RLS','IRR']);
+    if ($assetUsd && $usdtTmn && (float)$assetUsd['price'] > 0 && (float)$usdtTmn['price'] > 0) return (float)$assetUsd['price'] * (float)$usdtTmn['price'];
+    throw new RuntimeException('MARKET_NOT_FOUND');
+}
+function wallex_rate_toman_live(string $asset): float {
+    static $rows = null;
+    if ($rows === null) {
+        $j = http_json_get('https://api.wallex.ir/v1/markets');
+        $rows = crypto_collect_market_rows($j);
+        if (!$rows) throw new RuntimeException('WALLEX_NO_MARKETS');
+    }
+    try { return crypto_asset_rate_from_rows($rows, $asset); }
+    catch (Throwable $e) { throw new RuntimeException('WALLEX_'.$e->getMessage()); }
+}
+function ramzinex_rate_toman_live(string $asset): float {
+    static $rows = null;
+    if ($rows === null) {
+        $j = http_json_get('https://publicapi.ramzinex.com/exchange/api/v1.0/exchange/pairs');
+        $rows = crypto_collect_market_rows($j);
+        if (!$rows) throw new RuntimeException('RAMZINEX_NO_MARKETS');
+    }
+    try { return crypto_asset_rate_from_rows($rows, $asset); }
+    catch (Throwable $e) { throw new RuntimeException('RAMZINEX_'.$e->getMessage()); }
+}
 function nobitex_rate_toman_live(string $asset): float {
     $asset = strtoupper($asset ?: 'USDT');
-    if ($asset==='IRT' || $asset==='TOMAN') return 1.0;
-    $symbols = [$asset.'IRT', $asset.'RLS'];
-    foreach ($symbols as $symbol) {
+    if ($asset==='IRT' || $asset==='TOMAN' || $asset==='TMN') return 1.0;
+    $tryOrderbook = function(string $a, string $quote) {
+        $symbol = $a.$quote;
         $urls = ["https://api.nobitex.ir/v2/orderbook/{$symbol}", "https://api.nobitex.ir/v2/orderbook?symbol={$symbol}"];
         foreach ($urls as $url) {
             try {
                 $j = http_json_get($url);
-                $price = 0;
-                foreach(['lastTradePrice','latest','last','close'] as $k) if(isset($j[$k])) { $price=(float)$j[$k]; break; }
-                if(!$price && !empty($j['asks'][0][0])) $price=(float)$j['asks'][0][0];
-                if(!$price && !empty($j['bids'][0][0])) $price=(float)$j['bids'][0][0];
-                if(!$price && isset($j[$symbol]['lastTradePrice'])) $price=(float)$j[$symbol]['lastTradePrice'];
-                if ($price > 0) {
-                    // Nobitex RLS market is in Rial; convert to Toman.
-                    if (str_ends_with($symbol, 'RLS')) $price = $price / 10;
-                    return $price;
-                }
+                $rows = crypto_collect_market_rows([$symbol=>$j]);
+                $direct = crypto_price_from_rows($rows, $a, [$quote]);
+                if ($direct && (float)$direct['price'] > 0) return (float)$direct['price'];
+                foreach(['lastTradePrice','latest','last','close'] as $k) if(isset($j[$k]) && crypto_num($j[$k])>0) { $p=crypto_num($j[$k]); return in_array($quote,['RLS','IRR'],true)?$p/10:$p; }
+                if(!empty($j['asks'][0][0])) { $p=crypto_num($j['asks'][0][0]); return in_array($quote,['RLS','IRR'],true)?$p/10:$p; }
+                if(!empty($j['bids'][0][0])) { $p=crypto_num($j['bids'][0][0]); return in_array($quote,['RLS','IRR'],true)?$p/10:$p; }
             } catch (Throwable $e) {}
         }
+        return 0.0;
+    };
+    foreach (['IRT','RLS'] as $q) { $p=$tryOrderbook($asset,$q); if($p>0) return $p; }
+    try {
+        $j=http_json_post('https://api.nobitex.ir/market/stats', ['srcCurrency'=>strtolower($asset), 'dstCurrency'=>'rls']);
+        $rows=crypto_collect_market_rows($j);
+        $direct=crypto_price_from_rows($rows,$asset,['RLS','IRR','IRT','TMN']);
+        if($direct && (float)$direct['price']>0) return (float)$direct['price'];
+        $stats=$j['stats'] ?? [];
+        foreach($stats as $k=>$r){ if(is_array($r) && str_contains(strtoupper((string)$k), $asset) && crypto_market_price_from_row($r)>0) return crypto_market_price_from_row($r)/10; }
+    } catch(Throwable $e) {}
+    if ($asset !== 'USDT') {
+        $aUsd=$tryOrderbook($asset,'USDT');
+        $uTmn=nobitex_rate_toman_live('USDT');
+        if($aUsd>0 && $uTmn>0) return $aUsd*$uTmn;
     }
     throw new RuntimeException('NOBITEX_RATE_FAILED');
+}
+function crypto_rate_provider_order(): array {
+    $source = strtolower(trim((string)setting('crypto_rate_source','auto')));
+    $all = ['wallex','ramzinex','nobitex'];
+    if ($source === 'manual') return [];
+    if (in_array($source, $all, true)) return array_values(array_unique(array_merge([$source], array_values(array_diff($all, [$source])))));
+    $priority = strtolower((string)setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'));
+    $out=[];
+    foreach (preg_split('/[,\s]+/', $priority) as $p) if(in_array($p,$all,true)) $out[]=$p;
+    return $out ? array_values(array_unique($out)) : $all;
+}
+function crypto_rate_from_provider(string $provider, string $asset): float {
+    return match ($provider) {
+        'wallex' => wallex_rate_toman_live($asset),
+        'ramzinex' => ramzinex_rate_toman_live($asset),
+        'nobitex' => nobitex_rate_toman_live($asset),
+        default => throw new RuntimeException('UNKNOWN_PROVIDER_'.$provider),
+    };
 }
 function crypto_rate_toman(string $asset, bool $notify=true): float {
     // Fast path only. Never fetch external APIs from Mini App / bot webhook.
     $asset = strtoupper($asset ?: 'USDT');
-    if ($asset === 'IRT' || $asset === 'TOMAN') return 1.0;
+    if ($asset === 'IRT' || $asset === 'TOMAN' || $asset === 'TMN') return 1.0;
     $manual = crypto_manual_rates();
-    $source = setting('crypto_rate_source','nobitex');
-    if ($source === 'nobitex') {
+    $source = strtolower((string)setting('crypto_rate_source','auto'));
+    if ($source !== 'manual') {
         $cache = crypto_rate_cache();
         $row = $cache[$asset] ?? null;
         if (is_array($row) && (float)($row['rate'] ?? 0) > 0) return (float)$row['rate'];
@@ -414,28 +557,54 @@ function crypto_rate_toman(string $asset, bool $notify=true): float {
     }
     return (float)($manual[$asset] ?? 0);
 }
-function crypto_refresh_rates_from_nobitex(bool $notify=true): array {
+function crypto_refresh_rates_from_providers(bool $notify=true): array {
     $assets = ['USDT','TRX','TON'];
     foreach (array_keys(crypto_manual_rates()) as $manualAsset) { $assets[] = strtoupper((string)$manualAsset); }
-    foreach (crypto_wallets(false) as $w) {
-        $assets[] = strtoupper((string)($w['rate_symbol'] ?: $w['asset'] ?: 'USDT'));
-    }
+    foreach (crypto_wallets(false) as $w) $assets[] = strtoupper((string)($w['rate_symbol'] ?: $w['asset'] ?: 'USDT'));
     $assets = array_values(array_unique(array_filter($assets)));
     $cache = crypto_rate_cache();
-    $updated = 0; $failed = [];
-    foreach ($assets as $asset) {
-        if ($asset === 'IRT' || $asset === 'TOMAN') continue;
-        try {
-            $rate = nobitex_rate_toman_live($asset);
-            if ($rate > 0) { $cache[$asset] = ['rate'=>$rate,'updated_at'=>date('c'),'source'=>'nobitex']; $updated++; }
-        } catch (Throwable $e) { $failed[$asset] = $e->getMessage(); }
+    $providers = crypto_rate_provider_order();
+    $source = strtolower((string)setting('crypto_rate_source','auto'));
+    $manual = crypto_manual_rates();
+    $updated = 0; $failed = []; $attempts = [];
+    if ($source === 'manual') {
+        $res = ['updated'=>0,'failed'=>[],'providers'=>[],'source'=>'manual','manual'=>array_keys($manual),'cache'=>$cache,'message'=>'rate_source_manual'];
+        set_setting('crypto_rate_last_result', $res);
+        return $res;
     }
-    if ($updated > 0) set_crypto_rate_cache($cache);
+    foreach ($assets as $asset) {
+        if (in_array($asset, ['IRT','TOMAN','TMN'], true)) continue;
+        $attempts[$asset] = [];
+        foreach ($providers as $provider) {
+            try {
+                $rate = crypto_rate_from_provider($provider, $asset);
+                if ($rate > 0) {
+                    $cache[$asset] = ['rate'=>$rate,'updated_at'=>date('c'),'source'=>$provider,'provider'=>$provider,'is_live'=>true];
+                    $updated++;
+                    $attempts[$asset][] = ['provider'=>$provider,'ok'=>true,'rate'=>$rate];
+                    continue 2;
+                }
+                $attempts[$asset][] = ['provider'=>$provider,'ok'=>false,'error'=>'ZERO_RATE'];
+            } catch (Throwable $e) {
+                $attempts[$asset][] = ['provider'=>$provider,'ok'=>false,'error'=>$e->getMessage()];
+            }
+        }
+        $hasCache = isset($cache[$asset]) && ((is_array($cache[$asset]) && (float)($cache[$asset]['rate'] ?? 0)>0) || (is_numeric($cache[$asset]) && (float)$cache[$asset]>0));
+        $hasManual = isset($manual[$asset]) && (float)$manual[$asset] > 0;
+        $failed[$asset] = $hasCache ? 'USING_LAST_CACHE' : ($hasManual ? 'USING_MANUAL_RATE' : 'NO_PROVIDER_RATE');
+    }
+    set_crypto_rate_cache($cache);
+    $result = ['updated'=>$updated,'failed'=>$failed,'providers'=>$providers,'source'=>$source ?: 'auto','attempts'=>$attempts,'cache'=>$cache];
+    set_setting('crypto_rate_last_result', $result);
     if ($failed && $notify && setting_bool('crypto_notify_rate_fail', true)) {
         $key='crypto_rate_last_fail_alert'; $last=(int)setting($key, 0);
-        if(time()-$last>1800){ notify_admins("⚠️ دریافت نرخ از نوبیتکس برای برخی ارزها ناموفق بود و نرخ دستی/cache استفاده می‌شود.\n".h(implode(', ', array_keys($failed)))); set_setting($key, (string)time()); }
+        if(time()-$last>1800){ notify_admins("⚠️ دریافت نرخ برای برخی ارزها ناموفق بود و نرخ دستی/cache استفاده می‌شود.\nProviderها: ".h(implode(' → ', $providers))."\n".h(implode(', ', array_keys($failed)))); set_setting($key, (string)time()); }
     }
-    return ['updated'=>$updated,'failed'=>$failed,'cache'=>$cache];
+    return $result;
+}
+function crypto_refresh_rates_from_nobitex(bool $notify=true): array {
+    // Backward-compatible name used by older admin/cron code. It now uses all configured providers.
+    return crypto_refresh_rates_from_providers($notify);
 }
 function get_crypto_check_by_order(int $orderId): ?array {
     if(!table_exists('crypto_payment_checks')) return null;
