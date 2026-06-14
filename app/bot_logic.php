@@ -20,7 +20,9 @@ function handle_message(array $message): void {
     $text = trim((string)($message['text'] ?? ''));
 
     $ref = null;
-    if (str_starts_with($text, '/start')) {
+    $payload = '';
+    $isStart = str_starts_with($text, '/start');
+    if ($isStart) {
         $parts = explode(' ', $text, 2);
         $payload = $parts[1] ?? '';
         if (str_starts_with($payload, 'ref_')) $ref = substr($payload, 4);
@@ -28,6 +30,30 @@ function handle_message(array $message): void {
     }
 
     $user = create_or_update_user($from, $ref);
+    if ($isStart) notify_admin_user_start($user, $payload);
+
+    if (isset($message['contact'])) {
+        if (!save_user_contact($chat_id, $message['contact'])) {
+            send_msg($chat_id, 'برای احراز شماره، باید شماره خودت را با دکمه «ارسال شماره موبایل» بفرستی.', contact_request_keyboard());
+            return;
+        }
+        $user = get_user_by_tid($chat_id);
+        if (!is_joined_channel($chat_id)) {
+            send_msg($chat_id, "✅ شماره ثبت شد. حالا برای فعال شدن رفرال، اول داخل کانال عضو شو و بعد دکمه «عضو شدم» رو بزن 👇", force_join_keyboard());
+            return;
+        }
+        try_reward_referrer($user);
+        $user = get_user_by_tid($chat_id);
+        send_welcome($chat_id, $user);
+        return;
+    }
+
+    if (needs_contact_auth($user)) {
+        send_msg($chat_id, "📱 برای ادامه، لطفاً شماره موبایل خودت را با دکمه زیر برای ربات ارسال کن.
+
+این مرحله از تنظیمات ادمین قابل فعال/غیرفعال‌سازی است.", contact_request_keyboard());
+        return;
+    }
 
     if (!is_joined_channel($chat_id)) {
         send_msg($chat_id, "برای فعال شدن رفرال، اول داخل کانال عضو شو و بعد دکمه «عضو شدم» رو بزن 👇", force_join_keyboard());
@@ -36,9 +62,9 @@ function handle_message(array $message): void {
     try_reward_referrer(get_user_by_tid($chat_id));
     $user = get_user_by_tid($chat_id);
 
-    if (str_starts_with($text, '/start')) {
+    if ($isStart) {
         clear_step($chat_id);
-        send_msg($chat_id, main_text($user), main_menu_keyboard(is_admin($chat_id)));
+        send_welcome($chat_id, $user);
         return;
     }
 
@@ -83,6 +109,11 @@ function handle_callback(array $cb): void {
     answer_cb($id);
     $user = create_or_update_user($from, null);
 
+    if (needs_contact_auth($user)) {
+        send_msg($chat_id, '📱 برای ادامه، اول شماره موبایل خودت را با دکمه زیر ارسال کن.', contact_request_keyboard());
+        return;
+    }
+
     if ($data === 'check_join') {
         if (!is_joined_channel($chat_id)) {
             send_msg($chat_id, "هنوز عضویت شما تأیید نشد. بعد از عضویت دوباره امتحان کن.", force_join_keyboard());
@@ -90,7 +121,7 @@ function handle_callback(array $cb): void {
         }
         try_reward_referrer(get_user_by_tid($chat_id));
         $user = get_user_by_tid($chat_id);
-        send_msg($chat_id, "✅ عضویت تأیید شد. خوش اومدی!", main_menu_keyboard(is_admin($chat_id)));
+        send_welcome($chat_id, get_user_by_tid($chat_id));
         return;
     }
 
@@ -363,15 +394,37 @@ email2@test.com | pass2</code>", admin_shop_keyboard()); return; }
 {$timeline}", admin_order_keyboard($oid)); return; }
 
     if ($data === 'adm_settings') {
-        $txt = "⚙️ <b>تنظیمات پاداش‌ها</b>\n\nپاداش دعوت: <b>".money(setting_int('start_reward', 2000))."</b>\nحداقل برداشت: <b>".money(setting_int('min_withdraw', 50000))."</b>\nپاداش پایه خرید: <b>".money(setting_int('purchase_reward', 10000))."</b>\nهر چند دعوت یک گردونه: <b>".setting_int('spin_referrals_per_chance', 5)."</b>\nحداقل دعوت برای کد اختصاصی: <b>".setting_int('custom_code_min_referrals', 3)."</b>";
+        $contactAuth = setting_bool('auth_contact_required', false) ? 'فعال' : 'غیرفعال';
+        $startNotify = setting_bool('notify_admin_on_start', true) ? 'فعال' : 'غیرفعال';
+        $txt = "⚙️ <b>تنظیمات پاداش‌ها و احراز</b>
+
+پاداش دعوت: <b>".money(setting_int('start_reward', 2000))."</b>
+حداقل برداشت: <b>".money(setting_int('min_withdraw', 50000))."</b>
+پاداش پایه خرید: <b>".money(setting_int('purchase_reward', 10000))."</b>
+هر چند دعوت یک گردونه: <b>".setting_int('spin_referrals_per_chance', 5)."</b>
+حداقل دعوت برای کد اختصاصی: <b>".setting_int('custom_code_min_referrals', 3)."</b>
+احراز شماره موبایل: <b>{$contactAuth}</b>
+اعلان استارت به ادمین: <b>{$startNotify}</b>";
         $kb = json_markup(['inline_keyboard'=>[
             [['text'=>'پاداش دعوت', 'callback_data'=>'set_start_reward'], ['text'=>'حداقل برداشت', 'callback_data'=>'set_min_withdraw']],
             [['text'=>'پاداش خرید', 'callback_data'=>'set_purchase_reward'], ['text'=>'هر چند دعوت گردونه', 'callback_data'=>'set_spin_every']],
             [['text'=>'حداقل کد اختصاصی', 'callback_data'=>'set_custom_code_min']],
             [['text'=>'مأموریت ۱', 'callback_data'=>'set_mission1'], ['text'=>'مأموریت ۲', 'callback_data'=>'set_mission2'], ['text'=>'مأموریت ۳', 'callback_data'=>'set_mission3']],
+            [['text'=>'📱 تغییر احراز شماره', 'callback_data'=>'set_contact_auth_toggle']],
+            [['text'=>'🔔 تغییر اعلان استارت', 'callback_data'=>'set_start_notify_toggle']],
             [['text'=>'🔙 پنل ادمین', 'callback_data'=>'adm_home']],
         ]]);
         send_or_edit($chat_id, $message_id, $txt, $kb); return;
+    }
+    if ($data === 'set_contact_auth_toggle') {
+        set_setting('auth_contact_required', setting_bool('auth_contact_required', false) ? '0' : '1');
+        handle_admin_callback($chat_id, $message_id, $user, 'adm_settings');
+        return;
+    }
+    if ($data === 'set_start_notify_toggle') {
+        set_setting('notify_admin_on_start', setting_bool('notify_admin_on_start', true) ? '0' : '1');
+        handle_admin_callback($chat_id, $message_id, $user, 'adm_settings');
+        return;
     }
     if ($data === 'adm_theme') {
         $txt = "🎨 <b>رنگ اصلی Mini App</b>\nرنگ فعلی: <code>".h(setting('theme_color', '#1d9bf0'))."</code>\n\nیک رنگ انتخاب کن یا دکمه «رنگ دلخواه» را بزن.";
