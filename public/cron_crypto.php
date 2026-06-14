@@ -1,15 +1,15 @@
 <?php
 /**
  * BlueReferral crypto cron
- * Engine: manual wallets + TXID verification + Nobitex cached rates
+ * Engine: manual wallets + TXID verification + multi-provider cached rates
  *
  * This file intentionally does NOT run migrations.
- * It is the only place that contacts Nobitex / TronScan / Toncenter so the
+ * It is the only place that contacts Wallex/Ramzinex/Nobitex / TronScan / Toncenter so the
  * Mini App and bot webhook stay fast.
  *
  * Modes:
  *   php cron_crypto.php --check-payments   # verify pending TXIDs only
- *   php cron_crypto.php --refresh-rates    # refresh Nobitex rate cache only
+ *   php cron_crypto.php --refresh-rates    # refresh Wallex/Ramzinex/Nobitex rate cache only
  *   php cron_crypto.php --all              # run both, for manual diagnostics
  *
  * HTTP:
@@ -91,8 +91,8 @@ try {
     $paymentResult = ['skipped'=>true, 'reason'=>'mode_'.$mode];
 
     if ($mode === 'refresh_rates' || $mode === 'all') {
-        if (setting('crypto_rate_source','nobitex') === 'nobitex') {
-            $rateResult = crypto_refresh_rates_from_nobitex(true);
+        if (setting('crypto_rate_source','auto') !== 'manual') {
+            $rateResult = crypto_refresh_rates_from_providers(true);
         } else {
             $rateResult = ['skipped'=>true, 'reason'=>'rate_source_manual'];
         }
@@ -106,7 +106,8 @@ try {
         'ok'=>true,
         'engine'=>'manual_crypto_txid_split_cron',
         'mode'=>$mode,
-        'nobitex_rates'=>$rateResult,
+        'rate_providers'=>$rateResult,
+        'nobitex_rates'=>$rateResult, // legacy key
         'payments'=>$paymentResult,
         // Legacy keys kept for older diagnostics/UI scripts.
         'checked'=>(int)($paymentResult['checked'] ?? 0),
