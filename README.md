@@ -1,4 +1,4 @@
-# BlueGate Referral Wallet Ultra
+# BlueReferral — BlueGate Referral Wallet Ultra
 
 ربات همکاری در فروش و کیف پول BlueGate با رابط کاملاً دکمه‌ای + Mini App مدرن تلگرام.
 
@@ -57,10 +57,10 @@
 
 ## نصب یک‌خطی روی سرور
 
-بعد از اینکه پروژه را در GitHub آپلود کردی، لینک زیر را با یوزرنیم و نام ریپوی خودت جایگزین کن:
+برای ریپوی فعلی `paliparsa/BlueReferral` نصب یک‌خطی به این شکل است:
 
 ```bash
-REPO_URL=https://github.com/YOUR_USERNAME/BlueGate-ReferralWallet-Ultra.git bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/BlueGate-ReferralWallet-Ultra/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/paliparsa/BlueReferral/main/install.sh)
 ```
 
 اسکریپت ازت این موارد را می‌پرسد:
@@ -85,8 +85,8 @@ REPO_URL=https://github.com/YOUR_USERNAME/BlueGate-ReferralWallet-Ultra.git bash
 ## نصب دستی
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/BlueGate-ReferralWallet-Ultra.git
-cd BlueGate-ReferralWallet-Ultra
+git clone https://github.com/paliparsa/BlueReferral.git
+cd BlueReferral
 cp config.example.php config.php
 nano config.php
 ```
@@ -162,7 +162,7 @@ $FORCE_JOIN_CHANNEL = '@BllueGate';
 ## ساختار پروژه
 
 ```text
-BlueGate-ReferralWallet-Ultra/
+BlueReferral/
 ├── app/
 │   ├── bootstrap.php      # دیتابیس، تنظیمات، تلگرام، helperها
 │   └── bot_logic.php      # منطق ربات و callbackها

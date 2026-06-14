@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-APP_NAME="bluegate-referral-wallet"
-DEFAULT_REPO_URL="https://github.com/YOUR_USERNAME/BlueGate-ReferralWallet-Ultra.git"
+APP_NAME="bluereferral"
+DEFAULT_REPO_URL="https://github.com/paliparsa/BlueReferral.git"
 APP_DIR_DEFAULT="/var/www/${APP_NAME}"
 
 if [[ $EUID -ne 0 ]]; then
@@ -36,12 +36,6 @@ WEBHOOK_SECRET="${WEBHOOK_SECRET:-$(rand 20)}"
 THEME_COLOR="${THEME_COLOR:-#1d9bf0}"
 BRAND_NAME="${BRAND_NAME:-BlueGate}"
 FORCE_JOIN_CHANNEL="${FORCE_JOIN_CHANNEL:-}"
-
-if [[ "$REPO_URL" == "$DEFAULT_REPO_URL" ]]; then
-  echo "ERROR: Set REPO_URL to your real GitHub repo URL."
-  echo "Example: REPO_URL=https://github.com/thisispali/BlueGate-ReferralWallet-Ultra.git bash <(curl -fsSL https://raw.githubusercontent.com/thisispali/BlueGate-ReferralWallet-Ultra/main/install.sh)"
-  exit 1
-fi
 
 echo "==> Installing packages"
 apt-get update -y
