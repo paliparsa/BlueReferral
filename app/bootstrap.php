@@ -1652,7 +1652,8 @@ function admin_keyboard(): string {
         [['text'=>'🛒 مدیریت فروشگاه'], ['text'=>'📈 آمار کل']],
         [['text'=>'🏧 برداشت‌ها'], ['text'=>'💸 تغییر موجودی']],
         [['text'=>'🎁 پاداش خرید'], ['text'=>'⚙️ تنظیمات پاداش‌ها']],
-        [['text'=>'🎨 تنظیم رنگ‌ها'], ['text'=>'📢 پیام همگانی']],
+        [['text'=>'💾 بکاپ'], ['text'=>'🎨 تنظیم رنگ‌ها']],
+        [['text'=>'📢 پیام همگانی']],
         [['text'=>'🏆 لیدربورد ادمین'], ['text'=>'🏠 صفحه اول']],
     ];
     return keyboard_markup($rows);
@@ -2288,174 +2289,187 @@ function update_inventory_field(int $id, string $field, $value): bool {
 }
 
 
-
-// -------------------------
-// Admin backup / restore
-// -------------------------
-function backup_safe_identifier(string $name): string {
-    if (!preg_match('/^[A-Za-z0-9_]+$/', $name)) throw new RuntimeException('INVALID_IDENTIFIER');
-    return '`' . str_replace('`', '``', $name) . '`';
-}
-function backup_table_names(): array {
-    $dbName = app_config('DB_NAME');
-    $q = db()->prepare('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_TYPE="BASE TABLE" ORDER BY TABLE_NAME');
-    $q->execute([$dbName]);
-    $tables = [];
-    foreach ($q->fetchAll() as $r) {
-        $t = (string)$r['TABLE_NAME'];
-        if ($t !== '' && preg_match('/^[A-Za-z0-9_]+$/', $t)) $tables[] = $t;
-    }
-    return $tables;
-}
-function backup_table_columns(string $table): array {
-    $dbName = app_config('DB_NAME');
-    $q = db()->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? ORDER BY ORDINAL_POSITION');
-    $q->execute([$dbName, $table]);
-    $cols = [];
-    foreach ($q->fetchAll() as $r) {
-        $c = (string)$r['COLUMN_NAME'];
-        if ($c !== '' && preg_match('/^[A-Za-z0-9_]+$/', $c)) $cols[] = $c;
-    }
-    return $cols;
-}
-function backup_row_count(string $table): int {
-    $t = backup_safe_identifier($table);
-    try { return (int)db()->query("SELECT COUNT(*) c FROM {$t}")->fetch()['c']; }
-    catch (Throwable $e) { return 0; }
-}
-function backup_build_database_dump(): array {
-    $tables = backup_table_names();
-    $out = [
-        'format' => 'blue-referral-db-backup',
-        'format_version' => 1,
-        'app' => 'BlueReferral',
-        'created_at' => date('c'),
-        'db_name' => (string)app_config('DB_NAME', ''),
-        'note' => 'Database data backup generated from BlueReferral admin panel. Source code and config.php secrets are intentionally not included.',
-        'tables' => [],
-        'summary' => [],
+// Stable Admin Backup/Restore helpers. Backups are server-side .json.gz files under storage/backups.
+function blue_backup_tables(): array {
+    $preferred = [
+        'settings','users','referrals','transactions','withdrawals','mission_claims','spin_logs','payment_methods',
+        'product_categories','products','coupons','product_variants','inventory_items','orders','order_events',
+        'crypto_wallets','crypto_payment_checks','swapwallet_invoices'
     ];
-    foreach ($tables as $table) {
-        $cols = backup_table_columns($table);
-        if (!$cols) continue;
-        $t = backup_safe_identifier($table);
-        $rows = db()->query("SELECT * FROM {$t}")->fetchAll(PDO::FETCH_ASSOC);
-        $out['tables'][$table] = ['columns' => $cols, 'rows' => $rows];
-        $out['summary'][$table] = count($rows);
+    $existing = [];
+    foreach ($preferred as $t) if (table_exists($t)) $existing[] = $t;
+    try {
+        $dbName = app_config('DB_NAME');
+        $q = db()->prepare('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=? ORDER BY TABLE_NAME');
+        $q->execute([$dbName]);
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $t) {
+            if (!in_array($t, $existing, true)) $existing[] = $t;
+        }
+    } catch (Throwable $e) {}
+    return $existing;
+}
+function blue_backup_dir(): string {
+    $dir = __DIR__ . '/../storage/backups';
+    if (!is_dir($dir)) @mkdir($dir, 0750, true);
+    if (!is_dir($dir) || !is_writable($dir)) throw new RuntimeException('BACKUP_DIR_NOT_WRITABLE');
+    return $dir;
+}
+function blue_backup_safe_filename(string $name): string {
+    $base = basename($name);
+    if (!preg_match('/^blue-referral-backup-[0-9]{8}-[0-9]{6}(-before-restore)?\.json\.gz$/', $base)) throw new RuntimeException('INVALID_BACKUP_FILENAME');
+    return $base;
+}
+function blue_backup_file_path(string $name): string {
+    return blue_backup_dir() . '/' . blue_backup_safe_filename($name);
+}
+function blue_backup_token(string $filename, ?int $expires=null): string {
+    $filename = blue_backup_safe_filename($filename);
+    $expires = $expires ?: (time() + 86400);
+    $secret = (string)app_config('BOT_TOKEN','') . '|' . (string)app_config('WEBHOOK_SECRET','blue-ref');
+    $sig = hash_hmac('sha256', $filename.'|'.$expires, $secret);
+    return rtrim(strtr(base64_encode($expires.':'.$sig), '+/', '-_'), '=');
+}
+function blue_backup_verify_token(string $filename, string $token): bool {
+    try { $filename = blue_backup_safe_filename($filename); } catch (Throwable $e) { return false; }
+    $raw = base64_decode(strtr($token, '-_', '+/'), true);
+    if (!$raw || !str_contains($raw, ':')) return false;
+    [$expires, $sig] = explode(':', $raw, 2);
+    if ((int)$expires < time()) return false;
+    $secret = (string)app_config('BOT_TOKEN','') . '|' . (string)app_config('WEBHOOK_SECRET','blue-ref');
+    $calc = hash_hmac('sha256', $filename.'|'.(int)$expires, $secret);
+    return hash_equals($calc, $sig);
+}
+function blue_backup_download_url(string $filename): string {
+    $base = public_base_url();
+    if ($base === '') $base = rtrim((string)app_config('MINIAPP_URL',''), '/');
+    $base = preg_replace('#/miniapp/?$#', '', $base ?: '');
+    $token = blue_backup_token($filename);
+    return rtrim($base, '/') . '/backup_download.php?file=' . rawurlencode($filename) . '&token=' . rawurlencode($token);
+}
+function blue_backup_table_columns(string $table): array {
+    $q = db()->query('SHOW COLUMNS FROM `'.str_replace('`','``',$table).'`');
+    return array_map(fn($r)=>(string)$r['Field'], $q->fetchAll());
+}
+function blue_backup_create(string $suffix=''): array {
+    $suffix = preg_replace('/[^A-Za-z0-9_-]/', '', $suffix);
+    $filename = 'blue-referral-backup-' . date('Ymd-His') . ($suffix ? '-' . $suffix : '') . '.json.gz';
+    $payload = [
+        'format'=>'blue_referral_backup',
+        'version'=>2,
+        'created_at'=>date('c'),
+        'app'=>'BlueReferral',
+        'db_name'=>app_config('DB_NAME'),
+        'tables'=>[],
+    ];
+    $totalRows = 0;
+    foreach (blue_backup_tables() as $table) {
+        $columns = blue_backup_table_columns($table);
+        $rows = db()->query('SELECT * FROM `'.str_replace('`','``',$table).'`')->fetchAll(PDO::FETCH_ASSOC);
+        $payload['tables'][$table] = ['columns'=>$columns, 'rows'=>$rows, 'count'=>count($rows)];
+        $totalRows += count($rows);
+    }
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) throw new RuntimeException('BACKUP_JSON_FAILED');
+    $gz = gzencode($json, 6);
+    if ($gz === false) throw new RuntimeException('BACKUP_GZIP_FAILED');
+    $path = blue_backup_dir() . '/' . $filename;
+    if (file_put_contents($path, $gz, LOCK_EX) === false) throw new RuntimeException('BACKUP_WRITE_FAILED');
+    @chmod($path, 0640);
+    set_setting('backup_last_created_at', date('Y-m-d H:i:s'));
+    set_setting('backup_last_filename', $filename);
+    set_setting('backup_last_size', (string)filesize($path));
+    return ['filename'=>$filename, 'path'=>$path, 'size'=>filesize($path), 'rows'=>$totalRows, 'tables'=>count($payload['tables']), 'download_url'=>blue_backup_download_url($filename)];
+}
+function blue_backup_list(): array {
+    $dir = blue_backup_dir();
+    $files = glob($dir . '/blue-referral-backup-*.json.gz') ?: [];
+    usort($files, fn($a,$b)=>filemtime($b)<=>filemtime($a));
+    $out = [];
+    foreach ($files as $path) {
+        $name = basename($path);
+        try { blue_backup_safe_filename($name); } catch (Throwable $e) { continue; }
+        $out[] = ['filename'=>$name, 'size'=>filesize($path), 'created_at'=>date('Y-m-d H:i:s', filemtime($path)), 'download_url'=>blue_backup_download_url($name)];
     }
     return $out;
 }
-function backup_create_file_payload(): array {
-    $dump = backup_build_database_dump();
-    $json = json_encode($dump, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($json === false) throw new RuntimeException('BACKUP_JSON_ENCODE_FAILED');
-    $gz = gzencode($json, 6);
-    if ($gz === false) throw new RuntimeException('BACKUP_COMPRESS_FAILED');
-    $filename = 'blue-referral-backup-' . date('Ymd-His') . '.json.gz';
-    set_setting('backup_last_created_at', date('Y-m-d H:i:s'));
-    set_setting('backup_last_filename', $filename);
-    set_setting('backup_last_size', (string)strlen($gz));
-    return [
-        'filename' => $filename,
-        'mime' => 'application/gzip',
-        'size' => strlen($gz),
-        'created_at' => $dump['created_at'],
-        'summary' => $dump['summary'],
-        'content_base64' => base64_encode($gz),
-    ];
+function blue_backup_delete(string $filename): bool {
+    $path = blue_backup_file_path($filename);
+    if (!is_file($path)) return false;
+    return @unlink($path);
 }
-function backup_decode_uploaded_payload(string $filename, string $contentBase64): array {
-    $raw = base64_decode($contentBase64, true);
-    if ($raw === false || $raw === '') throw new RuntimeException('BACKUP_FILE_EMPTY_OR_INVALID_BASE64');
-    if (strlen($raw) > 25 * 1024 * 1024) throw new RuntimeException('BACKUP_FILE_TOO_LARGE');
-    $lower = strtolower($filename);
-    $json = null;
-    if (str_ends_with($lower, '.gz') || substr($raw, 0, 2) === "\x1f\x8b") {
-        $json = gzdecode($raw);
-        if ($json === false) throw new RuntimeException('BACKUP_GZIP_DECODE_FAILED');
-    } elseif (str_ends_with($lower, '.json')) {
-        $json = $raw;
-    } elseif (str_ends_with($lower, '.zip') && class_exists('ZipArchive')) {
-        $tmp = tempnam(sys_get_temp_dir(), 'blue-backup-');
-        file_put_contents($tmp, $raw);
-        $zip = new ZipArchive();
-        if ($zip->open($tmp) !== true) { @unlink($tmp); throw new RuntimeException('BACKUP_ZIP_OPEN_FAILED'); }
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $name = $zip->getNameIndex($i);
-            if ($name && preg_match('/\.json(\.gz)?$/i', $name)) {
-                $content = $zip->getFromIndex($i);
-                if ($content !== false) {
-                    $json = str_ends_with(strtolower($name), '.gz') ? gzdecode($content) : $content;
-                    break;
-                }
-            }
-        }
-        $zip->close(); @unlink($tmp);
-        if (!$json) throw new RuntimeException('BACKUP_JSON_NOT_FOUND_IN_ZIP');
-    } else {
-        $json = $raw;
-    }
-    $data = json_decode((string)$json, true);
-    if (!is_array($data) || ($data['format'] ?? '') !== 'blue-referral-db-backup' || empty($data['tables']) || !is_array($data['tables'])) {
-        throw new RuntimeException('BACKUP_FORMAT_NOT_SUPPORTED');
-    }
+function blue_backup_load_payload_from_file(string $path): array {
+    if (!is_file($path)) throw new RuntimeException('BACKUP_FILE_NOT_FOUND');
+    if (filesize($path) > 80 * 1024 * 1024) throw new RuntimeException('BACKUP_FILE_TOO_LARGE');
+    $raw = file_get_contents($path);
+    if ($raw === false || $raw === '') throw new RuntimeException('BACKUP_READ_FAILED');
+    $json = gzdecode($raw);
+    if ($json === false) $json = $raw;
+    $data = json_decode($json, true);
+    if (!is_array($data) || ($data['format'] ?? '') !== 'blue_referral_backup' || empty($data['tables']) || !is_array($data['tables'])) throw new RuntimeException('INVALID_BACKUP_FORMAT');
     return $data;
 }
-function backup_restore_database_dump(array $dump): array {
-    $tables = $dump['tables'] ?? [];
-    if (!is_array($tables) || !$tables) throw new RuntimeException('BACKUP_HAS_NO_TABLES');
-    $existing = array_flip(backup_table_names());
-    $restored = [];
-    $skipped = [];
-    $pdo = db();
-    $pdo->beginTransaction();
+function blue_backup_restore_from_file(string $path, bool $makeSafetyBackup=true): array {
+    $data = blue_backup_load_payload_from_file($path);
+    $safety = null;
+    if ($makeSafetyBackup) {
+        try { $safety = blue_backup_create('before-restore'); } catch (Throwable $e) { $safety = ['error'=>$e->getMessage()]; }
+    }
+    $tables = array_intersect(blue_backup_tables(), array_keys($data['tables']));
+    $restoredRows = 0;
+    db()->exec('SET FOREIGN_KEY_CHECKS=0');
     try {
-        $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
-        foreach ($tables as $table => $payload) {
-            if (!is_string($table) || !preg_match('/^[A-Za-z0-9_]+$/', $table) || !isset($existing[$table])) { $skipped[] = (string)$table; continue; }
-            $backupCols = is_array($payload['columns'] ?? null) ? $payload['columns'] : [];
-            $currentCols = backup_table_columns($table);
-            $cols = array_values(array_filter($backupCols, fn($c) => is_string($c) && in_array($c, $currentCols, true) && preg_match('/^[A-Za-z0-9_]+$/', $c)));
-            if (!$cols) { $skipped[] = $table; continue; }
-            $t = backup_safe_identifier($table);
-            $pdo->exec("TRUNCATE TABLE {$t}");
-            $rows = is_array($payload['rows'] ?? null) ? $payload['rows'] : [];
-            if ($rows) {
-                $colSql = implode(',', array_map('backup_safe_identifier', $cols));
-                $placeholders = implode(',', array_fill(0, count($cols), '?'));
-                $stmt = $pdo->prepare("INSERT INTO {$t} ({$colSql}) VALUES ({$placeholders})");
-                foreach ($rows as $row) {
-                    if (!is_array($row)) continue;
-                    $values = [];
-                    foreach ($cols as $c) $values[] = array_key_exists($c, $row) ? $row[$c] : null;
-                    $stmt->execute($values);
-                }
+        foreach (array_reverse($tables) as $table) db()->exec('TRUNCATE TABLE `'.str_replace('`','``',$table).'`');
+        foreach ($tables as $table) {
+            $currentColumns = blue_backup_table_columns($table);
+            $rows = $data['tables'][$table]['rows'] ?? [];
+            if (!is_array($rows) || !$rows) continue;
+            foreach ($rows as $row) {
+                if (!is_array($row)) continue;
+                $cols = array_values(array_intersect($currentColumns, array_keys($row)));
+                if (!$cols) continue;
+                $sql = 'INSERT INTO `'.str_replace('`','``',$table).'` (`'.implode('`,`', array_map(fn($c)=>str_replace('`','``',$c), $cols)).'`) VALUES ('.implode(',', array_fill(0, count($cols), '?')).')';
+                $stmt = db()->prepare($sql);
+                $stmt->execute(array_map(fn($c)=>$row[$c], $cols));
+                $restoredRows++;
             }
-            $restored[$table] = count($rows);
         }
-        $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
-        $pdo->commit();
-    } catch (Throwable $e) {
-        try { $pdo->exec('SET FOREIGN_KEY_CHECKS=1'); } catch (Throwable $x) {}
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $e;
+    } finally {
+        db()->exec('SET FOREIGN_KEY_CHECKS=1');
     }
     set_setting('backup_last_restored_at', date('Y-m-d H:i:s'));
-    return ['restored' => $restored, 'skipped' => $skipped, 'created_at' => $dump['created_at'] ?? null];
+    set_setting('backup_last_restored_file', basename($path));
+    return ['restored_rows'=>$restoredRows, 'tables'=>count($tables), 'safety_backup'=>$safety];
 }
-function backup_status(): array {
-    $tables = [];
-    foreach (backup_table_names() as $t) $tables[$t] = backup_row_count($t);
-    return [
-        'last_created_at' => setting('backup_last_created_at', ''),
-        'last_restored_at' => setting('backup_last_restored_at', ''),
-        'last_filename' => setting('backup_last_filename', ''),
-        'last_size' => (int)setting('backup_last_size', 0),
-        'tables' => $tables,
-        'max_upload_mb' => 25,
-        'format' => '.json.gz',
-    ];
+function send_document_file($chat_id, string $path, string $caption=''): array {
+    if (!is_file($path)) return ['ok'=>false,'description'=>'FILE_NOT_FOUND'];
+    return tg('sendDocument', [
+        'chat_id'=>$chat_id,
+        'document'=>new CURLFile($path, 'application/gzip', basename($path)),
+        'caption'=>$caption,
+        'parse_mode'=>'HTML',
+    ]);
 }
+function blue_backup_send_to_admin(int $telegram_id): array {
+    if (!is_admin($telegram_id)) throw new RuntimeException('ADMIN_ONLY');
+    $b = blue_backup_create();
+    $res = send_document_file($telegram_id, $b['path'], "💾 <b>BlueReferral backup</b>\nFile: <code>{$b['filename']}</code>\nRows: <b>{$b['rows']}</b>\nTables: <b>{$b['tables']}</b>");
+    if (empty($res['ok'])) throw new RuntimeException('TELEGRAM_SEND_BACKUP_FAILED: '.($res['description'] ?? 'unknown'));
+    return $b + ['telegram_sent'=>true];
+}
+function telegram_download_file(string $fileId, string $dest): bool {
+    $info = tg('getFile', ['file_id'=>$fileId]);
+    if (empty($info['ok']) || empty($info['result']['file_path'])) return false;
+    $token = app_config('BOT_TOKEN');
+    $url = 'https://api.telegram.org/file/bot'.$token.'/'.$info['result']['file_path'];
+    $in = @fopen($url, 'rb');
+    if (!$in) return false;
+    $out = @fopen($dest, 'wb');
+    if (!$out) { @fclose($in); return false; }
+    stream_copy_to_stream($in, $out);
+    fclose($in); fclose($out);
+    return is_file($dest) && filesize($dest) > 0;
+}
+
 
 function verify_webapp_init_data(string $initData): array|false {
     $token = app_config('BOT_TOKEN');

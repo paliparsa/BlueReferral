@@ -88,6 +88,38 @@ function handle_message(array $message): void {
 
     $user = create_or_update_user($from, $ref);
 
+    if (is_admin($chat_id) && in_array(strtolower($text), ['/backup','backup','/adminbackup'], true)) {
+        try { $b = blue_backup_send_to_admin($chat_id); send_msg($chat_id, "✅ بکاپ ساخته و همینجا ارسال شد.
+فایل: <code>".h($b['filename'])."</code>", admin_keyboard()); }
+        catch (Throwable $e) { send_msg($chat_id, '❌ ساخت/ارسال بکاپ شکست خورد: <code>'.h($e->getMessage()).'</code>', admin_keyboard()); }
+        return;
+    }
+    if (is_admin($chat_id) && in_array(strtolower($text), ['/restore_backup','restore_backup','restore'], true)) {
+        set_step($chat_id, 'admin_restore_backup');
+        send_msg($chat_id, "⚠️ Restore بکاپ همه دیتابیس فعلی را جایگزین می‌کند.
+قبل از restore، سیستم خودکار یک safety backup می‌سازد.
+
+فایل <code>.json.gz</code> بکاپ را همینجا به صورت Document بفرست.", admin_keyboard());
+        return;
+    }
+    if (is_admin($chat_id) && ($user['step'] ?? '') === 'admin_restore_backup' && !empty($message['document']['file_id'])) {
+        $tmp = blue_backup_dir() . '/telegram-restore-' . date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.json.gz';
+        try {
+            if (!telegram_download_file((string)$message['document']['file_id'], $tmp)) throw new RuntimeException('TELEGRAM_FILE_DOWNLOAD_FAILED');
+            $res = blue_backup_restore_from_file($tmp, true);
+            @unlink($tmp);
+            clear_step($chat_id);
+            send_msg($chat_id, "✅ Restore انجام شد.
+Tables: <b>{$res['tables']}</b>
+Rows: <b>{$res['restored_rows']}</b>", admin_keyboard());
+        } catch (Throwable $e) {
+            @unlink($tmp);
+            clear_step($chat_id);
+            send_msg($chat_id, '❌ Restore شکست خورد: <code>'.h($e->getMessage()).'</code>', admin_keyboard());
+        }
+        return;
+    }
+
     if (save_user_contact_from_message($chat_id, $message)) {
         $user = get_user_by_tid($chat_id);
         maybe_notify_new_start($user);
@@ -135,7 +167,7 @@ function handle_keyboard_text(int $chat_id, array $user, string $text): bool {
     $adminMap = [
         '⚙️ پنل ادمین'=>'adm_home', '🛒 مدیریت فروشگاه'=>'adm_shop', '📈 آمار کل'=>'adm_stats', '🏧 برداشت‌ها'=>'adm_withdrawals',
         '💸 تغییر موجودی'=>'adm_balance', '🎁 پاداش خرید'=>'adm_purchase', '⚙️ تنظیمات پاداش‌ها'=>'adm_settings', '🎨 تنظیم رنگ‌ها'=>'adm_theme',
-        '📢 پیام همگانی'=>'adm_broadcast', '🏆 لیدربورد ادمین'=>'adm_leaderboard',
+        '📢 پیام همگانی'=>'adm_broadcast', '🏆 لیدربورد ادمین'=>'adm_leaderboard', '💾 بکاپ'=>'adm_backup',
     ];
     if (isset($map[$text])) {
         if ($map[$text] === 'main') { clear_step($chat_id); send_home_message($chat_id, get_user_by_tid($chat_id), false); return true; }
@@ -436,6 +468,32 @@ function handle_admin_callback(int $chat_id, $message_id, array $user, string $d
         send_or_edit($chat_id, $message_id, $out, admin_keyboard()); return;
     }
 
+    if ($data === 'adm_backup') {
+        $rows = blue_backup_list();
+        $txt = "💾 <b>Backup / Restore</b>
+
+دکمه بکاپ، فایل را روی سرور ذخیره می‌کند و همینجا هم برایت به عنوان فایل تلگرام می‌فرستد.
+برای Restore از دستور <code>/restore_backup</code> استفاده کن و فایل بکاپ را به همین چت بفرست.
+
+بکاپ‌های روی سرور: <b>".count($rows)."</b>";
+        $kb = [[['text'=>'📦 ساخت بکاپ و ارسال در چت','callback_data'=>'adm_backup_create_send']],[['text'=>'♻️ راهنمای Restore','callback_data'=>'adm_backup_restore_prompt']],[['text'=>'🔙 پنل ادمین','callback_data'=>'adm_home']]];
+        send_or_edit($chat_id, $message_id, $txt, json_markup(['inline_keyboard'=>$kb])); return;
+    }
+    if ($data === 'adm_backup_create_send') {
+        try { $b = blue_backup_send_to_admin($chat_id); send_or_edit($chat_id, $message_id, "✅ بکاپ ساخته شد و به چت ارسال شد.
+فایل: <code>".h($b['filename'])."</code>
+Rows: <b>{$b['rows']}</b>", admin_keyboard()); }
+        catch (Throwable $e) { send_or_edit($chat_id, $message_id, '❌ ساخت/ارسال بکاپ شکست خورد: <code>'.h($e->getMessage()).'</code>', admin_keyboard()); }
+        return;
+    }
+    if ($data === 'adm_backup_restore_prompt') {
+        set_step($chat_id, 'admin_restore_backup');
+        send_or_edit($chat_id, $message_id, "⚠️ برای Restore فایل <code>.json.gz</code> بکاپ را به همین چت بفرست.
+قبل از Restore، سیستم یک safety backup می‌سازد.
+
+یا دستور <code>/restore_backup</code> را بزن.", admin_keyboard()); return;
+    }
+
     if ($data === 'adm_shop') { show_admin_shop_home($chat_id, $message_id); return; }
     if ($data === 'adm_products') { show_admin_products($chat_id, $message_id); return; }
     if ($data === 'adm_variants') { show_admin_variants($chat_id, $message_id); return; }
@@ -570,6 +628,25 @@ email2@test.com | pass2</code>", admin_shop_keyboard()); return; }
 
 function handle_step_message(int $chat_id, array $user, array $message): void {
     $step = (string)($user['step'] ?? '');
+    if ($step === 'admin_restore_backup') {
+        if (!is_admin($chat_id)) { clear_step($chat_id); send_msg($chat_id, 'دسترسی ادمین لازم است.', main_menu_keyboard(false)); return; }
+        if (empty($message['document']['file_id'])) { send_msg($chat_id, 'لطفاً فایل بکاپ .json.gz را به صورت Document ارسال کن، نه متن یا عکس.', admin_keyboard()); return; }
+        $tmp = blue_backup_dir() . '/telegram-restore-' . date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.json.gz';
+        try {
+            if (!telegram_download_file((string)$message['document']['file_id'], $tmp)) throw new RuntimeException('TELEGRAM_FILE_DOWNLOAD_FAILED');
+            $res = blue_backup_restore_from_file($tmp, true);
+            @unlink($tmp);
+            clear_step($chat_id);
+            send_msg($chat_id, "✅ Restore انجام شد.
+Tables: <b>{$res['tables']}</b>
+Rows: <b>{$res['restored_rows']}</b>", admin_keyboard());
+        } catch (Throwable $e) {
+            @unlink($tmp);
+            clear_step($chat_id);
+            send_msg($chat_id, '❌ Restore شکست خورد: <code>'.h($e->getMessage()).'</code>', admin_keyboard());
+        }
+        return;
+    }
     if ($step === 'customer_order_note') {
         $oid=(int)$user['step_payload'];
         $note=trim((string)($message['text'] ?? $message['caption'] ?? ''));
