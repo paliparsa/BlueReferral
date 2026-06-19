@@ -16,6 +16,43 @@ const adminFlag = getUrlFlag('admin') || getUrlFlag('mode') || getUrlFlag('start
 const isAdminMode = adminFlag === '1' || String(adminFlag).toLowerCase() === 'admin';
 let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, orderFilter = 'all', lastSpinPrize = null;
 let adminUiCards = [], adminUiWallets = [], adminUiRates = [];
+
+function detectMiniAppDevice(){
+  const ua = navigator.userAgent || '';
+  const platform = String(tg?.platform || '').toLowerCase();
+  const isiOS = /iphone|ipad|ipod/i.test(ua) || platform === 'ios' || platform === 'iphone' || platform === 'ipad' || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /android/i.test(ua) || platform === 'android';
+  const w = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+  const h = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+  return {isiOS,isAndroid,w,h,compact:w<=390,phone:w<=520,tablet:w>=760,landscape:w>h};
+}
+function applyDeviceLayout(){
+  const d = detectMiniAppDevice();
+  const root = document.documentElement;
+  const body = document.body;
+  root.classList.toggle('device-ios', d.isiOS);
+  root.classList.toggle('device-android', d.isAndroid);
+  root.classList.toggle('device-other', !d.isiOS && !d.isAndroid);
+  root.classList.toggle('device-compact', d.compact);
+  root.classList.toggle('device-phone', d.phone);
+  root.classList.toggle('device-tablet', d.tablet);
+  root.classList.toggle('device-landscape', d.landscape);
+  if(body){
+    body.dataset.device = d.isiOS ? 'ios' : (d.isAndroid ? 'android' : 'other');
+    body.style.setProperty('--app-vw', `${d.w}px`);
+    body.style.setProperty('--app-vh', `${d.h}px`);
+  }
+}
+applyDeviceLayout();
+window.addEventListener('resize', applyDeviceLayout, {passive:true});
+window.addEventListener('orientationchange', () => setTimeout(applyDeviceLayout, 160), {passive:true});
+function tgUser(){return tg?.initDataUnsafe?.user || {}}
+function userPhotoUrl(u={}){return u.photo_url || tgUser().photo_url || ''}
+function userInitial(u={}){return esc(String(u.first_name || u.username || 'B').trim().slice(0,1).toUpperCase() || 'B')}
+function userProfileAvatar(u={}, cls='profile-photo'){
+  const photo = userPhotoUrl(u);
+  return photo ? `<div class="${cls}"><img src="${esc(photo)}" alt="profile"></div>` : `<div class="${cls} fallback">${userInitial(u)}</div>`;
+}
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => `${Number(n || 0).toLocaleString('fa-IR')} تومان`;
 const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
@@ -44,7 +81,7 @@ function setAdminTab(tab){currentAdminTab=tab;renderAdmin()}
 function render(data){state=data;applyTheme(data);$('brandTitle').textContent=data.brand||'BlueReferral';$('helloText').textContent=`سلام ${data.user?.first_name||data.user?.username||'رفیق'} 👋`;$('userApp').classList.toggle('hidden',isAdminMode);$('adminApp').classList.toggle('hidden',!isAdminMode);if(isAdminMode){loadAdmin();return}renderUser()}
 function hidePages(){['homePage','shopPage','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.bottom-nav [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===currentTab))}
 function renderUser(){hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }}
-function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);$('homePage').innerHTML=`<section class="hero hero-pro wallet-hero"><div class="hero-glow"></div><div class="row"><div><small>داشبورد حساب</small><h2>${esc(u.first_name||u.username||'کاربر BlueReferral')}</h2><p class="muted user-line">${u.username?'@'+esc(u.username):'بدون یوزرنیم'} · ${u.phone_number?'📱 '+esc(u.phone_number):'شماره ثبت نشده'}</p></div><div class="avatar floating-avatar">${u.vip?.emoji||'💙'}</div></div><div class="wallet-balance"><span>موجودی قابل خرج</span><b>${fmt(u.balance)}</b></div><p class="muted">موجودی کیف پولت می‌تواند از مبلغ فاکتور فروشگاه کم شود. سطح همکاری ${u.vip?.emoji||''} ${esc(u.vip?.fa||'')} · سطح مشتری ${c.emoji||''} ${esc(c.fa||'')}</p><div class="actions"><button class="primary pulse" data-tab-jump="shop">🛒 خرج در فروشگاه</button><button class="secondary" id="copyRefHome">🔗 کپی لینک دعوت</button></div></section><div class="stats-grid vivid"><div class="mini-stat"><b>${nf(u.referrals_count)}</b><span>زیرمجموعه</span></div><div class="mini-stat"><b>${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div class="mini-stat"><b>${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div><article class="mission-preview"> <div><small>ماموریت امروز</small><h3>پیشرفت دعوت‌ها</h3><p class="muted">امروز ${nf(today)} دعوت ثبت شده است.</p></div><button class="secondary" data-tab-jump="wallet">مشاهده</button></article><div class="quick-grid"><button class="quick-card gradient-card" data-tab-jump="orders"><b>🧾 سفارش‌های من</b><span>پیگیری وضعیت و تحویل‌ها</span></button><button class="quick-card gradient-card" data-tab-jump="wallet"><b>💰 کیف پول</b><span>ماموریت، تراکنش و پرداخت</span></button><button class="quick-card gradient-card" data-tab-jump="shop"><b>🛒 فروشگاه</b><span>محصولات دیجیتال و VPN</span></button><button class="quick-card gradient-card" id="paletteQuick"><b>🎨 تغییر رنگ</b><span>ظاهر Mini App را شخصی کن</span></button></div>${renderPalette()}`}
+function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);$('homePage').innerHTML=`<section class="hero hero-pro wallet-hero"><div class="hero-glow"></div><div class="row profile-row"><div class="profile-head">${userProfileAvatar(u)}<div><small>داشبورد حساب</small><h2>${esc(u.first_name||u.username||'کاربر BlueReferral')}</h2><p class="muted user-line">${u.username?'@'+esc(u.username):'بدون یوزرنیم'} · ${u.phone_number?'📱 '+esc(u.phone_number):'شماره ثبت نشده'}</p></div></div><div class="avatar floating-avatar">${u.vip?.emoji||'💙'}</div></div><div class="wallet-balance"><span>موجودی قابل خرج</span><b>${fmt(u.balance)}</b></div><p class="muted">موجودی کیف پولت می‌تواند از مبلغ فاکتور فروشگاه کم شود. سطح همکاری ${u.vip?.emoji||''} ${esc(u.vip?.fa||'')} · سطح مشتری ${c.emoji||''} ${esc(c.fa||'')}</p><div class="actions"><button class="primary pulse" data-tab-jump="shop">🛒 خرج در فروشگاه</button><button class="secondary" id="copyRefHome">🔗 کپی لینک دعوت</button></div></section><div class="stats-grid vivid"><div class="mini-stat"><b>${nf(u.referrals_count)}</b><span>زیرمجموعه</span></div><div class="mini-stat"><b>${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div class="mini-stat"><b>${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div><article class="mission-preview"> <div><small>ماموریت امروز</small><h3>پیشرفت دعوت‌ها</h3><p class="muted">امروز ${nf(today)} دعوت ثبت شده است.</p></div><button class="secondary" data-tab-jump="wallet">مشاهده</button></article><div class="quick-grid"><button class="quick-card gradient-card" data-tab-jump="orders"><b>🧾 سفارش‌های من</b><span>پیگیری وضعیت و تحویل‌ها</span></button><button class="quick-card gradient-card" data-tab-jump="wallet"><b>💰 کیف پول</b><span>ماموریت، تراکنش و پرداخت</span></button><button class="quick-card gradient-card" data-tab-jump="shop"><b>🛒 فروشگاه</b><span>محصولات دیجیتال و VPN</span></button><button class="quick-card gradient-card" id="paletteQuick"><b>🎨 تغییر رنگ</b><span>ظاهر Mini App را شخصی کن</span></button></div>${renderPalette()}`}
 function renderPalette(){const colors=['#1d9bf0','#8b5cf6','#22c55e','#ef4444','#f97316','#ec4899','#06b6d4','#f59e0b','#14b8a6','#64748b'];return `<article class="wallet-card soft-card palette-card"><h3>🎨 رنگ دلخواه Mini App</h3><p class="muted">یکی از رنگ‌ها را بزن یا رنگ اختصاصی خودت را انتخاب کن. این رنگ فقط روی همین دستگاه ذخیره می‌شود.</p><div class="palette">${colors.map(c=>`<button class="swatch" data-color="${c}" style="background:${c}"></button>`).join('')}<label class="custom-color"><span>رنگ دلخواه</span><input id="userCustomColor" type="color" value="${esc(localStorage.getItem('blue_ref_color')||state.theme_color||'#1d9bf0')}"></label><button class="secondary" id="applyCustomColor">اعمال رنگ</button><button class="ghost" id="resetColor">پیش‌فرض</button></div></article>`}
 function missionCard(m){const today=Number(state.user?.today_referrals||0);const target=Math.max(1,Number(m.target||1));const pct=Math.max(0,Math.min(100,Math.round(today/target*100)));const done=m.claimed?'claimed':(m.done?'done':'todo');return `<article class="mission-card ${done}"><div class="mission-top"><div><small>${nf(Math.min(today,target))} از ${nf(target)}</small><h3>${nf(target)} دعوت امروز</h3><p class="muted">پاداش: <b>${fmt(m.reward)}</b></p></div><div class="mission-icon">${m.claimed?'✅':(m.done?'🎁':'✌️')}</div></div><div class="progress-track"><span style="width:${pct}%"></span></div><div class="mission-foot"><span>${pct}% تکمیل شده</span><b>${m.claimed?'دریافت شد':(m.done?'آماده دریافت':'در حال انجام')}</b></div></article>`}
 function filteredProducts(){return (state.shop_products||[]).filter(p=>(activeCategory==='all'||Number(p.category_id)===Number(activeCategory)||activeCategory==='featured'&&Number(p.is_featured)===1)&&(!searchTerm||`${p.name} ${p.short_description} ${p.full_description}`.toLowerCase().includes(searchTerm.toLowerCase())))}
