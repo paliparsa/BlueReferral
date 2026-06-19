@@ -2287,6 +2287,176 @@ function update_inventory_field(int $id, string $field, $value): bool {
     $q=db()->prepare("UPDATE inventory_items SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 
+
+
+// -------------------------
+// Admin backup / restore
+// -------------------------
+function backup_safe_identifier(string $name): string {
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $name)) throw new RuntimeException('INVALID_IDENTIFIER');
+    return '`' . str_replace('`', '``', $name) . '`';
+}
+function backup_table_names(): array {
+    $dbName = app_config('DB_NAME');
+    $q = db()->prepare('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_TYPE="BASE TABLE" ORDER BY TABLE_NAME');
+    $q->execute([$dbName]);
+    $tables = [];
+    foreach ($q->fetchAll() as $r) {
+        $t = (string)$r['TABLE_NAME'];
+        if ($t !== '' && preg_match('/^[A-Za-z0-9_]+$/', $t)) $tables[] = $t;
+    }
+    return $tables;
+}
+function backup_table_columns(string $table): array {
+    $dbName = app_config('DB_NAME');
+    $q = db()->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? ORDER BY ORDINAL_POSITION');
+    $q->execute([$dbName, $table]);
+    $cols = [];
+    foreach ($q->fetchAll() as $r) {
+        $c = (string)$r['COLUMN_NAME'];
+        if ($c !== '' && preg_match('/^[A-Za-z0-9_]+$/', $c)) $cols[] = $c;
+    }
+    return $cols;
+}
+function backup_row_count(string $table): int {
+    $t = backup_safe_identifier($table);
+    try { return (int)db()->query("SELECT COUNT(*) c FROM {$t}")->fetch()['c']; }
+    catch (Throwable $e) { return 0; }
+}
+function backup_build_database_dump(): array {
+    $tables = backup_table_names();
+    $out = [
+        'format' => 'blue-referral-db-backup',
+        'format_version' => 1,
+        'app' => 'BlueReferral',
+        'created_at' => date('c'),
+        'db_name' => (string)app_config('DB_NAME', ''),
+        'note' => 'Database data backup generated from BlueReferral admin panel. Source code and config.php secrets are intentionally not included.',
+        'tables' => [],
+        'summary' => [],
+    ];
+    foreach ($tables as $table) {
+        $cols = backup_table_columns($table);
+        if (!$cols) continue;
+        $t = backup_safe_identifier($table);
+        $rows = db()->query("SELECT * FROM {$t}")->fetchAll(PDO::FETCH_ASSOC);
+        $out['tables'][$table] = ['columns' => $cols, 'rows' => $rows];
+        $out['summary'][$table] = count($rows);
+    }
+    return $out;
+}
+function backup_create_file_payload(): array {
+    $dump = backup_build_database_dump();
+    $json = json_encode($dump, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) throw new RuntimeException('BACKUP_JSON_ENCODE_FAILED');
+    $gz = gzencode($json, 6);
+    if ($gz === false) throw new RuntimeException('BACKUP_COMPRESS_FAILED');
+    $filename = 'blue-referral-backup-' . date('Ymd-His') . '.json.gz';
+    set_setting('backup_last_created_at', date('Y-m-d H:i:s'));
+    set_setting('backup_last_filename', $filename);
+    set_setting('backup_last_size', (string)strlen($gz));
+    return [
+        'filename' => $filename,
+        'mime' => 'application/gzip',
+        'size' => strlen($gz),
+        'created_at' => $dump['created_at'],
+        'summary' => $dump['summary'],
+        'content_base64' => base64_encode($gz),
+    ];
+}
+function backup_decode_uploaded_payload(string $filename, string $contentBase64): array {
+    $raw = base64_decode($contentBase64, true);
+    if ($raw === false || $raw === '') throw new RuntimeException('BACKUP_FILE_EMPTY_OR_INVALID_BASE64');
+    if (strlen($raw) > 25 * 1024 * 1024) throw new RuntimeException('BACKUP_FILE_TOO_LARGE');
+    $lower = strtolower($filename);
+    $json = null;
+    if (str_ends_with($lower, '.gz') || substr($raw, 0, 2) === "\x1f\x8b") {
+        $json = gzdecode($raw);
+        if ($json === false) throw new RuntimeException('BACKUP_GZIP_DECODE_FAILED');
+    } elseif (str_ends_with($lower, '.json')) {
+        $json = $raw;
+    } elseif (str_ends_with($lower, '.zip') && class_exists('ZipArchive')) {
+        $tmp = tempnam(sys_get_temp_dir(), 'blue-backup-');
+        file_put_contents($tmp, $raw);
+        $zip = new ZipArchive();
+        if ($zip->open($tmp) !== true) { @unlink($tmp); throw new RuntimeException('BACKUP_ZIP_OPEN_FAILED'); }
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if ($name && preg_match('/\.json(\.gz)?$/i', $name)) {
+                $content = $zip->getFromIndex($i);
+                if ($content !== false) {
+                    $json = str_ends_with(strtolower($name), '.gz') ? gzdecode($content) : $content;
+                    break;
+                }
+            }
+        }
+        $zip->close(); @unlink($tmp);
+        if (!$json) throw new RuntimeException('BACKUP_JSON_NOT_FOUND_IN_ZIP');
+    } else {
+        $json = $raw;
+    }
+    $data = json_decode((string)$json, true);
+    if (!is_array($data) || ($data['format'] ?? '') !== 'blue-referral-db-backup' || empty($data['tables']) || !is_array($data['tables'])) {
+        throw new RuntimeException('BACKUP_FORMAT_NOT_SUPPORTED');
+    }
+    return $data;
+}
+function backup_restore_database_dump(array $dump): array {
+    $tables = $dump['tables'] ?? [];
+    if (!is_array($tables) || !$tables) throw new RuntimeException('BACKUP_HAS_NO_TABLES');
+    $existing = array_flip(backup_table_names());
+    $restored = [];
+    $skipped = [];
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+        foreach ($tables as $table => $payload) {
+            if (!is_string($table) || !preg_match('/^[A-Za-z0-9_]+$/', $table) || !isset($existing[$table])) { $skipped[] = (string)$table; continue; }
+            $backupCols = is_array($payload['columns'] ?? null) ? $payload['columns'] : [];
+            $currentCols = backup_table_columns($table);
+            $cols = array_values(array_filter($backupCols, fn($c) => is_string($c) && in_array($c, $currentCols, true) && preg_match('/^[A-Za-z0-9_]+$/', $c)));
+            if (!$cols) { $skipped[] = $table; continue; }
+            $t = backup_safe_identifier($table);
+            $pdo->exec("TRUNCATE TABLE {$t}");
+            $rows = is_array($payload['rows'] ?? null) ? $payload['rows'] : [];
+            if ($rows) {
+                $colSql = implode(',', array_map('backup_safe_identifier', $cols));
+                $placeholders = implode(',', array_fill(0, count($cols), '?'));
+                $stmt = $pdo->prepare("INSERT INTO {$t} ({$colSql}) VALUES ({$placeholders})");
+                foreach ($rows as $row) {
+                    if (!is_array($row)) continue;
+                    $values = [];
+                    foreach ($cols as $c) $values[] = array_key_exists($c, $row) ? $row[$c] : null;
+                    $stmt->execute($values);
+                }
+            }
+            $restored[$table] = count($rows);
+        }
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+        $pdo->commit();
+    } catch (Throwable $e) {
+        try { $pdo->exec('SET FOREIGN_KEY_CHECKS=1'); } catch (Throwable $x) {}
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    set_setting('backup_last_restored_at', date('Y-m-d H:i:s'));
+    return ['restored' => $restored, 'skipped' => $skipped, 'created_at' => $dump['created_at'] ?? null];
+}
+function backup_status(): array {
+    $tables = [];
+    foreach (backup_table_names() as $t) $tables[$t] = backup_row_count($t);
+    return [
+        'last_created_at' => setting('backup_last_created_at', ''),
+        'last_restored_at' => setting('backup_last_restored_at', ''),
+        'last_filename' => setting('backup_last_filename', ''),
+        'last_size' => (int)setting('backup_last_size', 0),
+        'tables' => $tables,
+        'max_upload_mb' => 25,
+        'format' => '.json.gz',
+    ];
+}
+
 function verify_webapp_init_data(string $initData): array|false {
     $token = app_config('BOT_TOKEN');
     parse_str($initData, $data);
