@@ -278,3 +278,9 @@ html,body{
   .product-tile .tile-img img{border-radius:20px}
   .detail-hero.product-hero{width:min(200px,64vw);height:min(200px,64vw);padding:20px}
 }
+
+/* Backup center */
+.backup-dashboard .danger-zone{border-color:rgba(239,68,68,.35);box-shadow:0 18px 50px rgba(239,68,68,.10)}
+.backup-dashboard input[type="file"]{width:100%;padding:14px;border:1px dashed rgba(148,163,184,.35);border-radius:18px;background:rgba(15,23,42,.55);color:var(--text);margin:10px 0}
+.backup-dashboard .builder-list{max-height:360px;overflow:auto;padding-inline-end:4px}
+.backup-dashboard .builder-row.compact{padding:10px 12px}
