@@ -96,6 +96,7 @@ function admin_payload(): array {
         'categories'=>array_map('category_payload', shop_categories(false)),
         'inventory'=>inventory_items_for_admin(150),
         'variants'=>db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 150')->fetchAll(),
+        'backup'=>backup_status(),
         'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','auto'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_refresh_interval_seconds'=>setting_int('crypto_rate_refresh_interval_seconds', 600), 'crypto_rate_cache'=>crypto_rate_cache(), 'crypto_rate_last_result'=>setting_json('crypto_rate_last_result', []), 'crypto_rate_provider_priority'=>setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines()]
     ];
 }
@@ -161,6 +162,32 @@ if ($action === 'admin_save_settings') {
 }
 
 
+
+
+if ($action === 'admin_create_backup') {
+    require_admin($user);
+    try {
+        $backup = backup_create_file_payload();
+        api_out(admin_payload() + ['backup_file'=>$backup, 'message'=>'بکاپ ساخته شد.']);
+    } catch (Throwable $e) {
+        api_out(admin_payload() + ['ok'=>false, 'error'=>$e->getMessage(), 'message'=>'ساخت بکاپ انجام نشد.'], 500);
+    }
+}
+
+if ($action === 'admin_restore_backup') {
+    require_admin($user);
+    $confirm = (string)($input['confirm'] ?? '');
+    if ($confirm !== 'RESTORE') api_out(['ok'=>false, 'error'=>'RESTORE_CONFIRM_REQUIRED', 'message'=>'برای ریستور باید عبارت RESTORE تایید شود.'], 400);
+    try {
+        $filename = (string)($input['filename'] ?? 'backup.json.gz');
+        $content = (string)($input['content_base64'] ?? '');
+        $dump = backup_decode_uploaded_payload($filename, $content);
+        $result = backup_restore_database_dump($dump);
+        api_out(admin_payload() + ['restore_result'=>$result, 'message'=>'بکاپ با موفقیت ریستور شد.']);
+    } catch (Throwable $e) {
+        api_out(['ok'=>false, 'error'=>$e->getMessage(), 'message'=>'ریستور بکاپ انجام نشد. فایل یا ساختار بکاپ را بررسی کن.'], 400);
+    }
+}
 if ($action === 'admin_refresh_crypto_rates') {
     require_admin($user);
     try {
