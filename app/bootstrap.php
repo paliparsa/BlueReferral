@@ -127,8 +127,23 @@ function migrate(): void {
     // Safe Commerce Plus upgrade columns. These commands are idempotent and keep older installs intact.
     add_column_if_missing('product_categories', 'image_url', 'VARCHAR(1024) NULL AFTER emoji');
     add_column_if_missing('products', 'image_url', 'VARCHAR(1024) NULL AFTER full_description');
+    add_column_if_missing('products', 'price_currency', "VARCHAR(8) NOT NULL DEFAULT 'IRT' AFTER price");
+    add_column_if_missing('products', 'price_usd', 'DECIMAL(14,4) NULL AFTER price_currency');
+    add_column_if_missing('products', 'price_rate_toman', 'DECIMAL(24,6) NULL AFTER price_usd');
+    add_column_if_missing('products', 'price_rate_source', 'VARCHAR(32) NULL AFTER price_rate_toman');
+    add_column_if_missing('products', 'price_rate_updated_at', 'DATETIME NULL AFTER price_rate_source');
+    add_column_if_missing('product_variants', 'price_currency', "VARCHAR(8) NOT NULL DEFAULT 'IRT' AFTER price");
+    add_column_if_missing('product_variants', 'price_usd', 'DECIMAL(14,4) NULL AFTER price_currency');
+    add_column_if_missing('product_variants', 'price_rate_toman', 'DECIMAL(24,6) NULL AFTER price_usd');
+    add_column_if_missing('product_variants', 'price_rate_source', 'VARCHAR(32) NULL AFTER price_rate_toman');
+    add_column_if_missing('product_variants', 'price_rate_updated_at', 'DATETIME NULL AFTER price_rate_source');
     add_column_if_missing('products', 'is_featured', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active');
     add_column_if_missing('orders', 'variant_id', 'BIGINT UNSIGNED NULL AFTER product_id');
+    add_column_if_missing('orders', 'price_currency', "VARCHAR(8) NOT NULL DEFAULT 'IRT' AFTER final_amount");
+    add_column_if_missing('orders', 'price_usd', 'DECIMAL(14,4) NULL AFTER price_currency');
+    add_column_if_missing('orders', 'usd_rate_toman', 'DECIMAL(24,6) NULL AFTER price_usd');
+    add_column_if_missing('orders', 'usd_rate_source', 'VARCHAR(32) NULL AFTER usd_rate_toman');
+    add_column_if_missing('orders', 'usd_rate_updated_at', 'DATETIME NULL AFTER usd_rate_source');
     add_column_if_missing('orders', 'expires_at', 'DATETIME NULL AFTER delivery_text');
     add_column_if_missing('orders', 'delivered_inventory_id', 'BIGINT UNSIGNED NULL AFTER delivery_text');
     add_column_if_missing('orders', 'customer_note', 'TEXT NULL AFTER payment_note');
@@ -594,7 +609,8 @@ function crypto_refresh_rates_from_providers(bool $notify=true): array {
         $failed[$asset] = $hasCache ? 'USING_LAST_CACHE' : ($hasManual ? 'USING_MANUAL_RATE' : 'NO_PROVIDER_RATE');
     }
     set_crypto_rate_cache($cache);
-    $result = ['updated'=>$updated,'failed'=>$failed,'providers'=>$providers,'source'=>$source ?: 'auto','attempts'=>$attempts,'cache'=>$cache];
+    $usdProductPricesUpdated = refresh_usd_product_price_cache();
+    $result = ['updated'=>$updated,'failed'=>$failed,'providers'=>$providers,'source'=>$source ?: 'auto','attempts'=>$attempts,'cache'=>$cache,'usd_product_prices_updated'=>$usdProductPricesUpdated];
     set_setting('crypto_rate_last_result', $result);
     if ($failed && $notify && setting_bool('crypto_notify_rate_fail', true)) {
         $key='crypto_rate_last_fail_alert'; $last=(int)setting($key, 0);
@@ -1772,10 +1788,82 @@ function find_or_create_category(string $title, string $emoji='🛒'): int {
     db()->prepare('INSERT INTO product_categories (title,emoji,sort_order) VALUES (?,?,99)')->execute([$title,$emoji]);
     return (int)db()->lastInsertId();
 }
+function normalize_price_currency($currency): string {
+    $c = strtoupper(trim((string)$currency));
+    return in_array($c, ['USD','USDT','$'], true) ? 'USD' : 'IRT';
+}
+function decimal_price($value): float {
+    if (is_int($value) || is_float($value)) return max(0.0, (float)$value);
+    $v = trim(str_replace([',',' '], '', (string)$value));
+    $v = str_replace(['٫','٬'], ['.',''], $v);
+    return is_numeric($v) ? max(0.0, (float)$v) : 0.0;
+}
+function usd_toman_rate_meta(): array {
+    $meta = crypto_rate_meta('USDT');
+    $rate = (float)($meta['rate'] ?? 0);
+    return ['rate'=>$rate, 'source'=>(string)($meta['source'] ?? 'manual'), 'updated_at'=>$meta['updated_at'] ?? null, 'is_live'=>!empty($meta['is_live'])];
+}
+function usd_to_toman(float $usd): int {
+    $meta = usd_toman_rate_meta();
+    $rate = (float)$meta['rate'];
+    return $usd > 0 && $rate > 0 ? (int)round($usd * $rate) : 0;
+}
+function price_runtime_meta(array $row, string $prefix=''): array {
+    $currency = normalize_price_currency($row[$prefix.'price_currency'] ?? 'IRT');
+    $storedToman = max(0, (int)($row[$prefix.'price'] ?? 0));
+    $usd = decimal_price($row[$prefix.'price_usd'] ?? 0);
+    $rateMeta = usd_toman_rate_meta();
+    $rate = (float)$rateMeta['rate'];
+    if ($currency === 'USD' && $usd > 0 && $rate > 0) {
+        $toman = (int)round($usd * $rate);
+        return ['currency'=>'USD','usd'=>$usd,'toman'=>$toman,'rate_toman'=>$rate,'rate_source'=>$rateMeta['source'],'rate_updated_at'=>$rateMeta['updated_at'],'dynamic'=>true,'label'=>money($toman)];
+    }
+    return ['currency'=>'IRT','usd'=>null,'toman'=>$storedToman,'rate_toman'=>null,'rate_source'=>null,'rate_updated_at'=>null,'dynamic'=>false,'label'=>money($storedToman)];
+}
+function product_current_price_toman(array $p): int { return (int)price_runtime_meta($p)['toman']; }
+function variant_current_price_toman(array $v): int { return (int)price_runtime_meta($v)['toman']; }
+function price_admin_payload_from_input(array $input): array {
+    $currency = normalize_price_currency($input['price_currency'] ?? 'IRT');
+    if ($currency === 'USD') {
+        $usd = decimal_price($input['price_usd'] ?? $input['price'] ?? 0);
+        if ($usd <= 0) throw new RuntimeException('INVALID_USD_PRICE');
+        $meta = usd_toman_rate_meta();
+        $toman = usd_to_toman($usd);
+        if ($toman <= 0) throw new RuntimeException('USD_RATE_NOT_AVAILABLE');
+        return ['price'=>$toman,'price_currency'=>'USD','price_usd'=>$usd,'price_rate_toman'=>(float)$meta['rate'],'price_rate_source'=>(string)$meta['source'],'price_rate_updated_at'=>date('Y-m-d H:i:s')];
+    }
+    $toman = parse_amount($input['price'] ?? 0);
+    if ($toman <= 0) throw new RuntimeException('INVALID_TOMAN_PRICE');
+    return ['price'=>$toman,'price_currency'=>'IRT','price_usd'=>null,'price_rate_toman'=>null,'price_rate_source'=>null,'price_rate_updated_at'=>null];
+}
+function refresh_usd_product_price_cache(): int {
+    $meta = usd_toman_rate_meta();
+    $rate = (float)$meta['rate'];
+    if ($rate <= 0) return 0;
+    $count = 0;
+    try {
+        $q = db()->prepare('UPDATE products SET price=ROUND(price_usd * ?), price_rate_toman=?, price_rate_source=?, price_rate_updated_at=NOW() WHERE price_currency="USD" AND price_usd IS NOT NULL AND price_usd>0');
+        $q->execute([$rate,$rate,(string)$meta['source']]); $count += $q->rowCount();
+    } catch (Throwable $e) {}
+    try {
+        $q = db()->prepare('UPDATE product_variants SET price=ROUND(price_usd * ?), price_rate_toman=?, price_rate_source=?, price_rate_updated_at=NOW() WHERE price_currency="USD" AND price_usd IS NOT NULL AND price_usd>0');
+        $q->execute([$rate,$rate,(string)$meta['source']]); $count += $q->rowCount();
+    } catch (Throwable $e) {}
+    return $count;
+}
+function price_meta_public(array $row): array {
+    $m = price_runtime_meta($row);
+    return ['currency'=>$m['currency'], 'usd'=>$m['usd'], 'toman'=>$m['toman'], 'rate_toman'=>$m['rate_toman'], 'rate_source'=>$m['rate_source'], 'rate_updated_at'=>$m['rate_updated_at'], 'dynamic'=>$m['dynamic'], 'label'=>$m['label']];
+}
 function product_price_label(array $p): string {
     $vc=(int)($p['variant_count'] ?? 0);
-    if ($vc > 0) return 'از '.money((int)($p['min_variant_price'] ?: $p['price']));
-    return money((int)$p['price']);
+    if ($vc > 0) {
+        $prices=[];
+        try { foreach (product_variants((int)$p['id'], true) as $v) $prices[] = variant_current_price_toman($v); } catch (Throwable $e) {}
+        $prices = array_values(array_filter($prices, fn($x)=>$x>0));
+        if ($prices) return 'از '.money(min($prices));
+    }
+    return price_runtime_meta($p)['label'];
 }
 function product_commission_text(array $p): string {
     if (($p['commission_type'] ?? 'none') === 'percent') return ((int)$p['commission_value']).'٪';
@@ -1812,17 +1900,21 @@ function create_shop_order(int $userId, int $productId, ?int $variantId=null): a
         $variants = product_variants($productId, true);
         if (count($variants) > 0) throw new RuntimeException('VARIANT_REQUIRED');
     }
-    $amount = $variant ? (int)$variant['price'] : (int)$p['price'];
+    $priceRow = $variant ?: $p;
+    $priceMeta = price_runtime_meta($priceRow);
+    $amount = (int)$priceMeta['toman'];
+    if ($amount <= 0) throw new RuntimeException('PRICE_NOT_AVAILABLE');
     $duration = $variant ? (int)$variant['duration_days'] : (int)($p['duration_days'] ?? 0);
     $expiresAt = $duration > 0 ? date('Y-m-d H:i:s', time() + $duration * 86400) : null;
-    db()->prepare('INSERT INTO orders (user_id, product_id, variant_id, amount, final_amount, status, expires_at) VALUES (?,?,?,?,?,?,?)')->execute([$userId,$productId,$variantId,$amount,$amount,'pending_payment',$expiresAt]);
+    db()->prepare('INSERT INTO orders (user_id, product_id, variant_id, amount, final_amount, price_currency, price_usd, usd_rate_toman, usd_rate_source, usd_rate_updated_at, status, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$userId,$productId,$variantId,$amount,$amount,$priceMeta['currency'],$priceMeta['usd'],$priceMeta['rate_toman'],$priceMeta['rate_source'],$priceMeta['rate_updated_at'] ? date('Y-m-d H:i:s', strtotime($priceMeta['rate_updated_at'])) : ($priceMeta['currency']==='USD'?date('Y-m-d H:i:s'):null),'pending_payment',$expiresAt]);
     $orderId = (int)db()->lastInsertId();
     add_order_event($orderId, 'pending_payment', 'سفارش ثبت شد', 'در انتظار پرداخت مشتری');
     return order_by_id($orderId);
 }
 function order_by_id(int $id) {
     $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type, p.commission_type, p.commission_value, p.short_description, p.full_description, p.image_url, p.duration_days product_duration_days,
-        v.title variant_title, v.price variant_price, v.duration_days variant_duration_days,
+        p.price_currency product_price_currency, p.price_usd product_price_usd, p.price_rate_toman product_price_rate_toman, p.price_rate_source product_price_rate_source, p.price_rate_updated_at product_price_rate_updated_at,
+        v.title variant_title, v.price variant_price, v.price_currency variant_price_currency, v.price_usd variant_price_usd, v.price_rate_toman variant_price_rate_toman, v.price_rate_source variant_price_rate_source, v.price_rate_updated_at variant_price_rate_updated_at, v.duration_days variant_duration_days,
         u.telegram_id, u.username, u.first_name, u.referrer_id
         FROM orders o
         JOIN products p ON p.id=o.product_id
@@ -2128,6 +2220,7 @@ function order_public_payload(array $o): array {
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
         'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'],
+        'price_currency'=>normalize_price_currency($o['price_currency'] ?? 'IRT'), 'price_usd'=>isset($o['price_usd']) && $o['price_usd'] !== null ? (float)$o['price_usd'] : null, 'usd_rate_toman'=>isset($o['usd_rate_toman']) && $o['usd_rate_toman'] !== null ? (float)$o['usd_rate_toman'] : null, 'usd_rate_source'=>$o['usd_rate_source'] ?? null, 'usd_rate_updated_at'=>$o['usd_rate_updated_at'] ?? null,
         'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
         'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])), 'crypto_fee_notice'=>'این مبلغ باید دقیقاً به کیف پول مقصد برسد؛ کارمزد صرافی/شبکه بر عهده شماست.', 'swapwallet_invoice'=>null,
         'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
@@ -2205,7 +2298,7 @@ function category_rows_keyboard(string $prefix): array {
 }
 function variant_rows_keyboard(int $productId, string $prefix): array {
     $rows=[];
-    foreach (product_variants($productId, true) as $v) $rows[] = [['text'=>'#'.$v['id'].' - '.$v['title'].' | '.money((int)$v['price']), 'callback_data'=>$prefix.$v['id']]];
+    foreach (product_variants($productId, true) as $v) $rows[] = [['text'=>'#'.$v['id'].' - '.$v['title'].' | '.price_runtime_meta($v)['label'], 'callback_data'=>$prefix.$v['id']]];
     $rows[] = [['text'=>'بدون پلن / برای کل محصول', 'callback_data'=>$prefix.'0']];
     return $rows;
 }
@@ -2217,8 +2310,9 @@ function set_product_image(int $productId, ?string $url): void { db()->prepare('
 function set_category_image(int $categoryId, ?string $url): void { db()->prepare('UPDATE product_categories SET image_url=? WHERE id=?')->execute([$url, $categoryId]); }
 function create_product_from_wizard(array $p): int {
     $commission = $p['commission_type'] ?? 'none'; if (!in_array($commission, ['none','fixed','percent'], true)) $commission='none';
-    db()->prepare('INSERT INTO products (category_id,name,price,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-        ->execute([!empty($p['category_id'])?(int)$p['category_id']:null, $p['name'] ?? '', (int)($p['price'] ?? 0), $p['short_description'] ?? '', $p['full_description'] ?? ($p['short_description'] ?? ''), $p['image_url'] ?? null, normalize_delivery_type($p['delivery_type'] ?? 'manual'), $commission, (int)($p['commission_value'] ?? 0), (int)($p['duration_days'] ?? 0), !empty($p['is_featured'])?1:0]);
+    $pp = price_admin_payload_from_input($p);
+    db()->prepare('INSERT INTO products (category_id,name,price,price_currency,price_usd,price_rate_toman,price_rate_source,price_rate_updated_at,short_description,full_description,image_url,delivery_type,commission_type,commission_value,duration_days,is_featured) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([!empty($p['category_id'])?(int)$p['category_id']:null, $p['name'] ?? '', $pp['price'], $pp['price_currency'], $pp['price_usd'], $pp['price_rate_toman'], $pp['price_rate_source'], $pp['price_rate_updated_at'], $p['short_description'] ?? '', $p['full_description'] ?? ($p['short_description'] ?? ''), $p['image_url'] ?? null, normalize_delivery_type($p['delivery_type'] ?? 'manual'), $commission, (int)($p['commission_value'] ?? 0), (int)($p['duration_days'] ?? 0), !empty($p['is_featured'])?1:0]);
     return (int)db()->lastInsertId();
 }
 function create_category_from_wizard(array $p): int {
@@ -2263,9 +2357,9 @@ function hard_delete_inventory(int $inventoryId): bool {
     return $d->rowCount() > 0;
 }
 function update_product_field(int $id, string $field, $value): bool {
-    $allowed=['category_id','name','price','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured'];
+    $allowed=['category_id','name','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured'];
     if (!in_array($field,$allowed,true)) return false;
-    if (in_array($field,['price','commission_value','duration_days','is_active','is_featured'],true)) $value=(int)parse_amount($value);
+    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','commission_value','duration_days','is_active','is_featured'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
     if ($field==='category_id') $value = ((int)$value > 0) ? (int)$value : null;
     if ($field==='delivery_type') $value=normalize_delivery_type((string)$value);
     if ($field==='commission_type' && !in_array($value,['none','fixed','percent'],true)) $value='none';
@@ -2277,8 +2371,8 @@ function update_category_field(int $id, string $field, $value): bool {
     $q=db()->prepare("UPDATE product_categories SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 function update_variant_field(int $id, string $field, $value): bool {
-    $allowed=['title','price','duration_days','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
-    if (in_array($field,['price','duration_days','sort_order','is_active'],true)) $value=(int)parse_amount($value);
+    $allowed=['title','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','duration_days','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
+    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','duration_days','sort_order','is_active'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
     $q=db()->prepare("UPDATE product_variants SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 function update_inventory_field(int $id, string $field, $value): bool {
