@@ -1147,3 +1147,95 @@ $CRYPTO_RATE_PROVIDER_PRIORITY = 'wallex,ramzinex,nobitex';
 ```
 
 در پنل ادمین دکمه «رفرش نرخ از Wallex/Ramzinex/Nobitex» نرخ را دستی refresh می‌کند و آخرین cache، Provider موفق و خطاهای fallback نمایش داده می‌شود.
+
+## Stable Admin Backup / Restore
+
+This version adds a stable backup system that does not depend only on Mini App browser downloads.
+
+Admin Mini App:
+- Admin Panel → Backup tab
+- Create backup on server
+- Send backup to admin Telegram chat
+- List server backups
+- Download/delete server backups
+- Upload `.json.gz` backup and restore
+- Restore creates a safety backup automatically before replacing the database
+
+Bot chat admin commands:
+
+```text
+/backup
+/restore_backup
+```
+
+Server-side backups are saved here:
+
+```text
+/var/www/bluereferral/storage/backups/
+```
+
+Backup format:
+
+```text
+blue-referral-backup-YYYYMMDD-HHMMSS.json.gz
+```
+
+SFTP path:
+
+```text
+/var/www/bluereferral/storage/backups/
+```
+
+Notes:
+- Backups include database content: users, wallet balances, referrals, settings, products, categories, variants, inventory, orders, crypto wallets/checks, and rate cache.
+- Backups do not include `config.php`, bot token, database password, source code, or OS-level files.
+- Keep `config.php` and the project ZIP/GitHub repo separately.
+
+
+## DeviceAdaptive + BackupStable Merge
+- Backup/Restore server files are included: public/backup_download.php and public/backup_upload.php.
+- Admin Backup tab preserved.
+- Bot commands /backup and /restore_backup preserved.
+- iOS/Android responsive Mini App UI preserved.
+
+## Update: Dual Currency Product Pricing + Liquid Toggle UI
+
+This version keeps all previous BackupStable, DeviceAdaptive UI, Square Product Image, Manual Crypto and Multi-Rate-Provider features, and adds product pricing in either Toman or USD.
+
+### Product pricing behavior
+
+- Admin can set each product and variant price as **Toman** or **USD/USDT**.
+- If price is set as Toman, the exact Toman amount is shown to users.
+- If price is set as USD, the Mini App converts it to Toman using the cached USDT/Toman rate from the rate providers:
+  `Wallex -> Ramzinex -> Nobitex -> Manual/Cache fallback`.
+- Users see the **Toman price** in the shop and product page.
+- The USD base price is only shown to users inside the crypto/payment flow, where it is relevant.
+- External exchange APIs are still only called by cron/admin refresh, not during normal Mini App page loads.
+
+### Required migration
+
+Run the database migration after updating:
+
+```bash
+sudo blue-ref
+# then choose:
+# Update project from GitHub
+# Run database migration
+# Install/repair crypto payment cron
+# Set Telegram webhook
+```
+
+### Cron
+
+Keep the split cron setup:
+
+```cron
+* * * * * php /var/www/bluereferral/public/cron_crypto.php --check-payments >/dev/null 2>&1
+*/10 * * * * php /var/www/bluereferral/public/cron_crypto.php --refresh-rates >/dev/null 2>&1
+```
+
+`--refresh-rates` also refreshes cached Toman values for USD-priced products and variants.
+
+### UI update
+
+Switches and toggle-style controls were redesigned with a soft liquid/glass style inspired by iOS-like toggles, while preserving Android-friendly layout and the existing DeviceAdaptive UI.
