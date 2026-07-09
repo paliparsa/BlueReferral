@@ -284,30 +284,177 @@ html,body{
 .device-ios .admin-card,.device-ios .detail-card,.device-ios .product-tile,.device-ios .payment-box,.device-ios .price-editor{backdrop-filter:blur(28px) saturate(1.35);-webkit-backdrop-filter:blur(28px) saturate(1.35);background:linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,255,.055))!important;border-color:rgba(255,255,255,.18)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 18px 45px rgba(0,0,0,.24)!important}
 @media(max-width:560px){.price-editor-grid{grid-template-columns:1fr}.price-editor{padding:12px;border-radius:22px}.price-editor-head>span{width:40px;height:40px;border-radius:15px}}
 
-/* Order confirmation/history overlap fix */
-#ordersPage{
-  padding-bottom:calc(150px + env(safe-area-inset-bottom));
-}
-#ordersPage .order-list{
-  padding-bottom:32px;
-}
-#ordersPage .order-detail-page{
-  padding-bottom:calc(130px + env(safe-area-inset-bottom));
-  overflow:visible;
-}
-#ordersPage .timeline{
-  margin-bottom:18px;
-}
-#ordersPage .sticky-actions{
-  position:static;
-  bottom:auto;
-  margin-top:18px;
-  padding:14px;
-  border-radius:24px;
-  background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
-  border:1px solid rgba(255,255,255,.12);
-}
+/* ===== Admin Panel v2 — Accordion + Smooth Transitions ===== */
+/* Content fade-in on tab switch */
+.admin-content-enter{animation:adminFadeIn .42s cubic-bezier(0.2,0.8,0.2,1) both}
+@keyframes adminFadeIn{from{opacity:0;transform:translateY(14px) scale(0.985);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+/* Staggered child entrance */
+.stagger-in{animation:staggerIn .4s cubic-bezier(0.2,0.8,0.2,1) both;animation-delay:calc(var(--stagger-i,0) * 38ms)}
+@keyframes staggerIn{from{opacity:0;transform:translateY(10px) scale(0.98)}to{opacity:1;transform:none}}
+
+/* Admin card head — consistent icon + title pattern */
+.admin-card-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.admin-card-icon{width:44px;height:44px;flex:0 0 auto;border-radius:16px;display:grid;place-items:center;font-size:22px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 30%,#ffffff10),color-mix(in srgb,var(--accent) 12%,#ffffff08));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 22%,transparent)}
+.admin-card-head h3{margin-bottom:3px;font-size:17px;font-weight:800}
+.admin-card-head .muted{font-size:12.5px;line-height:1.6}
+.admin-add-card{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 12%,var(--card)),var(--card))!important;border-color:color-mix(in srgb,var(--accent) 25%,rgba(255,255,255,0.08))!important}
+
+/* Mini chips for inline metadata */
+.chip-mini{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.5;margin-left:4px;vertical-align:middle}
+.chip-count{background:color-mix(in srgb,var(--accent) 18%,#000);color:#d7ebff;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.chip-active{background:color-mix(in srgb,var(--success) 18%,#000);color:#bbf7d0;border:1px solid color-mix(in srgb,var(--success) 40%,transparent)}
+.chip-off{background:color-mix(in srgb,var(--muted) 22%,#000);color:#cbd5e1;border:1px solid rgba(255,255,255,0.08)}
+.chip-featured{background:color-mix(in srgb,var(--warning) 18%,#000);color:#fde68a;border:1px solid color-mix(in srgb,var(--warning) 40%,transparent)}
+.chip-price{background:rgba(255,255,255,0.06);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);direction:ltr;display:inline-block}
+
+/* Admin ID badge */
+.admin-id-badge,.variant-id-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10.5px;font-weight:700;background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid rgba(255,255,255,0.08);margin-right:6px;vertical-align:middle}
+
+/* Admin item with thumb + main column */
+.admin-item-head{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.admin-item-thumb{width:50px;height:50px;flex:0 0 auto;border-radius:15px;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 24%,#101827),#0b0f17);display:grid;place-items:center;font-size:24px}
+.admin-item-thumb img{width:100%;height:100%;object-fit:cover}
+.admin-item-thumb.emoji-thumb{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 20%,#ffffff12),#ffffff08)}
+.admin-item-main{flex:1;min-width:0}
+.admin-item-main h4{margin-bottom:5px;font-size:15.5px;font-weight:800;line-height:1.4}
+.admin-item-main .muted{font-size:12px;line-height:1.7}
+
+/* Dashboard hero upgrades */
+.dashboard-hero{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 16%,var(--card)),var(--card))!important}
+.dashboard-quick-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.dq-stat{padding:11px 8px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);text-align:center}
+.dq-stat b{display:block;font-size:18px;font-weight:900;margin-bottom:3px;color:var(--text)}
+.dq-stat span{font-size:11px;color:var(--muted);line-height:1.4}
+.dashboard-quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:6px}
+.quick-action{display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 6px;border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03));border:1px solid rgba(255,255,255,0.08);transition:.22s transform var(--ease-ios),.22s background var(--ease-ios),.22s border-color var(--ease-ios);font-size:11px;font-weight:700;color:var(--text);cursor:pointer}
+.quick-action span{font-size:24px;transition:.22s transform var(--ease-spring)}
+.quick-action b{font-size:11.5px;color:var(--muted)}
+.quick-action:active{transform:scale(0.96)}
+.quick-action:hover{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 20%,#ffffff10),rgba(255,255,255,0.04));border-color:color-mix(in srgb,var(--accent) 35%,transparent);transform:translateY(-2px)}
+.quick-action:hover span{transform:scale(1.18) rotate(-4deg)}
+
+/* Top products list */
+.top-products-list{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.top-product-row{display:flex;align-items:center;gap:11px;padding:10px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);transition:.2s background,.2s border-color}
+.top-product-row:hover{background:rgba(255,255,255,0.06);border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
+.top-rank{width:32px;height:32px;flex:0 0 auto;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:13px;background:rgba(255,255,255,0.08);color:var(--muted)}
+.top-rank.rank-1{background:linear-gradient(135deg,#fbbf24,#d97706);color:#1f1300;box-shadow:0 4px 14px #fbbf2440}
+.top-rank.rank-2{background:linear-gradient(135deg,#cbd5e1,#94a3b8);color:#0f172a}
+.top-rank.rank-3{background:linear-gradient(135deg,#f97316,#c2410c);color:#1a0a00}
+.top-product-info{flex:1;min-width:0}
+.top-product-info b{display:block;font-size:14px;margin-bottom:3px}
+.top-product-info .muted{font-size:11.5px}
+
+/* Empty state card */
+.empty-state-card{text-align:center;padding:30px 20px!important}
+.empty-illustration{font-size:56px;margin-bottom:12px;animation:floatY 3s ease-in-out infinite}
+@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.empty-state-card h3{margin-bottom:8px}
+
+/* Warning card (orphans) */
+.warning-card{border-color:color-mix(in srgb,var(--warning) 30%,rgba(255,255,255,0.08))!important;background:linear-gradient(145deg,color-mix(in srgb,var(--warning) 10%,var(--card)),var(--card))!important}
+
+/* ===== Accordion (Plans grouped by product) ===== */
+.admin-accordion-group{display:flex;flex-direction:column;gap:11px;margin-top:6px}
+.accordion-card{border-radius:22px;background:var(--card);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);overflow:hidden;box-shadow:0 8px 26px #0003;transition:.32s border-color var(--ease-ios),.32s box-shadow var(--ease-ios),.32s background var(--ease-ios)}
+.accordion-card.expanded{border-color:color-mix(in srgb,var(--accent) 38%,rgba(255,255,255,0.12));box-shadow:0 14px 38px color-mix(in srgb,var(--accent) 14%,#0006);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 6%,var(--card)),var(--card))}
+.accordion-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:.2s background var(--ease-ios);outline:none}
+.accordion-header:hover,.accordion-header:focus-visible{background:rgba(255,255,255,0.04)}
+.accordion-header:active{background:rgba(255,255,255,0.07)}
+.accordion-product-info{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.accordion-product-thumb{width:48px;height:48px;flex:0 0 auto;border-radius:15px;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 24%,#101827),#0b0f17);display:grid;place-items:center;font-size:24px}
+.accordion-product-thumb img{width:100%;height:100%;object-fit:cover}
+.accordion-product-meta{flex:1;min-width:0}
+.accordion-product-meta h4{font-size:15.5px;font-weight:800;margin-bottom:5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.accordion-product-meta .muted{font-size:11.5px;line-height:1.7}
+.accordion-chevron{flex:0 0 auto;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,0.06);color:var(--muted);transition:.32s transform var(--ease-spring),.32s background var(--ease-ios),.32s color var(--ease-ios)}
+.accordion-card.expanded .accordion-chevron{transform:rotate(180deg);background:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--text)}
+
+/* Accordion body — smooth grid-template-rows trick for height animation */
+.accordion-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .36s cubic-bezier(0.2,0.8,0.2,1)}
+.accordion-card.expanded .accordion-body{grid-template-rows:1fr}
+.accordion-body-inner{overflow:hidden;min-height:0}
+.accordion-card.expanded .accordion-body-inner{padding:0 14px 14px}
+/* Inner content fade-in when expanded */
+.accordion-body-inner>*{opacity:0;transform:translateY(-6px);transition:.28s opacity var(--ease-ios),.28s transform var(--ease-ios)}
+.accordion-card.expanded .accordion-body-inner>*{opacity:1;transform:none}
+.accordion-card.expanded .accordion-body-inner>*:nth-child(1){transition-delay:60ms}
+.accordion-card.expanded .accordion-body-inner>*:nth-child(2){transition-delay:90ms}
+.accordion-card.expanded .accordion-body-inner>*:nth-child(3){transition-delay:120ms}
+.accordion-card.expanded .accordion-body-inner>*:nth-child(4){transition-delay:150ms}
+.accordion-card.expanded .accordion-body-inner>*:nth-child(5){transition-delay:180ms}
+.accordion-card.expanded .accordion-body-inner>*:nth-child(n+6){transition-delay:200ms}
+
+/* Variant item inside accordion */
+.variant-item{padding:12px!important;margin:0 0 9px!important;border-radius:16px!important;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)}
+.variant-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:9px;flex-wrap:wrap}
+.variant-item-title{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.variant-item-title b{font-size:14.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.variant-item-meta{font-size:11.5px;color:var(--muted);line-height:1.7;text-align:left}
+.accordion-add-inline{width:100%;margin-top:5px;border:1px dashed color-mix(in srgb,var(--accent) 45%,rgba(255,255,255,0.1))!important;background:color-mix(in srgb,var(--accent) 8%,rgba(255,255,255,0.03))!important;color:#d7ebff!important}
+
+/* No-variants list */
+.no-variants-card .no-variants-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.no-variant-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:15px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);transition:.2s background,.2s border-color}
+.no-variant-row:hover{background:rgba(255,255,255,0.06);border-color:color-mix(in srgb,var(--accent) 30%,rgba(255,255,255,0.12))}
+.no-variant-row>div{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.no-variant-row b{font-size:14px}
+.no-variant-row .muted{font-size:11.5px}
+
+/* Admin stat card upgrade */
+.admin-stat-card{position:relative;overflow:hidden;transition:.3s transform var(--ease-ios),.3s box-shadow var(--ease-ios)}
+.admin-stat-card:hover{transform:translateY(-3px);box-shadow:0 14px 32px color-mix(in srgb,var(--accent) 14%,#0006)}
+.admin-stat-card:active{transform:scale(0.97)}
+.admin-stat-card b{background:linear-gradient(135deg,var(--accent),#ffffff60);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+/* Admin tabs upgrade — pill-style with sliding indicator feel */
+.admin-tabs{gap:6px!important;padding:6px!important}
+.admin-tabs button{padding:10px 14px!important;border-radius:16px!important;font-size:13px!important;font-weight:700!important;transition:.28s all var(--ease-spring)!important;position:relative}
+.admin-tabs button:not(.active){background:rgba(255,255,255,0.04)!important;color:var(--muted)!important;border:1px solid rgba(255,255,255,0.06)}
+.admin-tabs button:not(.active):hover{background:rgba(255,255,255,0.08)!important;color:var(--text)!important;transform:translateY(-1px)}
+.admin-tabs button.active{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 62%,#000))!important;color:#fff!important;box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 38%,transparent);transform:translateY(-1px)}
+
+/* Smooth admin-item hover */
+.admin-item{transition:.28s transform var(--ease-ios),.28s border-color var(--ease-ios),.28s box-shadow var(--ease-ios)}
+.admin-item:hover{border-color:color-mix(in srgb,var(--accent) 30%,rgba(255,255,255,0.12));box-shadow:0 12px 30px color-mix(in srgb,var(--accent) 10%,#0005)}
+.admin-item:active{transform:scale(0.992)}
+
+/* Admin actions buttons — gentler, more compact */
+.admin-actions{gap:7px!important;margin-top:11px!important}
+.admin-actions button{padding:9px 12px!important;font-size:12.5px!important;border-radius:13px!important;font-weight:700!important;transition:.22s transform var(--ease-ios),.22s background var(--ease-ios),.22s box-shadow var(--ease-ios)!important}
+.admin-actions button:hover{transform:translateY(-1px);box-shadow:0 6px 16px #0004}
+.admin-actions button:active{transform:scale(0.95)}
+
+/* Save floating button — pulse on hover */
+.save-floating{position:sticky;bottom:14px;z-index:5;animation:pulseGlow 2.6s ease-in-out infinite;margin-top:18px!important}
+
+/* Admin topbar reload button spin */
+#reloadAdmin{transition:.5s transform var(--ease-spring)!important}
+#reloadAdmin:active{transform:rotate(360deg) scale(0.92)!important}
+
+/* Responsive admin */
 @media(max-width:520px){
-  #ordersPage{padding-bottom:calc(165px + env(safe-area-inset-bottom));}
-  #ordersPage .order-detail-page{padding-bottom:calc(145px + env(safe-area-inset-bottom));}
+  .dashboard-quick-stats{grid-template-columns:repeat(2,1fr);gap:7px}
+  .dq-stat{padding:10px 6px}
+  .dq-stat b{font-size:16px}
+  .dashboard-quick-actions{grid-template-columns:repeat(3,1fr);gap:7px}
+  .quick-action{padding:11px 4px;font-size:10px}
+  .quick-action span{font-size:21px}
+  .quick-action b{font-size:10.5px}
+  .accordion-header{padding:12px}
+  .accordion-product-thumb{width:42px;height:42px;font-size:21px}
+  .accordion-product-meta h4{font-size:14.5px}
+  .accordion-product-meta .muted{font-size:11px}
+  .accordion-chevron{width:30px;height:30px}
+  .variant-item{padding:11px!important}
+  .variant-item-meta{font-size:11px;width:100%}
+  .no-variant-row{flex-direction:row;padding:10px 11px}
+  .admin-actions{gap:6px!important}
+  .admin-actions button{padding:8px 10px!important;font-size:12px!important}
+  .admin-card-head .muted{font-size:12px}
+  .top-rank{width:28px;height:28px;font-size:12px}
+}
+@media(max-width:380px){
+  .dashboard-quick-actions{grid-template-columns:repeat(2,1fr)}
+  .accordion-product-meta h4{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
