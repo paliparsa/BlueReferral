@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css?v=v6-batch2">
+  <link rel="stylesheet" href="style.css?v=v7-batch3">
 </head>
 <body>
   <div id="status" class="toast hidden"></div>
@@ -42,6 +42,7 @@
         <small>پنل مدیریت Mini App</small>
         <h1>BlueReferral Admin</h1>
       </div>
+      <button class="icon-btn" id="openCmdPalette" title="جستجوی دستور (⌘K)">⌘</button>
       <button class="icon-btn" id="reloadAdmin">↻</button>
     </header>
     <section id="adminStats" class="stats-grid"></section>
@@ -55,6 +56,8 @@
       <button data-admin-tab="withdrawals">برداشت‌ها</button>
       <button data-admin-tab="coupons">تخفیف</button>
       <button data-admin-tab="settings">تنظیمات</button>
+      <button data-admin-tab="activity">لاگ</button>
+      <button data-admin-tab="roles">نقش‌ها</button>
       <button data-admin-tab="backups">بکاپ</button>
     </nav>
     <section id="adminContent" class="admin-content"></section>
@@ -64,6 +67,10 @@
   <div id="cartSheet" class="cart-sheet"></div>
   <button id="cartFab" class="cart-fab hidden"><span>🛒</span><span class="cart-fab-badge">0</span></button>
   <div id="custDrawer" class="cust-drawer"></div>
+  <div id="previewSheet" class="preview-sheet"></div>
+  <div id="qrSheet" class="qr-sheet"></div>
+  <div id="onboarding" class="onboarding"></div>
+  <div id="cmdPalette" class="cmd-palette"><div class="cmd-inner"><input id="cmdInput" type="text" placeholder="جستجوی دستور یا تب..." autocomplete="off"><div id="cmdList" class="cmd-list"></div></div></div>
 
   <dialog id="inputDialog" class="dialog-card bottom-sheet">
     <form method="dialog">
@@ -88,6 +95,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=v6-batch2"></script>
+  <script src="app.js?v=v7-batch3"></script>
 </body>
 </html>
