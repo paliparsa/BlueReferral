@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css?v=v5-batch1">
+  <link rel="stylesheet" href="style.css?v=v6-batch2">
 </head>
 <body>
   <div id="status" class="toast hidden"></div>
@@ -52,6 +52,8 @@
       <button data-admin-tab="variants">پلن‌ها</button>
       <button data-admin-tab="inventory">انبار</button>
       <button data-admin-tab="orders">سفارش‌ها</button>
+      <button data-admin-tab="withdrawals">برداشت‌ها</button>
+      <button data-admin-tab="coupons">تخفیف</button>
       <button data-admin-tab="settings">تنظیمات</button>
       <button data-admin-tab="backups">بکاپ</button>
     </nav>
@@ -59,6 +61,9 @@
   </main>
 
   <div id="lightbox" class="lightbox"></div>
+  <div id="cartSheet" class="cart-sheet"></div>
+  <button id="cartFab" class="cart-fab hidden"><span>🛒</span><span class="cart-fab-badge">0</span></button>
+  <div id="custDrawer" class="cust-drawer"></div>
 
   <dialog id="inputDialog" class="dialog-card bottom-sheet">
     <form method="dialog">
@@ -83,6 +88,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=v5-batch1"></script>
+  <script src="app.js?v=v6-batch2"></script>
 </body>
 </html>
