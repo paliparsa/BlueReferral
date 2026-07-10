@@ -712,7 +712,8 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 
 /* U14 — Light theme */
 .light-theme{--bg:#f0f4fa;--card:rgba(255,255,255,0.7);--card2:rgba(255,255,255,0.5);--text:#0f172a;--muted:#64748b;--line:#cbd5e1;--shadow:0 18px 45px #0001}
-.light-theme body,.light-theme html{background:linear-gradient(180deg,#e8eef7,#f8fafc 55%,#eef2f7)}
+.light-theme body,.light-theme html{background:linear-gradient(180deg,#e8eef7,#f8fafc 55%,#eef2f7)!important}
+.light-theme body:before{display:none!important}
 .light-theme .glass{background:rgba(255,255,255,0.5);border:1px solid rgba(0,0,0,0.06)}
 .light-theme .topbar{background:rgba(255,255,255,0.6)!important}
 .light-theme .bottom-nav{background:rgba(255,255,255,0.6)!important;border:1px solid rgba(0,0,0,0.06)}
@@ -797,6 +798,28 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 .role-row .admin-item-main h4{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
 /* A16 — Chat shortcut handled by existing button styles */
+
+/* U9 — Shop filter bar */
+.shop-filter-bar{display:flex;gap:7px;overflow-x:auto;padding:8px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.shop-filter-bar::-webkit-scrollbar{display:none}
+.shop-sort-group,.shop-toggle-group{display:flex;gap:6px;flex:0 0 auto}
+.shop-filter-chip{padding:7px 13px;border-radius:13px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;transition:.18s background,.18s color,.18s border-color}
+.shop-filter-chip.active{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 60%,#000));color:#fff;border-color:var(--accent);box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent)}
+.shop-filter-chip:active{transform:scale(0.95)}
+
+/* U6 — Preview sheet close button + backdrop */
+.preview-sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);cursor:tap;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.preview-sheet-inner{position:relative;z-index:1}
+.preview-close-btn{position:absolute;top:12px;left:12px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;font-size:16px;border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(20px);cursor:pointer;display:grid;place-items:center}
+
+/* U13 — QR sheet backdrop */
+.qr-sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);cursor:pointer}
+.qr-sheet-inner{position:relative;z-index:1}
+.qr-sheet-handle{cursor:pointer}
+
+/* Light theme tweaks for shop filter chips */
+.light-theme .shop-filter-chip{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.08);color:#475569}
+.light-theme .shop-filter-chip.active{color:#fff}
 
 /* Responsive */
 @media(max-width:520px){
