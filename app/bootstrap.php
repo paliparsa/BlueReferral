@@ -2224,7 +2224,7 @@ function order_public_payload(array $o): array {
         'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
         'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])), 'crypto_fee_notice'=>'این مبلغ باید دقیقاً به کیف پول مقصد برسد؛ کارمزد صرافی/شبکه بر عهده شماست.', 'swapwallet_invoice'=>null,
         'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
-        'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null,
+        'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null, 'receipt_file_id'=>$o['receipt_file_id'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
         'user_hidden'=>(int)($o['user_hidden'] ?? 0), 'archived_at'=>$o['archived_at'] ?? null, 'created_at'=>$o['created_at']
