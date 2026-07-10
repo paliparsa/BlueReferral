@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../app/bootstrap.php';
+// Auto-migrate: ensure schema is current on every API request (idempotent, fast).
+if (!setting('schema_migrated_v2')) { migrate(); set_setting('schema_migrated_v2', '1'); }
 header('Content-Type: application/json; charset=utf-8');
 
 function api_out(array $data, int $code = 200): void { http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }

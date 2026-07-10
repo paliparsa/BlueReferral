@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../app/bootstrap.php';
+if (!setting('schema_migrated_v2')) { migrate(); set_setting('schema_migrated_v2', '1'); }
 
 $secret = $_GET['secret'] ?? '';
 $expected = app_config('WEBHOOK_SECRET', '');
