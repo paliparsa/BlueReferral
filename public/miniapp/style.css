@@ -491,7 +491,7 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 @media(min-width:760px){dialog.bottom-sheet{max-width:640px;left:50%;transform:translateX(-50%);border-radius:28px}}
 
 /* U5 — Pull-to-refresh */
-.ptr-indicator{position:fixed;top:0;left:50%;transform:translate(-50%,-60px);width:120px;height:48px;border-radius:0 0 24px 24px;background:rgba(7,17,31,0.85);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,0.1);border-top:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:700;color:var(--muted);z-index:50;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;will-change:transform,opacity}
+.ptr-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);width:120px;height:48px;border-radius:0 0 24px 24px;background:rgba(7,17,31,0.92);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,0.1);border-top:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:700;color:var(--muted);z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;will-change:opacity}
 .ptr-indicator.ready{color:var(--accent)}
 .ptr-indicator.ready .ptr-spinner{color:var(--accent)}
 .ptr-spinner{font-size:20px;display:grid;place-items:center;transition:color .2s}
@@ -813,4 +813,82 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 @media(max-width:380px){
   .badges-grid{grid-template-columns:repeat(2,1fr)}
   .vip-tiers{font-size:9px}
+}
+
+/* ===== Final UI polish: palette popup, collapsible sections, product card, spin wheel v2, referral card ===== */
+
+/* Color palette floating popup */
+.palette-popup{position:fixed;inset:0;z-index:68;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:20px}
+.palette-popup.open{display:flex;animation:fade .2s ease}
+.palette-popup-backdrop{position:absolute;inset:0;cursor:pointer}
+.palette-popup-inner{position:relative;z-index:1;width:100%;max-width:360px;background:rgba(17,24,39,0.97);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border-radius:24px;border:1px solid rgba(255,255,255,0.12);padding:24px 20px;animation:cmdIn .3s var(--ease-spring) both}
+.palette-popup-inner h3{font-size:18px;margin-bottom:8px}
+.palette-popup-inner .muted{font-size:12.5px;margin-bottom:14px}
+.palette-popup-close{position:absolute;top:12px;left:12px;z-index:2;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.08);color:var(--text);font-size:15px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;display:grid;place-items:center}
+.palette-popup-close:hover{background:rgba(255,255,255,0.15)}
+.palette-popup .palette{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.palette-popup .swatch{width:38px;height:38px;border-radius:14px;border:2px solid rgba(255,255,255,0.3)}
+.palette-popup .custom-color{display:flex!important;align-items:center;gap:8px;padding:7px 9px!important;border-radius:13px!important;background:rgba(255,255,255,0.08)!important;border:1px solid rgba(255,255,255,0.12)!important;width:100%;margin-top:6px}
+.palette-popup .custom-color span{font-size:11px;color:var(--muted)}
+.palette-popup .custom-color input[type=color]{width:34px;height:30px;border:0;padding:0;border-radius:10px;background:transparent}
+.palette-popup .wide{width:100%;margin-top:8px}
+
+/* Collapsible shop sections */
+details.section-collapsible{margin:16px 0}
+details.section-collapsible>summary{list-style:none;cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:6px 0}
+details.section-collapsible>summary::-webkit-details-marker{display:none}
+details.section-collapsible>summary h2{font-size:20px}
+.section-chevron{font-size:22px;color:var(--muted);transition:.3s transform var(--ease-ios)}
+details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90deg)}
+
+/* Product card improvements — rounded image corners */
+.product-tile{border-radius:22px!important;overflow:hidden}
+.tile-img{border-radius:16px;overflow:hidden;margin:8px 8px 0;position:relative}
+.tile-img img{border-radius:16px}
+.tile-img .tile-placeholder{border-radius:16px}
+.tile-body{padding:10px 12px 12px}
+.tile-body h3{font-size:15px;margin-bottom:4px}
+.tile-desc{font-size:11px;margin-bottom:6px}
+.product-tile{transition:.22s transform,.22s box-shadow,.22s border-color;animation:cardIn .28s ease both}
+.product-tile:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--accent) 42%,#ffffff13);box-shadow:0 14px 36px color-mix(in srgb,var(--accent) 18%,#0008)}
+.product-tile:active{transform:scale(0.98)}
+
+/* Spin wheel v2 — redesigned aesthetics */
+.spin-section-v2{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 8%,var(--card)),var(--card))!important;border-color:color-mix(in srgb,var(--accent) 20%,rgba(255,255,255,0.08))!important;padding:18px!important}
+.spin-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.spin-head-icon{font-size:32px;line-height:1;filter:drop-shadow(0 4px 12px color-mix(in srgb,var(--accent) 40%,transparent))}
+.spin-head-text{flex:1;min-width:0}
+.spin-head-text small{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+.spin-head-text h3{font-size:16px}
+.spin-chances-badge{flex:0 0 auto;text-align:center;padding:7px 12px;border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 25%,#000),color-mix(in srgb,var(--accent) 10%,#000));border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.spin-chances-badge b{display:block;font-size:18px;font-weight:900;color:#fff}
+.spin-chances-badge span{font-size:10px;color:#d7ebff}
+.spin-desc{font-size:12px;line-height:1.7;margin-bottom:14px}
+.wheel-stage{position:relative;display:grid;place-items:center;margin:16px auto 14px;max-width:280px}
+.wheel-pointer-v2{position:absolute;top:-6px;left:50%;transform:translateX(-50%);z-index:3;color:#fff;font-size:22px;filter:drop-shadow(0 4px 8px #000a);line-height:1}
+.wheel-glow{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 30%,transparent),transparent 70%);filter:blur(20px);z-index:0}
+.spin-wheel-v2{position:relative;z-index:1;width:min(70vw,260px);height:min(70vw,260px);max-width:260px;max-height:260px;border-radius:50%;border:6px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 22px #0009,0 18px 45px #0008,0 0 0 4px color-mix(in srgb,var(--accent) 20%,transparent)}
+.spin-wheel-v2:after{content:"";position:absolute;inset:14%;border-radius:50%;background:radial-gradient(circle,#111827 0 50%,rgba(255,255,255,0.1) 52% 100%);box-shadow:0 0 18px #0008}
+.wheel-center-v2{position:relative;z-index:2;width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),#111827);border:3px solid rgba(255,255,255,0.25);font-weight:900;font-size:12px;color:#fff;box-shadow:0 6px 22px color-mix(in srgb,var(--accent) 40%,transparent)}
+.wheel-center-v2 span{letter-spacing:1px}
+.spin-btn-v2{width:100%;font-size:15px!important;padding:14px!important;margin-top:4px}
+.spin-btn-v2:disabled{opacity:0.5;cursor:not-allowed}
+
+/* Referral card redesign */
+.referral-card{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 10%,var(--card)),var(--card))!important;border-color:color-mix(in srgb,var(--accent) 20%,rgba(255,255,255,0.08))!important}
+.referral-card-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px}
+.referral-icon{font-size:36px;line-height:1;flex:0 0 auto;filter:drop-shadow(0 4px 12px color-mix(in srgb,var(--accent) 40%,transparent))}
+.referral-card-head h3{font-size:16px;margin-bottom:6px}
+.referral-card-head .muted{font-size:12px;line-height:1.8}
+.referral-card .actions{margin-top:4px}
+
+/* Responsive */
+@media(max-width:520px){
+  .palette-popup-inner{padding:20px 16px}
+  .spin-head-icon{font-size:28px}
+  .spin-head-text h3{font-size:15px}
+  .spin-wheel-v2{width:min(68vw,240px);height:min(68vw,240px)}
+  .wheel-center-v2{width:56px;height:56px}
+  .referral-icon{font-size:30px}
+  .tile-img{margin:6px 6px 0}
 }
