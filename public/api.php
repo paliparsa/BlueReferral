@@ -135,6 +135,7 @@ if ($action === 'clear_canceled_orders') { $count=hide_user_cleanup_orders((int)
 
 // Admin Mini Panel actions
 if ($action === 'admin_summary') { require_admin($user); api_out(admin_payload()); }
+if ($action === 'get_receipt_url') { require_admin($user); $orderId=(int)($input['order_id']??0); $order=order_by_id($orderId); if(!$order) api_out(['ok'=>false,'error'=>'ORDER_NOT_FOUND','message'=>'سفارش پیدا نشد.'],404); $fid=trim((string)($order['receipt_file_id']??'')); if($fid==='') api_out(['ok'=>false,'error'=>'NO_RECEIPT_IMAGE','message'=>'این سفارش رسید عکس ندارد.'],400); $url=telegram_file_to_public_url($fid,'receipts'); if(!$url) api_out(['ok'=>false,'error'=>'FILE_FETCH_FAILED','message'=>'دریافت فایل رسید از تلگرام ناموفق بود.'],500); api_out(['ok'=>true,'url'=>$url]); }
 if ($action === 'admin_backup_create') { require_admin($user); $b=blue_backup_create(); api_out(admin_payload() + ['backup'=>$b, 'message'=>'Backup saved on server.']); }
 if ($action === 'admin_backup_send_bot') { require_admin($user); $b=blue_backup_send_to_admin((int)$user['telegram_id']); api_out(admin_payload() + ['backup'=>$b, 'message'=>'Backup sent to your Telegram chat.']); }
 if ($action === 'admin_backup_delete') { require_admin($user); $fn=(string)($input['filename']??''); $ok=blue_backup_delete($fn); api_out(admin_payload() + ['deleted'=>$ok, 'message'=>$ok?'Backup deleted.':'Backup not found.']); }
