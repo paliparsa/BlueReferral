@@ -138,6 +138,7 @@ function migrate(): void {
     add_column_if_missing('product_variants', 'price_rate_source', 'VARCHAR(32) NULL AFTER price_rate_toman');
     add_column_if_missing('product_variants', 'price_rate_updated_at', 'DATETIME NULL AFTER price_rate_source');
     add_column_if_missing('products', 'is_featured', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active');
+    add_column_if_missing('products', 'sort_order', 'INT NOT NULL DEFAULT 0 AFTER is_featured');
     add_column_if_missing('orders', 'variant_id', 'BIGINT UNSIGNED NULL AFTER product_id');
     add_column_if_missing('orders', 'price_currency', "VARCHAR(8) NOT NULL DEFAULT 'IRT' AFTER final_amount");
     add_column_if_missing('orders', 'price_usd', 'DECIMAL(14,4) NULL AFTER price_currency');
