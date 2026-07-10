@@ -660,7 +660,6 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 
 /* U1 — Balance count animation */
 [data-count-anim]{transition:color .3s}
-.light-theme[data-count-anim],.light-theme [data-count-anim]{color:#0f172a}
 
 /* U8 — VIP progress */
 .vip-card{background:linear-gradient(145deg,color-mix(in srgb,var(--warning) 10%,var(--card)),var(--card))!important;border-color:color-mix(in srgb,var(--warning) 25%,rgba(255,255,255,0.08))!important}
@@ -699,6 +698,7 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 .preview-img img{width:100%;height:100%;object-fit:cover}
 .preview-body{padding:18px}
 .preview-body h3{font-size:19px;margin-bottom:10px}
+.preview-desc-box{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px 14px;margin:12px 0;font-size:13px;line-height:1.8;color:#dfe8f6}
 
 /* U13 — QR code sheet */
 .qr-sheet{position:fixed;inset:0;z-index:62;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:20px}
@@ -709,23 +709,6 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 .qr-box svg{width:100%;height:100%}
 .qr-link-box{background:rgba(0,0,0,0.3);border-radius:12px;padding:9px;margin:14px 0;direction:ltr;overflow-x:auto}
 .qr-link-box code{font-size:11px;color:#9fb0c8}
-
-/* U14 — Light theme */
-.light-theme{--bg:#f0f4fa;--card:rgba(255,255,255,0.7);--card2:rgba(255,255,255,0.5);--text:#0f172a;--muted:#64748b;--line:#cbd5e1;--shadow:0 18px 45px #0001}
-.light-theme body,.light-theme html{background:linear-gradient(180deg,#e8eef7,#f8fafc 55%,#eef2f7)!important}
-.light-theme body:before{display:none!important}
-.light-theme .glass{background:rgba(255,255,255,0.5);border:1px solid rgba(0,0,0,0.06)}
-.light-theme .topbar{background:rgba(255,255,255,0.6)!important}
-.light-theme .bottom-nav{background:rgba(255,255,255,0.6)!important;border:1px solid rgba(0,0,0,0.06)}
-.light-theme .hero{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 18%,#fff),#fff 70%)!important}
-.light-theme .product-tile,.light-theme .admin-card,.light-theme .admin-item,.light-theme .wallet-card,.light-theme .detail-card,.light-theme .order-card{background:rgba(255,255,255,0.7)!important;border-color:rgba(0,0,0,0.08)!important;backdrop-filter:blur(20px)}
-.light-theme .cat-pill,.light-theme .searchbar,.light-theme .quick-card,.light-theme .mini-stat{background:rgba(255,255,255,0.5)!important;border-color:rgba(0,0,0,0.06)!important}
-.light-theme .dialog-card,.light-theme .cart-sheet-inner,.light-theme .cust-drawer-inner,.light-theme .preview-sheet-inner,.light-theme .qr-sheet-inner,.light-theme .onb-inner{background:rgba(255,255,255,0.95)!important;color:#0f172a}
-.light-theme .dialog-card textarea,.light-theme .dialog-card input,.light-theme .dialog-card select,.light-theme .form-grid input,.light-theme .form-grid textarea,.light-theme .form-grid select{background:rgba(0,0,0,0.04)!important;color:#0f172a!important;border-color:rgba(0,0,0,0.1)!important}
-.light-theme .admin-tabs button:not(.active){background:rgba(0,0,0,0.04)!important;color:#64748b!important}
-.light-theme .muted{color:#64748b!important}
-.light-theme .pie-hole{background:#fff!important}
-.light-theme button:not(.primary):not(.secondary):not(.danger):not(.success):not(.warning){background:rgba(0,0,0,0.04);color:#0f172a}
 
 /* U15 — Achievement badges */
 .achievements-card{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 8%,var(--card)),var(--card))!important}
@@ -759,11 +742,12 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 /* A4 — Inline edit buttons */
 .admin-actions .ghost{padding:7px 10px!important;font-size:11.5px!important;background:rgba(255,255,255,0.04)!important}
 
-/* A7 — Drag reorder */
-.drag-handle{cursor:grab;font-size:20px;color:var(--muted);flex:0 0 auto;padding:8px 4px;line-height:1;user-select:none;transition:.2s color}
-.drag-handle:active{cursor:grabbing;color:var(--accent)}
-.dragging{opacity:0.5;transform:scale(0.98)}
-.drag-over{border-color:var(--accent)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent)!important}
+/* A7 — Reorder buttons */
+.reorder-btns{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
+.reorder-btn{width:30px;height:26px;padding:0!important;font-size:11px!important;border-radius:8px!important;background:rgba(255,255,255,0.06)!important;color:var(--muted)!important;cursor:pointer;display:grid;place-items:center;transition:.15s background,.15s color}
+.reorder-btn:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 20%,transparent)!important;color:var(--text)!important}
+.reorder-btn:active:not(:disabled){transform:scale(0.9)}
+.reorder-btn:disabled{opacity:0.25;cursor:not-allowed}
 
 /* A13 — Command palette */
 .cmd-palette{position:fixed;inset:0;z-index:80;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding-top:15vh}
@@ -816,10 +800,6 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 .qr-sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);cursor:pointer}
 .qr-sheet-inner{position:relative;z-index:1}
 .qr-sheet-handle{cursor:pointer}
-
-/* Light theme tweaks for shop filter chips */
-.light-theme .shop-filter-chip{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.08);color:#475569}
-.light-theme .shop-filter-chip.active{color:#fff}
 
 /* Responsive */
 @media(max-width:520px){
