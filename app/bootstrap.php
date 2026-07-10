@@ -170,6 +170,36 @@ function migrate(): void {
     add_column_if_missing('swapwallet_invoices', 'api_version', 'VARCHAR(64) NULL AFTER request_body');
     add_column_if_missing('swapwallet_invoices', 'callback_raw', 'LONGTEXT NULL AFTER raw_response');
 
+    // Batch 3 — flash sale, activity log, admin roles
+    add_column_if_missing('products', 'flash_sale_start', 'DATETIME NULL AFTER is_featured');
+    add_column_if_missing('products', 'flash_sale_end', 'DATETIME NULL AFTER flash_sale_start');
+    add_column_if_missing('products', 'flash_sale_discount', 'INT NOT NULL DEFAULT 0 AFTER flash_sale_end');
+    if (!table_exists('admin_activity_log')) {
+        db()->exec('CREATE TABLE IF NOT EXISTS admin_activity_log (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            admin_telegram_id BIGINT NOT NULL,
+            action VARCHAR(128) NOT NULL,
+            entity_type VARCHAR(64) NULL,
+            entity_id BIGINT NULL,
+            details TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX(admin_telegram_id),
+            INDEX(created_at),
+            INDEX(entity_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    }
+    if (!table_exists('admin_roles')) {
+        db()->exec('CREATE TABLE IF NOT EXISTS admin_roles (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            telegram_id BIGINT NOT NULL UNIQUE,
+            role VARCHAR(32) NOT NULL DEFAULT \'full\',
+            display_name VARCHAR(128) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX(telegram_id),
+            INDEX(role)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    }
+
     seed_shop_categories();
 }
 
@@ -2313,6 +2343,83 @@ function admin_delete_coupon(int $couponId): array {
     return admin_list_coupons();
 }
 
+/* ===== Batch 3 backend: activity log, admin roles, flash sale, achievements, reorder, advanced search ===== */
+function admin_role(int $telegramId): string {
+    $q=db()->prepare('SELECT role FROM admin_roles WHERE telegram_id=?');$q->execute([$telegramId]);$r=$q->fetch();
+    if($r) return $r['role'];
+    return is_admin($telegramId) ? 'full' : 'none';
+}
+function admin_can(int $telegramId, string $perm): bool {
+    $role=admin_role($telegramId);
+    if($role==='full') return true;
+    if($role==='none') return false;
+    $map=['orders'=>['orders','withdrawals','dashboard'],'products'=>['products','categories','variants','inventory','coupons'],'finance'=>['withdrawals','dashboard']];
+    return in_array($perm, $map[$role] ?? [], true);
+}
+function log_admin_action(int $adminTid, string $action, string $entityType='', int $entityId=0, string $details=''): void {
+    try{ db()->prepare('INSERT INTO admin_activity_log (admin_telegram_id,action,entity_type,entity_id,details) VALUES (?,?,?,?,?)')->execute([$adminTid,$action,$entityType?:null,$entityId?:null,$details?:null]); }catch(Throwable $e){}
+}
+function admin_activity_log(int $limit=100): array {
+    return db()->prepare('SELECT * FROM admin_activity_log ORDER BY id DESC LIMIT '.(int)$limit)->fetchAll() ?: [];
+}
+function admin_list_roles(): array {
+    return db()->query('SELECT * FROM admin_roles ORDER BY id DESC')->fetchAll() ?: [];
+}
+function admin_set_role(int $telegramId, string $role, string $displayName=''): array {
+    if(!in_array($role,['full','orders','products','finance','none'],true)) $role='full';
+    db()->prepare('INSERT INTO admin_roles (telegram_id,role,display_name) VALUES (?,?,?) ON DUPLICATE KEY UPDATE role=VALUES(role),display_name=VALUES(display_name)')->execute([$telegramId,$role,$displayName?:null]);
+    return admin_list_roles();
+}
+function admin_remove_role(int $telegramId): array {
+    db()->prepare('DELETE FROM admin_roles WHERE telegram_id=?')->execute([$telegramId]);
+    return admin_list_roles();
+}
+function admin_reorder_products(array $orderedIds): array {
+    foreach($orderedIds as $i=>$id){ db()->prepare('UPDATE products SET sort_order=? WHERE id=?')->execute([(int)$i+1,(int)$id]); }
+    return shop_products(null,false);
+}
+function admin_reorder_categories(array $orderedIds): array {
+    foreach($orderedIds as $i=>$id){ db()->prepare('UPDATE product_categories SET sort_order=? WHERE id=?')->execute([(int)$i+1,(int)$id]); }
+    return shop_categories(false);
+}
+function admin_search_orders(string $search, string $status='all', int $limit=80): array {
+    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title, u.telegram_id, u.username, u.first_name
+        FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id JOIN users u ON u.id=o.user_id';
+    $where=['o.archived_at IS NULL'];$params=[];
+    if($status!=='all'&&$status!==''){ $where[]='o.status=?';$params[]=normalize_order_status($status); }
+    if($search!==''){
+        if(ctype_digit($search)){ $where[]='(o.id=? OR u.telegram_id=?)';$params[]=(int)$search;$params[]=(int)$search; }
+        else { $where[]='(u.username LIKE ? OR u.first_name LIKE ? OR p.name LIKE ? OR v.title LIKE ?)';$like='%'.$search.'%';$params[]=$like;$params[]=$like;$params[]=$like;$params[]=$like; }
+    }
+    $sql.=' WHERE '.implode(' AND ',$where).' ORDER BY o.id DESC LIMIT '.(int)$limit;
+    $q=db()->prepare($sql);$q->execute($params);return $q->fetchAll();
+}
+function user_achievements(array $user): array {
+    $ref=(int)$user['referrals_count'];$earned=(int)$user['total_earned'];$spent=(int)($user['customer']['total_spent']??0);
+    $ordersQ=db()->prepare('SELECT COUNT(*) c FROM orders WHERE user_id=? AND status="delivered"');$ordersQ->execute([$user['id']]);$orders=(int)$ordersQ->fetch()['c'];
+    $spinQ=db()->prepare('SELECT COUNT(*) c FROM spin_logs WHERE user_id=?');$spinQ->execute([$user['id']]);$spins=(int)$spinQ->fetch()['c'];
+    $defs=[
+        ['key'=>'first_order','title'=>'اولین خرید','emoji'=>'🛒','cond'=>$orders>=1],
+        ['key'=>'ten_orders','title'=>'۱۰ سفارش','emoji'=>'🧾','cond'=>$orders>=10],
+        ['key'=>'first_ref','title'=>'اولین دعوت','emoji'=>'👋','cond'=>$ref>=1],
+        ['key'=>'ten_refs','title'=>'۱۰ زیرمجموعه','emoji'=>'👥','cond'=>$ref>=10],
+        ['key'=>'fifty_refs','title'=>'۵۰ زیرمجموعه','emoji'=>'🌟','cond'=>$ref>=50],
+        ['key'=>'earn_100k','title'=>'۱۰۰ هزار درآمد','emoji'=>'💰','cond'=>$earned>=100000],
+        ['key'=>'earn_1m','title'=>'۱ میلیون درآمد','emoji'=>'💎','cond'=>$earned>=1000000],
+        ['key'=>'first_spin','title'=>'اولین چرخش','emoji'=>'🎡','cond'=>$spins>=1],
+        ['key'=>'gold_tier','title'=>'مشتری گلد','emoji'=>'🥇','cond'=>$spent>=5000000],
+    ];
+    return array_map(fn($a)=>array_merge($a,['earned'=>(bool)$a['cond']]),$defs);
+}
+function admin_revenue_forecast(): array {
+    $last30=db()->query('SELECT COALESCE(SUM(final_amount),0) s, COUNT(*) c FROM orders WHERE created_at >= DATE_SUB(NOW(),INTERVAL 30 DAY) AND status IN ("payment_confirmed","preparing","delivered")')->fetch();
+    $prev30=db()->query('SELECT COALESCE(SUM(final_amount),0) s FROM orders WHERE created_at >= DATE_SUB(NOW(),INTERVAL 60 DAY) AND created_at < DATE_SUB(NOW(),INTERVAL 30 DAY) AND status IN ("payment_confirmed","preparing","delivered")')->fetch();
+    $dailyAvg=(int)($last30['s']/30);
+    $forecast=$dailyAvg*30;
+    $change=$prev30['s']>0?round((($last30['s']-$prev30['s'])/$prev30['s'])*100,1):0;
+    return ['last30_sum'=>(int)$last30['s'],'last30_count'=>(int)$last30['c'],'daily_avg'=>$dailyAvg,'forecast'=>$forecast,'change_percent'=>$change];
+}
+
 
 // Admin Shop UX v2 helpers: image upload, delete-safe management and step-by-step wizards.
 function parse_amount($value): int { return max(0, (int)preg_replace('/\D+/', '', (string)$value)); }
@@ -2422,9 +2529,10 @@ function hard_delete_inventory(int $inventoryId): bool {
     return $d->rowCount() > 0;
 }
 function update_product_field(int $id, string $field, $value): bool {
-    $allowed=['category_id','name','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured'];
+    $allowed=['category_id','name','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured','flash_sale_start','flash_sale_end','flash_sale_discount'];
     if (!in_array($field,$allowed,true)) return false;
-    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','commission_value','duration_days','is_active','is_featured'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
+    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','commission_value','duration_days','is_active','is_featured','flash_sale_discount'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
+    if (in_array($field,['flash_sale_start','flash_sale_end'],true)) $value = (trim((string)$value)==='' || $value===null) ? null : date('Y-m-d H:i:s', strtotime((string)$value));
     if ($field==='category_id') $value = ((int)$value > 0) ? (int)$value : null;
     if ($field==='delivery_type') $value=normalize_delivery_type((string)$value);
     if ($field==='commission_type' && !in_array($value,['none','fixed','percent'],true)) $value='none';
