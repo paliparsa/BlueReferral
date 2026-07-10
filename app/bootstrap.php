@@ -2225,6 +2225,7 @@ function order_public_payload(array $o): array {
         'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])), 'crypto_fee_notice'=>'این مبلغ باید دقیقاً به کیف پول مقصد برسد؛ کارمزد صرافی/شبکه بر عهده شماست.', 'swapwallet_invoice'=>null,
         'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null, 'receipt_file_id'=>$o['receipt_file_id'] ?? null,
+        'user_id'=>(int)($o['user_id'] ?? 0), 'telegram_id'=>isset($o['telegram_id'])?(int)$o['telegram_id']:null, 'username'=>$o['username'] ?? null, 'first_name'=>$o['first_name'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
         'user_hidden'=>(int)($o['user_hidden'] ?? 0), 'archived_at'=>$o['archived_at'] ?? null, 'created_at'=>$o['created_at']
@@ -2246,6 +2247,70 @@ function sales_report(): array {
     $pending=db()->query('SELECT COUNT(*) c FROM orders WHERE status IN ("receipt_submitted","reviewing","payment_confirmed","preparing")')->fetch();
     $top=db()->query('SELECT p.name, COUNT(*) c, COALESCE(SUM(o.final_amount),0) s FROM orders o JOIN products p ON p.id=o.product_id WHERE o.status="delivered" GROUP BY p.id ORDER BY s DESC LIMIT 5')->fetchAll();
     return ['today'=>$today,'month'=>$month,'pending'=>(int)$pending['c'],'top'=>$top];
+}
+
+/* ===== Batch 2 backend: referrals list, customer 360, withdrawals admin, coupons admin ===== */
+function user_referrals_list(int $userId): array {
+    $q=db()->prepare('SELECT u.id, u.telegram_id, u.username, u.first_name, u.created_at, r.reward_amount, r.created_at AS joined_at,
+        (SELECT COUNT(*) FROM orders o WHERE o.user_id=u.id AND o.status="delivered") AS orders_count,
+        (SELECT COALESCE(SUM(final_amount),0) FROM orders o WHERE o.user_id=u.id AND o.status="delivered") AS total_spent
+        FROM referrals r JOIN users u ON u.id=r.referred_id WHERE r.referrer_id=? ORDER BY r.created_at DESC LIMIT 100');
+    $q->execute([$userId]); return $q->fetchAll();
+}
+function admin_customer_view(int $userId): array {
+    $u=get_user_by_id($userId); if(!$u) throw new RuntimeException('USER_NOT_FOUND');
+    $orders=admin_orders(null,100,'',false);
+    $userOrders=array_values(array_filter($orders, fn($o)=>(int)$o['user_id']===$userId));
+    $spent=array_reduce($userOrders, fn($s,$o)=>$s+(int)(($o['status']==='delivered')?$o['final_amount']:0), 0);
+    $withdrawalsQ=db()->prepare('SELECT * FROM withdrawals WHERE user_id=? ORDER BY id DESC LIMIT 50'); $withdrawalsQ->execute([$userId]);
+    $txQ=db()->prepare('SELECT * FROM transactions WHERE user_id=? ORDER BY id DESC LIMIT 30'); $txQ->execute([$userId]);
+    return ['user'=>['id'=>(int)$u['id'],'telegram_id'=>(int)$u['telegram_id'],'username'=>$u['username'],'first_name'=>$u['first_name'],'balance'=>(int)$u['balance'],'total_earned'=>(int)$u['total_earned'],'total_withdrawn'=>(int)$u['total_withdrawn'],'referrals_count'=>(int)$u['referrals_count'],'phone_number'=>$u['phone_number'],'created_at'=>$u['created_at']], 'customer_stats'=>customer_stats($userId), 'orders'=>array_map('order_public_payload',$userOrders), 'withdrawals'=>$withdrawalsQ->fetchAll(), 'transactions'=>$txQ->fetchAll(), 'total_spent'=>$spent];
+}
+function admin_list_withdrawals(string $status='all', int $limit=100): array {
+    $sql='SELECT w.*, u.telegram_id, u.username, u.first_name FROM withdrawals w JOIN users u ON u.id=w.user_id';
+    $params=[];
+    if($status!=='all'&&in_array($status,['pending','paid','rejected'],true)){$sql.=' WHERE w.status=?';$params[]=$status;}
+    $sql.=' ORDER BY w.id DESC LIMIT '.(int)$limit;
+    $q=db()->prepare($sql);$q->execute($params);return $q->fetchAll();
+}
+function admin_act_withdrawal(int $withdrawalId, string $action): array {
+    $q=db()->prepare('SELECT * FROM withdrawals WHERE id=?');$q->execute([$withdrawalId]);$w=$q->fetch();
+    if(!$w) throw new RuntimeException('WITHDRAWAL_NOT_FOUND');
+    if($action==='paid'){
+        db()->prepare('UPDATE withdrawals SET status="paid", updated_at=NOW() WHERE id=?')->execute([$withdrawalId]);
+        notify_user((int)$w['user_id'],"✅ برداشت شما تایید و پرداخت شد.\nمبلغ: <b>".money((int)$w['amount'])."</b>\nشماره کارت/شبا: <code>".h($w['card_info'])."</code>", main_menu_keyboard(false));
+    } elseif($action==='rejected'){
+        db()->prepare('UPDATE users SET balance=balance+? WHERE id=?')->execute([(int)$w['amount'],(int)$w['user_id']]);
+        db()->prepare('UPDATE withdrawals SET status="rejected", updated_at=NOW() WHERE id=?')->execute([$withdrawalId]);
+        wallet_transaction((int)$w['user_id'],(int)$w['amount'],'withdrawal_rejected','برگشت موجودی رد شدن درخواست برداشت',null);
+        notify_user((int)$w['user_id'],"❌ درخواست برداشت شما رد شد و مبلغ به موجودی برگشت.\nمبلغ: <b>".money((int)$w['amount'])."</b>", main_menu_keyboard(false));
+    } else throw new RuntimeException('INVALID_ACTION');
+    return admin_list_withdrawals('all');
+}
+function admin_list_coupons(): array {
+    return db()->query('SELECT * FROM coupons ORDER BY id DESC LIMIT 200')->fetchAll();
+}
+function admin_add_coupon(string $code, string $type, int $value, int $maxUses, string $expiresAt=''): array {
+    $code=normalize_coupon_code($code); if($code==='') throw new RuntimeException('INVALID_CODE');
+    if(!in_array($type,['percent','fixed'],true)) $type='percent';
+    if($value<0) $value=0;
+    $exists=coupon_by_code($code); if($exists) throw new RuntimeException('CODE_TAKEN');
+    $exp=$expiresAt&&strtotime($expiresAt)?date('Y-m-d H:i:s',strtotime($expiresAt)):null;
+    db()->prepare('INSERT INTO coupons (code,type,value,max_uses,used_count,is_active,expires_at) VALUES (?,?,?,?,0,1,?)')->execute([$code,$type,$value,$maxUses,$exp]);
+    return admin_list_coupons();
+}
+function admin_update_coupon(int $couponId, array $fields): array {
+    $sets=[];$params=[];
+    foreach(['code','type','value','max_uses','is_active'] as $f){ if(array_key_exists($f,$fields)){$sets[]=$f.'=?';$params[]=($f==='is_active')?(int)(bool)$fields[$f]:$fields[$f];} }
+    if(array_key_exists('expires_at',$fields)){$exp=$fields['expires_at']&&strtotime($fields['expires_at'])?date('Y-m-d H:i:s',strtotime($fields['expires_at'])):null;$sets[]='expires_at=?';$params[]=$exp;}
+    if(!$sets) return admin_list_coupons();
+    $params[]=$couponId;
+    db()->prepare('UPDATE coupons SET '.implode(',',$sets).' WHERE id=?')->execute($params);
+    return admin_list_coupons();
+}
+function admin_delete_coupon(int $couponId): array {
+    db()->prepare('DELETE FROM coupons WHERE id=?')->execute([$couponId]);
+    return admin_list_coupons();
 }
 
 
