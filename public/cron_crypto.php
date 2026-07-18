@@ -101,18 +101,6 @@ try {
     if ($mode === 'check_payments' || $mode === 'all') {
         $paymentResult = blue_ref_check_crypto_payments($limit);
     }
-    
-    $remindedCarts = 0;
-    try {
-        $q = db()->query('SELECT o.id, u.telegram_id FROM orders o JOIN users u ON u.id=o.user_id WHERE o.status="pending_payment" AND o.created_at < DATE_SUB(NOW(), INTERVAL 2 HOUR) AND o.abandoned_reminded_at IS NULL LIMIT 50');
-        foreach ($q->fetchAll() as $row) {
-            $msg = "یک مورد در سبد خرید شما باقی مانده است! برای تکمیل پرداخت کلیک کنید.";
-            $kb = ['inline_keyboard'=>[[['text'=>'🛒 تکمیل پرداخت','web_app'=>['url'=>app_config('APP_URL').'/public/miniapp/']]]]]; // Assuming miniapp is default entry
-            try { send_msg((int)$row['telegram_id'], $msg, $kb); } catch (Throwable $e) {}
-            db()->prepare('UPDATE orders SET abandoned_reminded_at=NOW() WHERE id=?')->execute([$row['id']]);
-            $remindedCarts++;
-        }
-    } catch (Throwable $e) {}
 
     echo json_encode([
         'ok'=>true,
