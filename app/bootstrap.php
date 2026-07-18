@@ -2082,8 +2082,19 @@ function submit_order_receipt(int $orderId, int $userId, string $note='', ?strin
     $order=order_by_id($orderId);
     if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
     if (!in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
-    db()->prepare('UPDATE orders SET status="receipt_submitted", payment_note=?, receipt_file_id=?, review_started_at=NOW() WHERE id=?')->execute([$note,$fileId,$orderId]);
-    add_order_event($orderId, 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد');
+    
+    $groupId = $order['invoice_group_id'] ?? null;
+    if ($groupId) {
+        db()->prepare('UPDATE orders SET status="receipt_submitted", payment_note=?, receipt_file_id=?, review_started_at=NOW() WHERE invoice_group_id=? AND status IN ("pending_payment","rejected")')->execute([$note,$fileId,$groupId]);
+        db()->prepare('UPDATE invoice_groups SET status="receipt_submitted", receipt_file_id=? WHERE id=?')->execute([$fileId, $groupId]);
+        $orders = db()->query("SELECT id FROM orders WHERE invoice_group_id=$groupId")->fetchAll();
+        foreach ($orders as $o) {
+            add_order_event((int)$o['id'], 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد (گروهی)');
+        }
+    } else {
+        db()->prepare('UPDATE orders SET status="receipt_submitted", payment_note=?, receipt_file_id=?, review_started_at=NOW() WHERE id=?')->execute([$note,$fileId,$orderId]);
+        add_order_event($orderId, 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد');
+    }
     return order_by_id($orderId);
 }
 function update_order_customer_note(int $orderId, int $userId, string $note): array {
