@@ -73,6 +73,9 @@ function migrate(): void {
     add_column_if_missing('users', 'phone_number', 'VARCHAR(64) NULL AFTER theme_color');
     add_column_if_missing('users', 'phone_verified_at', 'DATETIME NULL AFTER phone_number');
     add_column_if_missing('users', 'start_notified', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER phone_verified_at');
+    add_column_if_missing('users', 'checkin_streak', 'INT NOT NULL DEFAULT 0');
+    add_column_if_missing('users', 'last_checkin_date', 'DATE NULL DEFAULT NULL');
+    add_column_if_missing('orders', 'invoice_group_id', 'BIGINT UNSIGNED NULL DEFAULT NULL');
     try { db()->exec('ALTER TABLE transactions MODIFY COLUMN type VARCHAR(64) NOT NULL'); } catch (Throwable $e) {}
     try { db()->exec("UPDATE users u SET ref_rewarded=1 WHERE referrer_id IS NOT NULL AND EXISTS (SELECT 1 FROM transactions t WHERE t.type='ref_start' AND t.related_user_id=u.id)"); } catch (Throwable $e) {}
     try { db()->exec('INSERT IGNORE INTO referrals (referrer_id, referred_id, reward_amount, created_at) SELECT referrer_id, id, 0, created_at FROM users WHERE referrer_id IS NOT NULL'); } catch (Throwable $e) {}
