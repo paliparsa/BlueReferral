@@ -79,7 +79,7 @@ function parse_spin_rewards_lines(string $text): array {
 }
 function user_payload(array $user): array {
     $vip = vip_info((int)$user['referrals_count']); $today = today_referrals((int)$user['id']); $customer = customer_stats((int)$user['id']);
-    return ['telegram_id'=>(int)$user['telegram_id'], 'username'=>$user['username'], 'first_name'=>$user['first_name'], 'last_name'=>$user['last_name'] ?? null, 'phone_number'=>$user['phone_number'] ?? null, 'phone_verified_at'=>$user['phone_verified_at'] ?? null, 'ref_code'=>$user['ref_code'], 'referral_link'=>referral_link($user), 'balance'=>(int)$user['balance'], 'total_earned'=>(int)$user['total_earned'], 'total_withdrawn'=>(int)$user['total_withdrawn'], 'referrals_count'=>(int)$user['referrals_count'], 'today_referrals'=>$today, 'spin_balance'=>(int)$user['spin_balance'], 'vip'=>$vip, 'customer'=>$customer];
+    return ['telegram_id'=>(int)$user['telegram_id'], 'username'=>$user['username'], 'first_name'=>$user['first_name'], 'last_name'=>$user['last_name'] ?? null, 'phone_number'=>$user['phone_number'] ?? null, 'phone_verified_at'=>$user['phone_verified_at'] ?? null, 'ref_code'=>$user['ref_code'], 'referral_link'=>referral_link($user), 'balance'=>(int)$user['balance'], 'total_earned'=>(int)$user['total_earned'], 'total_withdrawn'=>(int)$user['total_withdrawn'], 'referrals_count'=>(int)$user['referrals_count'], 'today_referrals'=>$today, 'spin_balance'=>(int)$user['spin_balance'], 'checkin_streak'=>(int)($user['checkin_streak']??0), 'last_checkin_date'=>$user['last_checkin_date']??null, 'vip'=>$vip, 'customer'=>$customer];
 }
 function dashboard_payload(array $user): array {
     $missions = []; $today = date('Y-m-d'); $todayCount = today_referrals((int)$user['id']);
@@ -113,6 +113,16 @@ function bool_input($v): int { return in_array(strtolower((string)$v), ['1','tru
 $input = request_json(); $action = $input['action'] ?? ($_GET['action'] ?? 'me'); $initData = $input['initData'] ?? ($_GET['initData'] ?? ''); $user = webapp_auth_user((string)$initData);
 
 if ($action === 'me') api_out(dashboard_payload($user));
+if ($action === 'daily_checkin') {
+    $user = get_user_by_tid((int)$user['telegram_id']);
+    $today = date('Y-m-d');
+    if (($user['last_checkin_date'] ?? '') === $today) api_out(['ok'=>false, 'error'=>'ALREADY_CHECKED_IN', 'message'=>'امروز قبلاً پاداش خود را دریافت کرده‌اید.'], 400);
+    $yesterday = date('Y-m-d', strtotime('-1 day'));
+    $streak = (($user['last_checkin_date'] ?? '') === $yesterday) ? (int)($user['checkin_streak'] ?? 0) + 1 : 1;
+    $spins = ($streak % 7 === 0) ? 3 : 1;
+    db()->prepare('UPDATE users SET checkin_streak=?, last_checkin_date=?, spin_balance=spin_balance+? WHERE id=?')->execute([$streak, $today, $spins, $user['id']]);
+    api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['checkin_message' => "🎉 پاداش ورود روزانه دریافت شد!\nشما {$spins} شانس گردونه گرفتید.\nاستریک فعلی شما: {$streak} روز"]);
+}
 if ($action === 'claim_missions') { [$count, $claimed] = claim_available_missions($user); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['claimed'=>$claimed, 'today_count'=>$count]); }
 if ($action === 'spin') { $user=get_user_by_tid((int)$user['telegram_id']); if ((int)$user['spin_balance']<=0) api_out(['ok'=>false,'error'=>'NO_SPIN_BALANCE','message'=>'فعلاً شانس گردونه نداری.'],400); $rewards=spin_rewards_public(); $reward=weighted_spin_reward(); $title=$reward['title']??'جایزه گردونه'; $amount=(int)($reward['amount']??0); $idx=0; foreach($rewards as $i=>$r){ if(($r['title']??'')===$title && (int)($r['amount']??0)===$amount){ $idx=$i; break; } } db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]); db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'],$title,$amount]); if($amount>0)add_balance($user['id'],$amount,'spin_reward',$title,null); if(!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>{$user['telegram_id']}</code>\nجایزه: <b>".h($title)."</b>"); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['prize'=>['title'=>$title,'amount'=>$amount,'index'=>$idx]]); }
 if ($action === 'withdraw') { $user=get_user_by_tid((int)$user['telegram_id']); $card=trim((string)($input['card_info']??'')); if(mb_strlen($card)<8) api_out(['ok'=>false,'error'=>'INVALID_CARD_INFO','message'=>'اطلاعات کارت/شبا کامل نیست.'],400); $min=setting_int('min_withdraw',50000); if((int)$user['balance']<$min) api_out(['ok'=>false,'error'=>'LOW_BALANCE','message'=>'موجودی به حداقل برداشت نمی‌رسد.'],400); $pending=db()->prepare('SELECT COUNT(*) c FROM withdrawals WHERE user_id=? AND status="pending"'); $pending->execute([$user['id']]); if((int)$pending->fetch()['c']>0) api_out(['ok'=>false,'error'=>'PENDING_WITHDRAWAL','message'=>'یک برداشت در انتظار دارید.'],400); $amount=(int)$user['balance']; db()->prepare('INSERT INTO withdrawals (user_id, amount, card_info) VALUES (?,?,?)')->execute([$user['id'],$amount,$card]); db()->prepare('UPDATE users SET balance=0 WHERE id=?')->execute([$user['id']]); notify_admins("🏧 برداشت جدید از Mini App\nکاربر: <code>{$user['telegram_id']}</code>\nمبلغ: <b>".money($amount)."</b>\nاطلاعات:\n".h($card)); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['withdraw_amount'=>$amount]); }
@@ -124,6 +134,56 @@ if ($action === 'create_order') { $productId=(int)($input['product_id']??0); $va
 محصول: <b>".h($order['product_name'].(!empty($order['variant_title'])?' - '.$order['variant_title']:''))."</b>
 مبلغ قابل پرداخت: <b>".money($order['final_amount'])."</b>".($wallet>0?"
 پرداخت از کیف پول: <b>".money($wallet)."</b>":"")); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($order)]); } catch(Throwable $e){ api_out(['ok'=>false,'error'=>$e->getMessage(),'message'=>'محصول یا پلن پیدا نشد یا غیرفعال است.'],404); } }
+if ($action === 'checkout_cart') {
+    $items = $input['items'] ?? [];
+    if (empty($items)) api_out(['ok'=>false,'error'=>'EMPTY_CART','message'=>'سبد خرید خالی است.'],400);
+    $user = get_user_by_tid((int)$user['telegram_id']);
+    db()->prepare('INSERT INTO invoice_groups (user_id) VALUES (?)')->execute([$user['id']]);
+    $groupId = db()->lastInsertId();
+    $totalFinal = 0; $orderIds = [];
+    foreach ($items as $item) {
+        $pid = (int)($item['product_id']??0);
+        $vid = !empty($item['variant_id']) ? (int)$item['variant_id'] : null;
+        try {
+            $order = create_shop_order((int)$user['id'], $pid, $vid);
+            db()->prepare('UPDATE orders SET invoice_group_id=? WHERE id=?')->execute([$groupId, $order['id']]);
+            $totalFinal += (int)$order['final_amount'];
+            $orderIds[] = $order['id'];
+        } catch (Throwable $e) {}
+    }
+    if (empty($orderIds)) {
+        db()->prepare('DELETE FROM invoice_groups WHERE id=?')->execute([$groupId]);
+        api_out(['ok'=>false,'error'=>'NO_VALID_ITEMS','message'=>'امکان سفارش این محصولات وجود ندارد.'],400);
+    }
+    db()->prepare('UPDATE invoice_groups SET final_amount=? WHERE id=?')->execute([$totalFinal, $groupId]);
+    $walletUsed = 0;
+    if (!empty($input['use_wallet'])) {
+        $wallet = (int)$user['balance'];
+        foreach ($orderIds as $oid) {
+            if ($wallet <= 0) break;
+            $o = db()->query("SELECT final_amount FROM orders WHERE id=$oid")->fetch();
+            $payable = (int)$o['final_amount'];
+            if ($payable <= 0) continue;
+            $use = min($payable, $wallet);
+            db()->prepare('UPDATE orders SET wallet_amount=wallet_amount+?, final_amount=final_amount-? WHERE id=?')->execute([$use, $use, $oid]);
+            db()->prepare('UPDATE users SET balance=balance-? WHERE id=?')->execute([$use, $user['id']]);
+            add_balance($user['id'], -$use, 'order_payment', "Order #$oid", $oid);
+            $wallet -= $use; $walletUsed += $use;
+        }
+        $totalFinal -= $walletUsed;
+        db()->prepare('UPDATE invoice_groups SET wallet_amount=?, final_amount=? WHERE id=?')->execute([$walletUsed, $totalFinal, $groupId]);
+        foreach ($orderIds as $oid) {
+            $o = db()->query("SELECT final_amount FROM orders WHERE id=$oid")->fetch();
+            if ((int)$o['final_amount'] === 0) db()->prepare("UPDATE orders SET status='payment_confirmed' WHERE id=?")->execute([$oid]);
+        }
+        $rem = db()->query("SELECT SUM(final_amount) s FROM orders WHERE invoice_group_id=$groupId")->fetch()['s'];
+        if ((int)$rem === 0) db()->prepare("UPDATE invoice_groups SET status='payment_confirmed' WHERE id=?")->execute([$groupId]);
+    }
+    $repOrders = db()->query("SELECT * FROM orders WHERE invoice_group_id=$groupId")->fetchAll();
+    $repOrder = $repOrders[0];
+    notify_admins("🛒 سبد خرید جدید: Invoice #{$groupId}\nکاربر: {$user['telegram_id']}\nتعداد: ".count($orderIds)."\nمبلغ: ".money($totalFinal).($walletUsed>0?"\nکیف پول: ".money($walletUsed):""));
+    api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['order'=>order_public_payload($repOrder)]);
+}
 if ($action === 'apply_wallet') { try{ $order=apply_wallet_to_order((int)($input['order_id']??0),(int)$user['id']); if(normalize_order_status($order['status'])==='payment_confirmed') notify_admins("💰 پرداخت کامل با کیف پول
 سفارش: <code>#{$order['id']}</code>
 کاربر: <code>{$user['telegram_id']}</code>
@@ -224,5 +284,15 @@ if ($action === 'admin_delete_order') { require_admin($user); $oid=(int)($input[
 if ($action === 'admin_cleanup_orders') { require_admin($user); $days = array_key_exists('older_days',$input) && $input['older_days'] !== '' ? max(0,(int)$input['older_days']) : null; $count=hard_delete_cleanup_orders($days); api_out(admin_payload() + ['deleted'=>$count]); }
 if ($action === 'admin_order_status') { require_admin($user); $oid=(int)($input['order_id']??0); $status=(string)($input['status']??''); if(!in_array(normalize_order_status($status),['reviewing','payment_confirmed','preparing','rejected','canceled','refunded'],true)) api_out(['ok'=>false,'message'=>'وضعیت معتبر نیست.'],400); $order=update_order_status($oid,$status,order_status_fa($status),(string)($input['note']??''),true); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); api_out(admin_payload()); }
 if ($action === 'admin_deliver_order') { require_admin($user); $oid=(int)($input['order_id']??0); $delivery=trim((string)($input['delivery']??'')); if($delivery==='') api_out(['ok'=>false,'message'=>'متن تحویل خالی است.'],400); $order=deliver_order($oid,$delivery); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); send_msg($order['telegram_id'], "📦 سفارش شما تحویل داده شد.\nسفارش: <code>#{$oid}</code>\nمحصول: <b>".h($order['product_name'])."</b>\n\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>", main_menu_keyboard(is_admin($order['telegram_id']))); api_out(admin_payload()); }
+
+if ($action === 'create_ticket') { $subject = trim((string)($input['subject']??'')); $msg = trim((string)($input['message']??'')); if($subject==='' || $msg==='') api_out(['ok'=>false,'message'=>'موضوع و پیام الزامی است.'],400); db()->prepare('INSERT INTO support_tickets (user_id, subject) VALUES (?, ?)')->execute([$user['id'], $subject]); $ticketId = db()->lastInsertId(); db()->prepare('INSERT INTO support_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)')->execute([$ticketId, $user['id'], $msg]); api_out(['ok'=>true, 'ticket_id'=>$ticketId]); }
+if ($action === 'reply_ticket') { $ticketId = (int)($input['ticket_id']??0); $msg = trim((string)($input['message']??'')); if($msg==='') api_out(['ok'=>false,'message'=>'پیام الزامی است.'],400); $ticket = db()->prepare('SELECT id FROM support_tickets WHERE id=? AND user_id=?')->execute([$ticketId, $user['id']])->fetch(); if(!$ticket) api_out(['ok'=>false,'message'=>'تیکت پیدا نشد.'],404); db()->prepare('INSERT INTO support_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)')->execute([$ticketId, $user['id'], $msg]); db()->prepare('UPDATE support_tickets SET status="open" WHERE id=?')->execute([$ticketId]); api_out(['ok'=>true]); }
+if ($action === 'get_tickets') { $tickets = db()->prepare('SELECT * FROM support_tickets WHERE user_id=? ORDER BY updated_at DESC')->execute([$user['id']])->fetchAll(); api_out(['ok'=>true, 'tickets'=>$tickets]); }
+if ($action === 'get_ticket_messages') { $ticketId = (int)($input['ticket_id']??0); $ticket = db()->prepare('SELECT * FROM support_tickets WHERE id=? AND user_id=?')->execute([$ticketId, $user['id']])->fetch(); if(!$ticket) api_out(['ok'=>false,'message'=>'تیکت پیدا نشد.'],404); $messages = db()->prepare('SELECT * FROM support_messages WHERE ticket_id=? ORDER BY created_at ASC')->execute([$ticketId])->fetchAll(); api_out(['ok'=>true, 'ticket'=>$ticket, 'messages'=>$messages]); }
+
+if ($action === 'admin_tickets') { require_admin($user); $tickets = db()->query('SELECT t.*, u.first_name, u.telegram_id FROM support_tickets t JOIN users u ON u.id=t.user_id ORDER BY CASE WHEN t.status="open" THEN 0 ELSE 1 END, t.updated_at DESC')->fetchAll(); api_out(['ok'=>true, 'tickets'=>$tickets]); }
+if ($action === 'admin_ticket_messages') { require_admin($user); $ticketId = (int)($input['ticket_id']??0); $ticket = db()->prepare('SELECT t.*, u.first_name, u.telegram_id FROM support_tickets t JOIN users u ON u.id=t.user_id WHERE t.id=?')->execute([$ticketId])->fetch(); if(!$ticket) api_out(['ok'=>false,'message'=>'تیکت پیدا نشد.'],404); $messages = db()->prepare('SELECT m.*, u.first_name FROM support_messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.ticket_id=? ORDER BY m.created_at ASC')->execute([$ticketId])->fetchAll(); api_out(['ok'=>true, 'ticket'=>$ticket, 'messages'=>$messages]); }
+if ($action === 'admin_reply_ticket') { require_admin($user); $ticketId = (int)($input['ticket_id']??0); $msg = trim((string)($input['message']??'')); if($msg==='') api_out(['ok'=>false,'message'=>'پیام الزامی است.'],400); db()->prepare('INSERT INTO support_messages (ticket_id, sender_id, is_admin, message) VALUES (?, ?, 1, ?)')->execute([$ticketId, $user['id'], $msg]); db()->prepare('UPDATE support_tickets SET status="answered" WHERE id=?')->execute([$ticketId]); api_out(['ok'=>true]); }
+if ($action === 'admin_close_ticket') { require_admin($user); $ticketId = (int)($input['ticket_id']??0); db()->prepare('UPDATE support_tickets SET status="closed" WHERE id=?')->execute([$ticketId]); api_out(['ok'=>true]); }
 
 api_out(['ok'=>false, 'error'=>'UNKNOWN_ACTION'], 404);
