@@ -73,9 +73,6 @@ function migrate(): void {
     add_column_if_missing('users', 'phone_number', 'VARCHAR(64) NULL AFTER theme_color');
     add_column_if_missing('users', 'phone_verified_at', 'DATETIME NULL AFTER phone_number');
     add_column_if_missing('users', 'start_notified', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER phone_verified_at');
-    add_column_if_missing('users', 'checkin_streak', 'INT NOT NULL DEFAULT 0');
-    add_column_if_missing('users', 'last_checkin_date', 'DATE NULL DEFAULT NULL');
-    add_column_if_missing('orders', 'invoice_group_id', 'BIGINT UNSIGNED NULL DEFAULT NULL');
     try { db()->exec('ALTER TABLE transactions MODIFY COLUMN type VARCHAR(64) NOT NULL'); } catch (Throwable $e) {}
     try { db()->exec("UPDATE users u SET ref_rewarded=1 WHERE referrer_id IS NOT NULL AND EXISTS (SELECT 1 FROM transactions t WHERE t.type='ref_start' AND t.related_user_id=u.id)"); } catch (Throwable $e) {}
     try { db()->exec('INSERT IGNORE INTO referrals (referrer_id, referred_id, reward_amount, created_at) SELECT referrer_id, id, 0, created_at FROM users WHERE referrer_id IS NOT NULL'); } catch (Throwable $e) {}
@@ -2085,19 +2082,8 @@ function submit_order_receipt(int $orderId, int $userId, string $note='', ?strin
     $order=order_by_id($orderId);
     if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
     if (!in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
-    
-    $groupId = $order['invoice_group_id'] ?? null;
-    if ($groupId) {
-        db()->prepare('UPDATE orders SET status="receipt_submitted", payment_note=?, receipt_file_id=?, review_started_at=NOW() WHERE invoice_group_id=? AND status IN ("pending_payment","rejected")')->execute([$note,$fileId,$groupId]);
-        db()->prepare('UPDATE invoice_groups SET status="receipt_submitted", receipt_file_id=? WHERE id=?')->execute([$fileId, $groupId]);
-        $orders = db()->query("SELECT id FROM orders WHERE invoice_group_id=$groupId")->fetchAll();
-        foreach ($orders as $o) {
-            add_order_event((int)$o['id'], 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد (گروهی)');
-        }
-    } else {
-        db()->prepare('UPDATE orders SET status="receipt_submitted", payment_note=?, receipt_file_id=?, review_started_at=NOW() WHERE id=?')->execute([$note,$fileId,$orderId]);
-        add_order_event($orderId, 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد');
-    }
+    db()->prepare('UPDATE orders SET status="receipt_submitted", payment_note=?, receipt_file_id=?, review_started_at=NOW() WHERE id=?')->execute([$note,$fileId,$orderId]);
+    add_order_event($orderId, 'receipt_submitted', 'رسید پرداخت ارسال شد', $note ?: 'عکس رسید ارسال شد');
     return order_by_id($orderId);
 }
 function update_order_customer_note(int $orderId, int $userId, string $note): array {
