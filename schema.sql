@@ -12,8 +12,6 @@ CREATE TABLE IF NOT EXISTS users (
   total_withdrawn BIGINT NOT NULL DEFAULT 0,
   referrals_count INT NOT NULL DEFAULT 0,
   spin_balance INT NOT NULL DEFAULT 0,
-  checkin_streak INT NOT NULL DEFAULT 0,
-  last_checkin_date DATE NULL,
   step VARCHAR(128) NULL,
   step_payload TEXT NULL,
   theme_color VARCHAR(16) NULL,
@@ -76,35 +74,6 @@ CREATE TABLE IF NOT EXISTS mission_claims (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_user_date_target (user_id, mission_date, target_count),
   CONSTRAINT fk_mission_claims_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS login_history (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL,
-  ip_address VARCHAR(45) NOT NULL,
-  user_agent VARCHAR(255) NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX(user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS support_tickets (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL,
-  subject VARCHAR(255) NOT NULL,
-  status VARCHAR(32) NOT NULL DEFAULT 'open',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX(user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS support_messages (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  ticket_id BIGINT UNSIGNED NOT NULL,
-  sender_id BIGINT UNSIGNED NOT NULL,
-  is_admin TINYINT(1) NOT NULL DEFAULT 0,
-  message TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX(ticket_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS spin_logs (
@@ -220,8 +189,6 @@ CREATE TABLE IF NOT EXISTS orders (
   admin_note TEXT NULL,
   user_hidden TINYINT(1) NOT NULL DEFAULT 0,
   archived_at DATETIME NULL,
-  abandoned_reminded_at DATETIME NULL,
-  invoice_group_id BIGINT UNSIGNED NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX(user_id),
@@ -229,22 +196,8 @@ CREATE TABLE IF NOT EXISTS orders (
   INDEX(status),
   INDEX(user_hidden),
   INDEX(archived_at),
-  INDEX(invoice_group_id),
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_orders_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS invoice_groups (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL,
-  final_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
-  wallet_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
-  status VARCHAR(32) NOT NULL DEFAULT 'pending_payment',
-  payment_method VARCHAR(32) NULL,
-  receipt_file_id VARCHAR(255) NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Commerce Plus upgrade: product variants, inventory, order timeline, product media and richer order lifecycle.
