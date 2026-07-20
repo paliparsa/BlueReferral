@@ -15,6 +15,10 @@ function getUrlFlag(name){
 const adminFlag = getUrlFlag('admin') || getUrlFlag('mode') || getUrlFlag('startapp') || tg?.initDataUnsafe?.start_param || '';
 const isAdminMode = adminFlag === '1' || String(adminFlag).toLowerCase() === 'admin';
 let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, orderFilter = 'all', lastSpinPrize = null, searchTimeout = null, shopSort = 'newest', shopFilterInStock = false, shopFilterFeatured = false;
+// Product card display mode: 'compact' (grid) or 'detailed' (list)
+let productCardMode = localStorage.getItem('blue_ref_card_mode') || 'compact';
+
+function setProductCardMode(mode){productCardMode=mode;localStorage.setItem('blue_ref_card_mode',mode);renderShop();}
 let adminUiCards = [], adminUiWallets = [], adminUiRates = [];
 
 function detectMiniAppDevice(){
@@ -46,6 +50,34 @@ function applyDeviceLayout(){
 applyDeviceLayout();
 window.addEventListener('resize', applyDeviceLayout, {passive:true});
 window.addEventListener('orientationchange', () => setTimeout(applyDeviceLayout, 160), {passive:true});
+// Compact header: reduce topbar on scroll for better viewport space
+function updateCompactHeader(){
+  const tb = document.querySelector('.topbar');
+  if(!tb) return;
+  tb.classList.toggle('compact', window.scrollY > 48);
+}
+window.addEventListener('scroll', updateCompactHeader, {passive:true});
+// initialize
+setTimeout(updateCompactHeader, 120);
+
+// Keyboard shortcuts: Cmd/Ctrl+K to open command palette, '/' to focus search
+document.addEventListener('keydown', function(e){
+  // ignore when typing in inputs or dialogs
+  const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+  if(tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return;
+  // Cmd/Ctrl+K
+  if((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
+    e.preventDefault();
+    openCommandPalette();
+    return;
+  }
+  // Focus search with '/'
+  if(e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey){
+    e.preventDefault();
+    const s = document.getElementById('searchInput');
+    if(s){ s.focus(); s.select(); }
+  }
+}, {passive:false});
 function tgUser(){return tg?.initDataUnsafe?.user || {}}
 function userPhotoUrl(u={}){return u.photo_url || tgUser().photo_url || ''}
 function userInitial(u={}){return esc(String(u.first_name || u.username || 'B').trim().slice(0,1).toUpperCase() || 'B')}
@@ -165,7 +197,13 @@ function orderById(id){return (state.orders||[]).find(o=>Number(o.id)===Number(i
 function cryptoRateCacheText(){const c=state?.payment_methods?.crypto?.rate_cache||adminState?.settings?.crypto_rate_cache||{};const rows=Object.entries(c||{});const last=adminState?.settings?.crypto_rate_last_result||{};let out=[];if(rows.length){out=rows.map(([k,v])=>{const r=typeof v==='object'?v.rate:v;const at=typeof v==='object'?(v.updated_at||''):'';const src=typeof v==='object'?(v.source||v.provider||'cache'):'cache';return `${k}: ${Number(r||0).toLocaleString('fa-IR')} تومان · ${src}${at?' · '+at:''}`})}else out.push('هنوز cache نرخ نداریم.');if(last?.providers?.length)out.push('Providerها: '+last.providers.join(' → '));if(last?.failed&&Object.keys(last.failed).length)out.push('خطا/ fallback: '+Object.entries(last.failed).map(([k,v])=>`${k}:${v}`).join('، '));return out.join('\n')}
 async function refreshCurrentOrderSilently(){if(currentTab!=='orders'||!currentOrderId)return;try{state=await api('me');applyTheme(state);renderOrders()}catch(e){console.warn('order refresh failed',e)}}
 
-function cardImage(obj, emoji='🛒'){return obj.image_url?`<img src="${esc(obj.image_url)}" alt="">`:`<div class="tile-placeholder">${emoji}</div>`}
+function cardImage(obj, emoji='🛒'){
+  if(!obj || !obj.image_url) return `<div class="tile-placeholder">${emoji}</div>`;
+  const url=esc(obj.image_url);
+  // support optional responsive srcset if provided by API
+  const srcset = obj.image_srcset?` srcset="${esc(obj.image_srcset)}"` : '';
+  return `<img src="${url}" loading="lazy" decoding="async"${srcset} alt="${esc(obj.name||'product')}">`;
+}
 function priceLabel(p){return esc(p.price_label || fmt(p.price))}
 function priceCurrencyOptions(selected='IRT'){selected=String(selected||'IRT').toUpperCase();return `<option value="IRT" ${selected!=='USD'?'selected':''}>تومان</option><option value="USD" ${selected==='USD'?'selected':''}>دلار / USDT</option>`}
 function priceAdminFields(prefix,item={}){const c=String(item.price_currency||'IRT').toUpperCase();const usd=item.price_usd||'';const toman=item.price||'';return `<div class="price-editor full"><div class="price-editor-head"><span>💸</span><div><b>نوع قیمت‌گذاری</b><small>تومان ثابت یا دلار با تبدیل خودکار به تومان</small></div></div><div class="price-editor-grid"><label><span>واحد قیمت</span><select id="${prefix}_currency">${priceCurrencyOptions(c)}</select></label><label><span>قیمت تومان</span><input id="${prefix}_price" value="${esc(toman)}" inputmode="numeric" placeholder="مثلاً 2199000"></label><label><span>قیمت دلار</span><input id="${prefix}_price_usd" value="${esc(usd)}" inputmode="decimal" placeholder="مثلاً 19.99"></label><p class="muted full">اگر دلار انتخاب شود، کاربر فقط قیمت تومانی لحظه‌ای را می‌بیند؛ مبلغ دلاری فقط هنگام پرداخت رمزارز/ارزی نمایش داده می‌شود.</p></div></div>`}
@@ -182,11 +220,22 @@ function closePalettePopup(){const p=$('palettePopup');if(p){p.classList.remove(
 function missionCard(m){const today=Number(state.user?.today_referrals||0);const target=Math.max(1,Number(m.target||1));const pct=Math.max(0,Math.min(100,Math.round(today/target*100)));const done=m.claimed?'claimed':(m.done?'done':'todo');return `<article class="mission-card ${done}"><div class="mission-top"><div><small>${nf(Math.min(today,target))} از ${nf(target)}</small><h3>${nf(target)} دعوت امروز</h3><p class="muted">پاداش: <b>${fmt(m.reward)}</b></p></div><div class="mission-icon">${m.claimed?'✅':(m.done?'🎁':'✌️')}</div></div><div class="progress-track"><span style="width:${pct}%"></span></div><div class="mission-foot"><span>${pct}% تکمیل شده</span><b>${m.claimed?'دریافت شد':(m.done?'آماده دریافت':'در حال انجام')}</b></div></article>`}
 function filteredProducts(){let list=(state.shop_products||[]).filter(p=>(activeCategory==='all'||Number(p.category_id)===Number(activeCategory)||activeCategory==='featured'&&Number(p.is_featured)===1)&&(!searchTerm||`${p.name} ${p.short_description} ${p.full_description}`.toLowerCase().includes(searchTerm.toLowerCase())));if(shopFilterInStock)list=list.filter(p=>Number(p.inventory_available||0)>0);if(shopFilterFeatured)list=list.filter(p=>Number(p.is_featured)===1||flashSaleActive(p));if(shopSort==='price_low')list=[...list].sort((a,b)=>Number(a.price||0)-Number(b.price||0));else if(shopSort==='price_high')list=[...list].sort((a,b)=>Number(b.price||0)-Number(a.price||0));return list}
 function shopSectionsHtml(){const cats=state.shop_categories||[];const products=filteredProducts();const filtersActive=shopFilterInStock||shopFilterFeatured||shopSort!=='newest';let sections='';if(activeCategory==='all'&&!searchTerm&&!filtersActive){const recent=recentProductsHtml();if(recent)sections+=recent;const featured=(state.shop_products||[]).filter(p=>Number(p.is_featured)===1||flashSaleActive(p));if(featured.length)sections+=sectionHtml('⭐ محصولات ویژه',featured);for(const c of cats){const list=(state.shop_products||[]).filter(p=>Number(p.category_id)===Number(c.id));if(list.length)sections+=sectionHtml(`${esc(c.emoji||'🛒')} ${esc(c.title)}`,list)} }else sections=gridHtml(products);return sections||'<p class="muted empty-state">محصولی پیدا نشد.</p>'}
-function renderShop(){const cats=state.shop_categories||[];const brand=state.brand||'BlueReferral';$('shopPage').innerHTML=`<section class="shop-hero"><div><small>${esc(brand)}</small><h2>محصولاتو راحت پیدا کن</h2></div><span>🛍</span></section><div class="searchbar">🔍<input id="searchInput" autocomplete="off" inputmode="search" placeholder="جستجوی محصول، اشتراک، VPN..." value="${esc(searchTerm)}"></div><div class="shop-filter-bar"><div class="shop-sort-group"><button class="shop-filter-chip ${shopSort==='newest'?'active':''}" data-shop-sort="newest">جدیدترین</button><button class="shop-filter-chip ${shopSort==='price_low'?'active':''}" data-shop-sort="price_low">ارزان‌ترین</button><button class="shop-filter-chip ${shopSort==='price_high'?'active':''}" data-shop-sort="price_high">گران‌ترین</button></div><div class="shop-toggle-group"><button class="shop-filter-chip ${shopFilterInStock?'active':''}" data-shop-toggle="instock">${shopFilterInStock?'✓ ':''}فقط آنی</button><button class="shop-filter-chip ${shopFilterFeatured?'active':''}" data-shop-toggle="featured">${shopFilterFeatured?'✓ ':''}ویژه</button></div></div><div class="category-strip"><button class="cat-pill ${activeCategory==='all'?'active':''}" data-cat="all"><span>✨</span><b>همه</b></button><button class="cat-pill ${activeCategory==='featured'?'active':''}" data-cat="featured"><span>⭐</span><b>ویژه</b></button>${cats.map(c=>`<button class="cat-pill ${Number(activeCategory)===Number(c.id)?'active':''}" data-cat="${c.id}">${c.image_url?`<img src="${esc(c.image_url)}">`:`<span>${esc(c.emoji||'🛒')}</span>`}<b>${esc(c.title)}</b></button>`).join('')}</div><div id="shopSections">${shopSectionsHtml()}</div>`}
+function renderShop(){const cats=state.shop_categories||[];const brand=state.brand||'BlueReferral';$('shopPage').innerHTML=`<section class="shop-hero"><div><small>${esc(brand)}</small><h2>محصولاتو راحت پیدا کن</h2></div><span>🛍</span></section><div class="searchbar">🔍<input id="searchInput" autocomplete="off" inputmode="search" placeholder="جستجوی محصول، اشتراک، VPN..." value="${esc(searchTerm)}"><div class="search-actions"><button class="ghost" id="toggleCardMode" data-toggle-card-mode>${productCardMode==='compact'?'🔳':'📋'}</button></div></div><div class="shop-filter-bar"><div class="shop-sort-group"><button class="shop-filter-chip ${shopSort==='newest'?'active':''}" data-shop-sort="newest">جدیدترین</button><button class="shop-filter-chip ${shopSort==='price_low'?'active':''}" data-shop-sort="price_low">ارزان‌ترین</button><button class="shop-filter-chip ${shopSort==='price_high'?'active':''}" data-shop-sort="price_high">گران‌ترین</button></div><div class="shop-toggle-group"><button class="shop-filter-chip ${shopFilterInStock?'active':''}" data-shop-toggle="instock">${shopFilterInStock?'✓ ':''}فقط آنی</button><button class="shop-filter-chip ${shopFilterFeatured?'active':''}" data-shop-toggle="featured">${shopFilterFeatured?'✓ ':''}ویژه</button></div></div><div class="category-strip"><button class="cat-pill ${activeCategory==='all'?'active':''}" data-cat="all"><span>✨</span><b>همه</b></button><button class="cat-pill ${activeCategory==='featured'?'active':''}" data-cat="featured"><span>⭐</span><b>ویژه</b></button>${cats.map(c=>`<button class="cat-pill ${Number(activeCategory)===Number(c.id)?'active':''}" data-cat="${c.id}">${c.image_url?`<img src="${esc(c.image_url)}">`:`<span>${esc(c.emoji||'🛒')}</span>`}<b>${esc(c.title)}</b></button>`).join('')}</div><div id="shopSections">${shopSectionsHtml()}</div>`}
 function renderShopSections(){const box=$('shopSections'); if(box) box.innerHTML=shopSectionsHtml();}
 function sectionHtml(title,products){return `<details class="section-row section-collapsible" open><summary class="section-title"><h2>${title}</h2><span class="section-chevron">‹</span></summary><div class="h-scroll product-grid-wrap">${products.map(productCard).join('')}</div></details>`}
 function gridHtml(products){return `<section class="section-row"><div class="h-scroll product-grid-wrap">${products.map(productCard).join('')}</div></section>`}
-function productCard(p){const flash=flashSaleActive(p);return `<article class="product-tile ${flash?'flash-sale-tile':''}" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div><div class="tile-body"><h3>${esc(p.name)}</h3>${p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:''}<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div></div></article>`}
+function productCard(p){
+  const flash=flashSaleActive(p);
+  if(productCardMode==='detailed'){
+    return `<article class="product-tile detailed ${flash?'flash-sale-tile':''}" data-product="${p.id}">`+
+      `<div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div>`+
+      `<div class="tile-body"><h3>${esc(p.name)}</h3>`+
+      (p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:'')+
+      `<div class="product-detail-row"><div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div>`+
+      `<div class="detail-actions">${buyButtonsForProduct(p)}</div></div></div></article>`;
+  }
+  return `<article class="product-tile ${flash?'flash-sale-tile':''}" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div><div class="tile-body"><h3>${esc(p.name)}</h3>${p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:''}<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div></div></article>`;
+}
 function buyButtonsForProduct(p){const bal=Number(state.user?.balance||0);const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';if((p.variants||[]).length){return `${walletHint}<div class="variant-list">${(p.variants||[]).map(v=>`<div class="variant-card"><div><b>${esc(v.title)}</b><span>${priceLabel(v)}</span></div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒 سبد</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف پول</button>`:''}</div></div>`).join('')}</div>`}return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`}
 function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div class="detail-hero product-hero">${cardImage(p,'🛍')}</div><article class="detail-card product-detail"><button class="secondary" data-back-shop>بازگشت به فروشگاه</button><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
@@ -587,4 +636,39 @@ setInterval(()=>{
   if(!isAdminMode && currentTab==='orders' && currentOrderId){ refreshCurrentOrderSilently(); }
   if(isAdminMode && currentAdminTab==='settings'){ loadAdmin(); }
 },60000);
+// Capture-phase click handler for toggle and optimistic buy flows.
+document.addEventListener('click',async function(e){
+  const t=e.target.closest('#toggleCardMode,[data-toggle-card-mode],[data-buy],[data-buy-wallet]');
+  if(!t) return;
+  // Toggle card mode
+  if(t.id==='toggleCardMode' || t.dataset.toggleCardMode!==undefined){
+    e.preventDefault(); e.stopPropagation();
+    const newMode = productCardMode==='compact'?'detailed':'compact';
+    setProductCardMode(newMode);
+    return;
+  }
+  // Optimistic buy handler
+  if(t.dataset.buy||t.dataset.buyWallet){
+    e.preventDefault(); e.stopPropagation();
+    if(!confirm('آیا از ثبت سفارش خود مطمئن هستید؟')) return;
+    closePreviewSheet();
+    const pid = Number(t.dataset.buy||t.dataset.buyWallet);
+    const variantId = t.dataset.variant?Number(t.dataset.variant):null;
+    const p = (state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
+    const tmpId = 'tmp_'+Date.now();
+    const price = variantId ? ((p.variants||[]).find(v=>Number(v.id)===variantId)?.price||p.price) : p.price;
+    const tmpOrder = {id: tmpId, display_name: p?.name||'سفارش', status:'pending_payment', final_amount:price, created_at:new Date().toISOString(), image_url:p?.image_url};
+    state.orders = state.orders || [];
+    state.orders.unshift(tmpOrder);
+    renderUser();
+    try{
+      await api('create_order',{product_id:pid,variant_id:variantId,use_wallet:t.dataset.buyWallet?1:0});
+      state = await api('me'); applyTheme(state); currentTab='orders'; currentOrderId = state.order?.id||null; renderUser();
+    }catch(err){
+      state.orders = (state.orders||[]).filter(o=>o.id!==tmpId);
+      showStatus(err.message||'خطا در ثبت سفارش','error'); renderUser();
+    }
+  }
+}, true);
+
 load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCartFab();attachLongPress();setTimeout(()=>{if(!isAdminMode)showOnboarding()},800);setInterval(()=>{if(currentTab==='shop'||currentTab==='product')renderShopSections&&0},60000);

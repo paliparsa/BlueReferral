@@ -9,17 +9,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css?v=v11-final">
+  <link rel="stylesheet" href="style.override.css?v=v1">
 </head>
 <body>
-  <div id="status" class="toast hidden"></div>
+  <div id="status" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <main id="userApp" class="app-shell">
+  <main id="userApp" class="app-shell" role="main">
     <header class="topbar glass">
       <div>
         <small id="helloText">سلام 👋</small>
         <h1 id="brandTitle">BlueReferral</h1>
       </div>
-      <button class="icon-btn" id="openPalette" title="تنظیم رنگ">🎨</button>
+      <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ Mini App">🎨</button>
     </header>
 
     <section id="homePage" class="page"></section>
@@ -28,7 +29,7 @@
     <section id="ordersPage" class="page hidden"></section>
     <section id="walletPage" class="page hidden"></section>
 
-    <nav class="bottom-nav glass">
+    <nav class="bottom-nav glass" role="navigation" aria-label="ناوبری پایین">
       <button data-tab="home" class="active"><span>👤</span>پروفایل</button>
       <button data-tab="shop"><span>🛒</span>فروشگاه</button>
       <button data-tab="orders"><span>🧾</span>سفارش‌ها</button>
@@ -42,8 +43,8 @@
         <small>پنل مدیریت Mini App</small>
         <h1>BlueReferral Admin</h1>
       </div>
-      <button class="icon-btn" id="openCmdPalette" title="جستجوی دستور (⌘K)">⌘</button>
-      <button class="icon-btn" id="reloadAdmin">↻</button>
+      <button class="icon-btn" id="openCmdPalette" title="جستجوی دستور (⌘K)" aria-label="جستجوی دستور">⌘</button>
+      <button class="icon-btn" id="reloadAdmin" aria-label="رفرش پنل">↻</button>
     </header>
     <section id="adminStats" class="stats-grid"></section>
     <nav class="admin-tabs glass">
@@ -96,6 +97,15 @@
     </form>
   </dialog>
 
+  <script>
+    // Dev loader: append dev.init.js when ?dev=1 is present
+    if (location.search.includes('dev=1')) {
+      const s = document.createElement('script');
+      s.src = 'dev.init.js';
+      s.defer = false;
+      document.head.appendChild(s);
+    }
+  </script>
   <script src="app.js?v=v11-final"></script>
 </body>
 </html>
