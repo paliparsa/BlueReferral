@@ -79,7 +79,7 @@ function parse_spin_rewards_lines(string $text): array {
 }
 function user_payload(array $user): array {
     $vip = vip_info((int)$user['referrals_count']); $today = today_referrals((int)$user['id']); $customer = customer_stats((int)$user['id']);
-    return ['telegram_id'=>(int)$user['telegram_id'], 'username'=>$user['username'], 'first_name'=>$user['first_name'], 'last_name'=>$user['last_name'] ?? null, 'phone_number'=>$user['phone_number'] ?? null, 'phone_verified_at'=>$user['phone_verified_at'] ?? null, 'ref_code'=>$user['ref_code'], 'referral_link'=>referral_link($user), 'balance'=>(int)$user['balance'], 'total_earned'=>(int)$user['total_earned'], 'total_withdrawn'=>(int)$user['total_withdrawn'], 'referrals_count'=>(int)$user['referrals_count'], 'today_referrals'=>$today, 'spin_balance'=>(int)$user['spin_balance'], 'vip'=>$vip, 'customer'=>$customer];
+    return ['telegram_id'=>(int)$user['telegram_id'], 'username'=>$user['username'], 'first_name'=>$user['first_name'], 'last_name'=>$user['last_name'] ?? null, 'phone_number'=>$user['phone_number'] ?? null, 'phone_verified_at'=>$user['phone_verified_at'] ?? null, 'ref_code'=>$user['ref_code'], 'referral_link'=>referral_link($user), 'balance'=>(int)$user['balance'], 'total_earned'=>(int)$user['total_earned'], 'total_withdrawn'=>(int)$user['total_withdrawn'], 'referrals_count'=>(int)$user['referrals_count'], 'today_referrals'=>$today, 'spin_balance'=>(int)$user['spin_balance'], 'vip'=>$vip, 'customer'=>$customer, 'theme_color'=>$user['theme_color'] ?? null];
 }
 function dashboard_payload(array $user): array {
     $missions = []; $today = date('Y-m-d'); $todayCount = today_referrals((int)$user['id']);
@@ -185,6 +185,21 @@ if ($action === 'admin_save_settings') {
     if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text']));
     refresh_usd_product_price_cache();
     api_out(admin_payload());
+}
+
+// Persist a per-user theme color choice
+if ($action === 'set_user_color') {
+    $c = trim((string)($input['theme_color'] ?? ''));
+    if ($c === '') {
+        // clear per-user color
+        db()->prepare('UPDATE users SET theme_color=NULL WHERE id=?')->execute([$user['id']]);
+        api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])));
+    }
+    if (!preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $c)) {
+        api_out(['ok'=>false,'error'=>'INVALID_COLOR','message'=>'کد رنگ معتبر نیست.'], 400);
+    }
+    db()->prepare('UPDATE users SET theme_color=? WHERE id=?')->execute([$c, $user['id']]);
+    api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])));
 }
 
 
