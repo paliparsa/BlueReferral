@@ -240,30 +240,64 @@ function productCard(p){
 }
 function buyButtonsForProduct(p){const bal=Number(state.user?.balance||0);const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';if((p.variants||[]).length){return `${walletHint}<div class="variant-list">${(p.variants||[]).map(v=>`<div class="variant-card"><div><b>${esc(v.title)}</b><span>${priceLabel(v)}</span></div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒 سبد</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف پول</button>`:''}</div></div>`).join('')}</div>`}return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`}
 
-async function shareProduct(pid){
+/* ===== Share sheet ===== */
+function productShareUrl(pid){
+  const bot = state?.bot_username || '';
+  if(bot) return `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}`;
+  return location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
+}
+function openShareSheet(pid){
+  const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
+  if(!p){shareProductLegacy(pid);return;}
+  const bot = state?.bot_username||'';
+  const tgLink = bot ? `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}` : null;
+  const webLink = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
+  const shareUrl = tgLink || webLink;
+  const ss=$('shareSheet');
+  if(!ss){shareProductLegacy(pid);return;}
+  haptic('light');
+  ss.innerHTML=`<div class="share-sheet-inner"><div class="share-sheet-handle" data-close-share></div><div class="share-sheet-head"><div class="share-product-thumb">${cardImage(p,'🛍')}</div><div class="share-product-info"><h3>${esc(p.name)}</h3><p class="muted">${priceLabel(p)}</p></div><button class="ghost" data-close-share>✕</button></div><p class="share-hint muted">این محصول را با دوستانت به اشتراک بذار تا مستقیم توی بات باز شود.</p><div class="share-actions">${tgLink?`<button class="share-btn share-tg" data-share-tg="${esc(tgLink)}"><span class="share-btn-icon">✈️</span><div><b>اشتراک‌گذاری در تلگرام</b><small>باز کردن مستقیم در بات</small></div></button>`:''}<button class="share-btn share-copy" id="shareCopyBtn" data-share-copy="${esc(shareUrl)}"><span class="share-btn-icon">🔗</span><div><b>کپی لینک محصول</b><small>${esc(shareUrl.slice(0,48))}…</small></div></button>${navigator.share?`<button class="share-btn share-native" id="shareNativeBtn"><span class="share-btn-icon">⬆️</span><div><b>اشتراک‌گذاری سیستمی</b><small>واتساپ، پیام، ایمیل و...</small></div></button>`:''}</div></div>`;
+  ss.classList.add('open');
+  ss.querySelectorAll('[data-close-share]').forEach(el=>el.addEventListener('click',closeShareSheet));
+  ss.querySelector('[data-share-tg]')?.addEventListener('click',e=>{
+    const link=e.currentTarget.dataset.shareTg;
+    try{tg?.openTelegramLink?.(link)}catch(_){try{Telegram?.WebApp?.openLink?.(link)}catch(__){location.href=link}}
+    showStatus('لینک محصول در تلگرام باز شد');
+    closeShareSheet();
+  });
+  ss.querySelector('#shareCopyBtn')?.addEventListener('click',()=>{
+    navigator.clipboard?.writeText(shareUrl).then(()=>showStatus('لینک محصول کپی شد 🔗')).catch(()=>showStatus('لینک کپی نشد','error'));
+  });
+  ss.querySelector('#shareNativeBtn')?.addEventListener('click',async()=>{
+    try{
+      await navigator.share({title:p.name,text:`${p.name} — ${priceLabel(p)}`,url:shareUrl});
+      showStatus('اشتراک‌گذاری انجام شد');
+      closeShareSheet();
+    }catch(e){}
+  });
+  ss.addEventListener('click',ev=>{if(ev.target===ss)closeShareSheet()});
+}
+function closeShareSheet(){const ss=$('shareSheet');if(ss){ss.classList.remove('open');ss.innerHTML=''}}
+async function shareProductLegacy(pid){
   const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
   const title = p? (p.name||'محصول') : 'محصول';
-  const url = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
-  const tgLink = state?.bot_username ? `https://t.me/${encodeURIComponent(state.bot_username)}?start=product_${encodeURIComponent(pid)}` : null;
+  const bot = state?.bot_username || '';
+  const tgLink = bot ? `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}` : null;
+  const webLink = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
+  const shareUrl = tgLink || webLink;
   try{
-    if(navigator.share){
-      await navigator.share({title, text: title, url});
-      showStatus('لینک به اشتراک گذاشته شد');
-      return;
-    }
+    if(navigator.share){ await navigator.share({title, text: title, url: shareUrl}); showStatus('لینک به اشتراک گذاشته شد'); return; }
   }catch(e){}
   try{
-    if(navigator.clipboard){
-      await navigator.clipboard.writeText(url);
-      showStatus('پیوند کپی شد');
-      return;
-    }
+    if(navigator.clipboard){ await navigator.clipboard.writeText(shareUrl); showStatus('پیوند کپی شد'); return; }
   }catch(e){}
-  if(tgLink) window.open(tgLink,'_blank'); else showStatus('اشتراک ناموفق','error');
+  if(tgLink) try{tg?.openTelegramLink?.(tgLink)}catch(_){location.href=tgLink};
+  else showStatus('اشتراک ناموفق','error');
 }
 
 
-function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div class="detail-hero product-hero">${cardImage(p,'🛍')}</div><article class="detail-card product-detail"><button class="secondary" data-back-shop>بازگشت به فروشگاه</button><button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
+
+function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div class="detail-hero product-hero">${cardImage(p,'🛍')}</div><article class="detail-card product-detail"><div class="product-detail-topbar"><button class="secondary" data-back-shop>بازگشت به فروشگاه</button><button class="share-pill" data-share-product="${p.id}">🔗 اشتراک</button></div><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
 function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';return `<article class="order-row" data-order-open="${o.id}"><div class="order-row-main"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted">${esc(o.created_at||'')} · مانده ${fmt(o.final_amount)}${paid}</p></div></div>${orderStatusBadge(o)}<span class="chev">‹</span></article>`}
 function paymentMethodsHtml(o){
@@ -623,7 +657,7 @@ document.addEventListener('click',async(e)=>{
     showStatus('رنگ دلخواه اعمال شد');
     return;
   }
-  if(b.dataset.shareProduct){ shareProduct(b.dataset.shareProduct); return; }
+  if(b.dataset.shareProduct){ openShareSheet(b.dataset.shareProduct); return; }
   if(b.dataset.adminColor){const [id,c]=b.dataset.adminColor.split(':'); if($(id)){$(id).value=c; const t=$(id+'_text'); if(t)t.value=c; showStatus('رنگ انتخاب شد')}}
   if(b.dataset.builderAdd){ if(b.dataset.builderAdd==='card')openCardBuilder(); if(b.dataset.builderAdd==='wallet')openWalletBuilder(); if(b.dataset.builderAdd==='rate')openRateBuilder(); return; }
   if(b.dataset.builderEdit){const [type,idx]=b.dataset.builderEdit.split(':'); const i=Number(idx); if(type==='card')openCardBuilder(i); if(type==='wallet')openWalletBuilder(i); if(type==='rate')openRateBuilder(i); return; }
@@ -650,7 +684,7 @@ if(t.id==='openQrHome'||t.id==='openQrWallet'){openQrSheet();return}if(t.id==='a
 if(t.dataset.adminTab){setAdminTab(t.dataset.adminTab)}if(t.id==='reloadAdmin')loadAdmin();if(t.id==='openCmdPalette'){openCommandPalette();return}if(t.dataset.adminAddProduct!==undefined)adminAction('admin_add_product',{name:val('ap_name'),price_currency:val('ap_currency'),price:val('ap_price'),price_usd:val('ap_price_usd'),category_id:val('ap_cat'),delivery_type:val('ap_delivery'),commission_type:val('ap_commission_type'),commission_value:val('ap_commission_value'),image_url:val('ap_img'),duration_days:val('ap_duration'),is_featured:val('ap_featured')?1:0,flash_sale_discount:val('ap_flash_discount'),flash_sale_start:val('ap_flash_start'),flash_sale_end:val('ap_flash_end'),short_description:val('ap_short'),full_description:val('ap_full')});if(t.dataset.editProduct)editProduct(t.dataset.editProduct);if(t.dataset.adminToggleProduct)adminAction('admin_toggle_product',{product_id:t.dataset.adminToggleProduct});if(t.dataset.adminDeleteProduct&&confirm('محصول غیرفعال شود؟'))adminAction('admin_delete_product',{product_id:t.dataset.adminDeleteProduct});if(t.dataset.adminHardDeleteProduct&&confirm('حذف کامل محصول؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_product',{product_id:t.dataset.adminHardDeleteProduct});if(t.dataset.adminAddCategory!==undefined)adminAction('admin_add_category',{title:val('ac_title'),emoji:val('ac_emoji'),image_url:val('ac_img'),sort_order:val('ac_sort')});if(t.dataset.editCategory)editCategory(t.dataset.editCategory);if(t.dataset.adminDeleteCategory&&confirm('دسته غیرفعال شود؟'))adminAction('admin_delete_category',{category_id:t.dataset.adminDeleteCategory});if(t.dataset.adminHardDeleteCategory&&confirm('حذف کامل دسته؟ محصولات بدون دسته می‌شوند.'))adminAction('admin_hard_delete_category',{category_id:t.dataset.adminHardDeleteCategory});if(t.dataset.adminAddVariant!==undefined)adminAction('admin_add_variant',{product_id:val('av_product'),title:val('av_title'),price_currency:val('av_currency'),price:val('av_price'),price_usd:val('av_price_usd'),duration_days:val('av_duration'),sort_order:val('av_sort')});if(t.dataset.editVariant)editVariant(t.dataset.editVariant);if(t.dataset.adminDeleteVariant&&confirm('پلن غیرفعال شود؟'))adminAction('admin_delete_variant',{variant_id:t.dataset.adminDeleteVariant});if(t.dataset.adminHardDeleteVariant&&confirm('حذف کامل پلن؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_variant',{variant_id:t.dataset.adminHardDeleteVariant});if(t.dataset.adminAddInventory!==undefined)adminAction('admin_add_inventory',{product_id:val('ai_product'),variant_id:val('ai_variant'),content:val('ai_content')});if(t.dataset.editInventory)editInventory(t.dataset.editInventory);if(t.dataset.adminDeleteInventory&&confirm('حذف امن آیتم؟'))adminAction('admin_delete_inventory',{inventory_id:t.dataset.adminDeleteInventory});if(t.dataset.adminHardDeleteInventory&&confirm('حذف کامل آیتم؟'))adminAction('admin_hard_delete_inventory',{inventory_id:t.dataset.adminHardDeleteInventory});if(t.dataset.adminStatus){const [id,status]=t.dataset.adminStatus.split(':');adminAction('admin_order_status',{order_id:id,status})}if(t.dataset.adminArchiveOrder&&confirm('این سفارش آرشیو شود؟'))adminAction('admin_archive_order',{order_id:t.dataset.adminArchiveOrder});if(t.dataset.adminDeleteOrder&&confirm('حذف کامل سفارش؟ این عملیات قابل برگشت نیست.'))adminAction('admin_delete_order',{order_id:t.dataset.adminDeleteOrder});if(t.dataset.adminCleanup&&confirm('پاکسازی گروهی سفارش‌های لغو/رد شده انجام شود؟'))adminAction('admin_cleanup_orders',{older_days:t.dataset.adminCleanup==='all'?null:t.dataset.adminCleanup});if(t.dataset.adminDeliver){const oid=t.dataset.adminDeliver;openDialog('تحویل سفارش',`متن تحویل سفارش #${oid} را وارد کن.`, 'ایمیل/پسورد، لینک ساب یا کد', async(txt)=>{const ok=await adminAction('admin_deliver_order',{order_id:oid,delivery:txt});if(ok){currentAdminTab='orders';showStatus('تحویل ثبت شد و برای کاربر ارسال شد')}})}if(t.dataset.viewReceipt!==undefined){loadReceiptImage(t.dataset.viewReceipt)}if(t.dataset.adminSaveSettings!==undefined){syncPaymentBuilders();adminAction('admin_save_settings',{brand_name:val('as_brand_name'),theme_color:val('as_theme'),button_colors_enabled:val('as_btn_enabled')?1:0,require_contact_auth:val('as_require_contact')?1:0,notify_new_user:val('as_notify_new')?1:0,button_colors:{primary:val('as_primary'),secondary:val('as_secondary'),success:val('as_success'),warning:val('as_warning'),danger:val('as_danger')},payment_instructions:val('as_payment'),payment_methods_enabled:{wallet:val('as_pay_wallet')?1:0,card:val('as_pay_card')?1:0,stars:val('as_pay_stars')?1:0,crypto:val('as_pay_crypto')?1:0},card_accounts_text:val('as_cards'),stars_rate_toman:val('as_stars_rate'),crypto_wallets_text:val('as_crypto_wallets'),crypto_manual_rates_text:val('as_crypto_rates'),crypto_rate_source:val('as_crypto_source'),crypto_rate_provider_priority:'wallex,ramzinex,nobitex',crypto_rate_markup_percent:val('as_crypto_markup'),crypto_rate_refresh_interval_seconds:val('as_crypto_refresh_interval'),crypto_notify_rate_fail:val('as_crypto_notify')?1:0,spin_referrals_per_chance:val('as_spin_every'),spin_rewards_text:val('as_spin_rewards')})}});
 document.addEventListener('input',e=>{if(e.target.id==='searchInput'){searchTerm=e.target.value;clearTimeout(searchTimeout);searchTimeout=setTimeout(renderShopSections,250)}if(e.target.id==='ai_product'){const sel=$('ai_variant'); if(sel) sel.innerHTML=variantOptions('', e.target.value)}if(e.target.dataset.colorMirror){const id=e.target.dataset.colorMirror;if($(id))$(id).value=e.target.value}if(e.target.type==='color'&&$(e.target.id+'_text'))$(e.target.id+'_text').value=e.target.value;if(e.target.id==='cmdInput'&&$('cmdPalette')?.classList.contains('open')){openCommandPalette()}})
 document.addEventListener('change',e=>{if(e.target.classList?.contains('bulk-check')){const id=Number(e.target.dataset.bulkCheck);if(e.target.checked)selectedOrderIds.add(id);else selectedOrderIds.delete(id);if(selectedOrderIds.size>0&&currentAdminTab==='orders'){const bar=document.querySelector('.bulk-action-bar h3');if(bar)bar.textContent=`${nf(selectedOrderIds.size)} سفارش انتخاب شده`;else renderAdmin()}}})
-document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openCommandPalette()}if(e.key==='Escape'){$('cmdPalette')?.classList.remove('open');$('onboarding')?.classList.remove('open');closePreviewSheet();closeQrSheet();closeCartSheet();closeCustomer360();closePalettePopup()}if($('cmdPalette')?.classList.contains('open')){const cp=$('cmdPalette');if(e.key==='Enter'){const first=cp.querySelector('[data-cmd-idx]');if(first){const idx=Number(first.dataset.cmdIdx);cp._cmds?.[idx]?.action?.();closeCommandPalette()}}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const items=[...cp.querySelectorAll('[data-cmd-idx]')];const cur=cp.querySelector('[data-cmd-idx].selected');let i=cur?items.indexOf(cur):-1;i+=e.key==='ArrowDown'?1:-1;if(i<0)i=items.length-1;if(i>=items.length)i=0;items.forEach(el=>el.classList.remove('selected'));items[i]?.classList.add('selected');items[i]?.scrollIntoView({block:'nearest'})}}})
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openCommandPalette()}if(e.key==='Escape'){$('cmdPalette')?.classList.remove('open');$('onboarding')?.classList.remove('open');closePreviewSheet();closeQrSheet();closeCartSheet();closeCustomer360();closePalettePopup();closeShareSheet()}if($('cmdPalette')?.classList.contains('open')){const cp=$('cmdPalette');if(e.key==='Enter'){const first=cp.querySelector('[data-cmd-idx]');if(first){const idx=Number(first.dataset.cmdIdx);cp._cmds?.[idx]?.action?.();closeCommandPalette()}}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const items=[...cp.querySelectorAll('[data-cmd-idx]')];const cur=cp.querySelector('[data-cmd-idx].selected');let i=cur?items.indexOf(cur):-1;i+=e.key==='ArrowDown'?1:-1;if(i<0)i=items.length-1;if(i>=items.length)i=0;items.forEach(el=>el.classList.remove('selected'));items[i]?.classList.add('selected');items[i]?.scrollIntoView({block:'nearest'})}}})
 document.addEventListener('click',e=>{const cp=e.target.closest('#cmdPalette, [data-cmd-idx]');if(e.target.dataset?.cmdIdx!==undefined){const cp2=$('cmdPalette');const idx=Number(e.target.dataset.cmdIdx);cp2?._cmds?.[idx]?.action?.();closeCommandPalette();return}if(!cp&&$('cmdPalette')?.classList.contains('open')){closeCommandPalette()}})
 $('dialogSubmit').addEventListener('click',async(e)=>{
   if(!pendingDialog) return;
