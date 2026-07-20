@@ -1,3 +1,4 @@
+  if(t.dataset.shareProduct){ shareProduct(t.dataset.shareProduct); return; }
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 // Scroll safety: do not block touchmove/touchend globally.
@@ -232,12 +233,36 @@ function productCard(p){
       `<div class="tile-body"><h3>${esc(p.name)}</h3>`+
       (p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:'')+
       `<div class="product-detail-row"><div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div>`+
-      `<div class="detail-actions">${buyButtonsForProduct(p)}</div></div></div></article>`;
+      `<div class="detail-actions">${buyButtonsForProduct(p)}<button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button></div></div></div></article>`;
   }
-  return `<article class="product-tile ${flash?'flash-sale-tile':''}" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div><div class="tile-body"><h3>${esc(p.name)}</h3>${p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:''}<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div></div></article>`;
+  return `<article class="product-tile ${flash?'flash-sale-tile':''}" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div><div class="tile-body"><h3>${esc(p.name)}</h3>${p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:''}<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div><div class="tile-actions"><button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button></div></div></article>`;
 }
 function buyButtonsForProduct(p){const bal=Number(state.user?.balance||0);const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';if((p.variants||[]).length){return `${walletHint}<div class="variant-list">${(p.variants||[]).map(v=>`<div class="variant-card"><div><b>${esc(v.title)}</b><span>${priceLabel(v)}</span></div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒 سبد</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف پول</button>`:''}</div></div>`).join('')}</div>`}return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`}
-function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div class="detail-hero product-hero">${cardImage(p,'🛍')}</div><article class="detail-card product-detail"><button class="secondary" data-back-shop>بازگشت به فروشگاه</button><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
+
+async function shareProduct(pid){
+  const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
+  const title = p? (p.name||'محصول') : 'محصول';
+  const url = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
+  const tgLink = state?.bot_username ? `https://t.me/${encodeURIComponent(state.bot_username)}?start=product_${encodeURIComponent(pid)}` : null;
+  try{
+    if(navigator.share){
+      await navigator.share({title, text: title, url});
+      showStatus('لینک به اشتراک گذاشته شد');
+      return;
+    }
+  }catch(e){}
+  try{
+    if(navigator.clipboard){
+      await navigator.clipboard.writeText(url);
+      showStatus('پیوند کپی شد');
+      return;
+    }
+  }catch(e){}
+  if(tgLink) window.open(tgLink,'_blank'); else showStatus('اشتراک ناموفق','error');
+}
+
+
+function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div class="detail-hero product-hero">${cardImage(p,'🛍')}</div><article class="detail-card product-detail"><button class="secondary" data-back-shop>بازگشت به فروشگاه</button><button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
 function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';return `<article class="order-row" data-order-open="${o.id}"><div class="order-row-main"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted">${esc(o.created_at||'')} · مانده ${fmt(o.final_amount)}${paid}</p></div></div>${orderStatusBadge(o)}<span class="chev">‹</span></article>`}
 function paymentMethodsHtml(o){
@@ -585,6 +610,7 @@ document.addEventListener('click',async(e)=>{
     showStatus('رنگ دلخواه اعمال شد');
     return;
   }
+  if(b.dataset.shareProduct){ shareProduct(b.dataset.shareProduct); return; }
   if(b.dataset.adminColor){const [id,c]=b.dataset.adminColor.split(':'); if($(id)){$(id).value=c; const t=$(id+'_text'); if(t)t.value=c; showStatus('رنگ انتخاب شد')}}
   if(b.dataset.builderAdd){ if(b.dataset.builderAdd==='card')openCardBuilder(); if(b.dataset.builderAdd==='wallet')openWalletBuilder(); if(b.dataset.builderAdd==='rate')openRateBuilder(); return; }
   if(b.dataset.builderEdit){const [type,idx]=b.dataset.builderEdit.split(':'); const i=Number(idx); if(type==='card')openCardBuilder(i); if(type==='wallet')openWalletBuilder(i); if(type==='rate')openRateBuilder(i); return; }

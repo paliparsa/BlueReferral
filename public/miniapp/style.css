@@ -115,6 +115,11 @@ html,body{
 }
 .price-pill{max-width:100%;white-space:normal!important;line-height:1.4!important;}
 
+/* Share button styling for product tiles and detail view */
+.tile-actions,.detail-actions{display:flex;gap:8px;margin-top:8px}
+.tile-actions .ghost,[data-share-product]{padding:8px 10px;border-radius:12px;background:#ffffff08;border:1px solid rgba(255,255,255,0.08);color:var(--text);font-weight:700}
+.tile-actions .ghost[data-share-product]:hover,.detail-actions .ghost[data-share-product]:hover{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 14%,#ffffff10),#ffffff06);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+
 /* Payment method panel */
 .payment-box{overflow:hidden!important;}
 .payment-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important;}
