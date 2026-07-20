@@ -266,7 +266,27 @@ function openShareSheet(pid){
     closeShareSheet();
   });
   ss.querySelector('#shareCopyBtn')?.addEventListener('click',()=>{
-    navigator.clipboard?.writeText(shareUrl).then(()=>showStatus('لینک محصول کپی شد 🔗')).catch(()=>showStatus('لینک کپی نشد','error'));
+    (async()=>{
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          await navigator.clipboard.writeText(shareUrl);
+        } else {
+          // fallback for Telegram WebView where clipboard API may be absent
+          const ta=document.createElement('textarea');
+          ta.value=shareUrl;
+          ta.setAttribute('readonly','');
+          ta.style.cssText='position:fixed;opacity:0;left:-9999px;top:-9999px;pointer-events:none';
+          document.body.appendChild(ta);
+          ta.focus(); ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        showStatus('لینک محصول کپی شد 🔗');
+      }catch(err){
+        // last resort: show link so user can copy manually
+        showStatus('لینک: '+shareUrl,'error');
+      }
+    })();
   });
   ss.querySelector('#shareNativeBtn')?.addEventListener('click',async()=>{
     try{
