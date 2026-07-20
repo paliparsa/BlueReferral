@@ -255,7 +255,16 @@ function priceAdminSummary(obj={}){const m=obj.price_meta||{};if((obj.price_curr
 function orderUsdHint(o){return String(o.price_currency||'IRT').toUpperCase()==='USD' && Number(o.price_usd||0)>0 ? `<p class="muted usd-only-hint">مبنای دلاری این سفارش: $${nf(o.price_usd)} · نرخ تبدیل: ${o.usd_rate_toman?nf(o.usd_rate_toman)+' تومان':''}</p>` : ''}
 function setTab(tab){currentTab=tab;renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;renderAdmin()}
-function render(data){state=data;applyTheme(data);$('brandTitle').textContent=data.brand||'BlueReferral';$('helloText').textContent=`سلام ${data.user?.first_name||data.user?.username||'رفیق'} 👋`;$('userApp').classList.toggle('hidden',isAdminMode);$('adminApp').classList.toggle('hidden',!isAdminMode);if(isAdminMode){loadAdmin();return}renderUser();checkAndCelebrate();handleDeepLink();}
+function render(data){
+  hideSkeleton();
+  state=data;applyTheme(data);
+  if($('brandTitle')) $('brandTitle').textContent=data.brand||'BlueReferral';
+  if($('helloText')) $('helloText').textContent=`سلام ${data.user?.first_name||data.user?.username||'رفیق'} 👋`;
+  $('userApp').classList.toggle('hidden',isAdminMode);
+  $('adminApp').classList.toggle('hidden',!isAdminMode);
+  if(isAdminMode){loadAdmin();return}
+  renderUser();checkAndCelebrate();handleDeepLink();
+}
 let _deepLinkHandled=false;
 function handleDeepLink(){
   if(_deepLinkHandled) return;
@@ -848,11 +857,13 @@ document.addEventListener('click',async function(e){
 
 /* ===== Quick-win: skeleton loading ===== */
 function showSkeleton(){
-  const app=$('userApp');
-  if(!app) return;
-  app.classList.remove('hidden');
-  app.innerHTML=`
-  <div class="skeleton-wrap">
+  // Use an overlay so userApp's real children (brandTitle etc.) are NOT destroyed
+  let sk=document.getElementById('skeletonOverlay');
+  if(!sk){
+    sk=document.createElement('div');
+    sk.id='skeletonOverlay';
+    sk.className='skeleton-overlay';
+    sk.innerHTML=`<div class="skeleton-wrap">
     <div class="skeleton-hero sk"></div>
     <div class="skeleton-stats">
       <div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div>
@@ -870,6 +881,13 @@ function showSkeleton(){
       </div>
     </div>
   </div>`;
+    (document.querySelector('.app-shell')||document.body).appendChild(sk);
+  }
+  sk.classList.remove('hidden');
+}
+function hideSkeleton(){
+  const sk=document.getElementById('skeletonOverlay');
+  if(sk) sk.classList.add('hidden');
 }
 
 /* ===== Quick-win: flash sale live countdown ===== */

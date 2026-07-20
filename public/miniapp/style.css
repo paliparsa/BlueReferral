@@ -1045,6 +1045,16 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   animation:shimmer 1.6s ease-in-out infinite;
 }
 .skeleton-wrap{padding:10px 0;animation:fade .3s ease}
+.skeleton-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10;
+  overflow-y:auto;
+  padding:calc(72px + env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom));
+  background:var(--bg,#08111f);
+  pointer-events:none;
+}
+.skeleton-overlay.hidden{display:none}
 .skeleton-hero.sk{height:160px;border-radius:22px;margin-bottom:14px}
 .skeleton-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
 .sk-card{height:80px;border-radius:18px}
