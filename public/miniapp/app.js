@@ -1,4 +1,3 @@
-  if(t.dataset.shareProduct){ shareProduct(t.dataset.shareProduct); return; }
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 // Scroll safety: do not block touchmove/touchend globally.
@@ -310,7 +309,19 @@ function showFatalPanel(message){
   else {$('userApp').classList.remove('hidden');$('adminApp').classList.add('hidden');$('homePage').innerHTML=html;}
 }
 async function load(){
-  if(!initData){showFatalPanel('Mini App باید داخل تلگرام باز شود.');showStatus('Mini App باید داخل تلگرام باز شود.','error');return}
+  if(!initData){
+    // Try to auto-inject dev shim for local testing if available
+    try{
+      if(!location.search.includes('dev=1')){
+        const s=document.createElement('script');s.src='dev.init.js';s.async=false;document.head.appendChild(s);
+        // wait briefly for dev.init to run
+        await new Promise(r=>setTimeout(r,120));
+      }
+    }catch(e){}
+    if(!tg?.initData && !tg?.initDataUnsafe){
+      showFatalPanel('Mini App باید داخل تلگرام باز شود.');showStatus('Mini App باید داخل تلگرام باز شود.','error');return
+    }
+  }
   try{
     if(isAdminMode){$('userApp').classList.add('hidden');$('adminApp').classList.remove('hidden');await loadAdmin();return}
     render(await api('me'))
