@@ -291,8 +291,8 @@ async function shareProductLegacy(pid){
   try{
     if(navigator.clipboard){ await navigator.clipboard.writeText(shareUrl); showStatus('پیوند کپی شد'); return; }
   }catch(e){}
-  if(tgLink) try{tg?.openTelegramLink?.(tgLink)}catch(_){location.href=tgLink};
-  else showStatus('اشتراک ناموفق','error');
+  if(tgLink){ try{tg?.openTelegramLink?.(tgLink)}catch(_){location.href=tgLink} }
+  else{ showStatus('اشتراک ناموفق','error'); }
 }
 
 
