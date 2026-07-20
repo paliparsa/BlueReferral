@@ -127,6 +127,7 @@ function migrate(): void {
     // Safe Commerce Plus upgrade columns. These commands are idempotent and keep older installs intact.
     add_column_if_missing('product_categories', 'image_url', 'VARCHAR(1024) NULL AFTER emoji');
     add_column_if_missing('products', 'image_url', 'VARCHAR(1024) NULL AFTER full_description');
+    add_column_if_missing('products', 'image_srcset', 'VARCHAR(2048) NULL AFTER image_url');
     add_column_if_missing('products', 'price_currency', "VARCHAR(8) NOT NULL DEFAULT 'IRT' AFTER price");
     add_column_if_missing('products', 'price_usd', 'DECIMAL(14,4) NULL AFTER price_currency');
     add_column_if_missing('products', 'price_rate_toman', 'DECIMAL(24,6) NULL AFTER price_usd');
@@ -2530,7 +2531,7 @@ function hard_delete_inventory(int $inventoryId): bool {
     return $d->rowCount() > 0;
 }
 function update_product_field(int $id, string $field, $value): bool {
-    $allowed=['category_id','name','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','short_description','full_description','image_url','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured','flash_sale_start','flash_sale_end','flash_sale_discount'];
+    $allowed=['category_id','name','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','short_description','full_description','image_url','image_srcset','delivery_type','commission_type','commission_value','duration_days','is_active','is_featured','flash_sale_start','flash_sale_end','flash_sale_discount'];
     if (!in_array($field,$allowed,true)) return false;
     if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','commission_value','duration_days','is_active','is_featured','flash_sale_discount'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
     if (in_array($field,['flash_sale_start','flash_sale_end'],true)) $value = (trim((string)$value)==='' || $value===null) ? null : date('Y-m-d H:i:s', strtotime((string)$value));
