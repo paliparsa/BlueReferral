@@ -16,7 +16,7 @@ function getUrlFlag(name){
 }
 const adminFlag = getUrlFlag('admin') || getUrlFlag('mode') || getUrlFlag('startapp') || tg?.initDataUnsafe?.start_param || '';
 const isAdminMode = adminFlag === '1' || String(adminFlag).toLowerCase() === 'admin';
-let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, orderFilter = 'all', lastSpinPrize = null, searchTimeout = null, shopSort = 'newest', shopFilterInStock = false, shopFilterFeatured = false;
+let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, orderFilter = 'all', lastSpinPrize = null, searchTimeout = null, shopSort = 'newest', shopFilterInStock = false, shopFilterFeatured = false, _shareUrl = '';
 // Product card display mode: 'compact' (grid) or 'detailed' (list)
 let productCardMode = localStorage.getItem('blue_ref_card_mode') || 'compact';
 
@@ -241,6 +241,33 @@ function productCard(p){
 function buyButtonsForProduct(p){const bal=Number(state.user?.balance||0);const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';if((p.variants||[]).length){return `${walletHint}<div class="variant-list">${(p.variants||[]).map(v=>`<div class="variant-card"><div><b>${esc(v.title)}</b><span>${priceLabel(v)}</span></div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒 سبد</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف پول</button>`:''}</div></div>`).join('')}</div>`}return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`}
 
 /* ===== Share sheet ===== */
+function copyText(text){
+  // Try modern clipboard API first, fall back to execCommand
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(
+      ()=>showStatus('لینک محصول کپی شد 🔗'),
+      ()=>_copyFallback(text)
+    );
+  } else {
+    _copyFallback(text);
+  }
+}
+function _copyFallback(text){
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text;
+    ta.setAttribute('readonly','');
+    ta.style.cssText='position:fixed;left:-9999px;top:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok=document.execCommand('copy');
+    ta.remove();
+    showStatus(ok?'لینک محصول کپی شد 🔗':'لینک: '+text.slice(0,40));
+  }catch(e){
+    showStatus('لینک: '+text.slice(0,50));
+  }
+}
 function productShareUrl(pid){
   const bot = state?.bot_username || '';
   if(bot) return `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}`;
@@ -248,72 +275,32 @@ function productShareUrl(pid){
 }
 function openShareSheet(pid){
   const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
-  if(!p){shareProductLegacy(pid);return;}
+  if(!p){ shareProductLegacy(pid); return; }
   const bot = state?.bot_username||'';
   const tgLink = bot ? `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}` : null;
   const webLink = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
-  const shareUrl = tgLink || webLink;
+  _shareUrl = tgLink || webLink;
   const ss=$('shareSheet');
-  if(!ss){shareProductLegacy(pid);return;}
+  if(!ss){ shareProductLegacy(pid); return; }
   haptic('light');
-  ss.innerHTML=`<div class="share-sheet-inner"><div class="share-sheet-handle" data-close-share></div><div class="share-sheet-head"><div class="share-product-thumb">${cardImage(p,'🛍')}</div><div class="share-product-info"><h3>${esc(p.name)}</h3><p class="muted">${priceLabel(p)}</p></div><button class="ghost" data-close-share>✕</button></div><p class="share-hint muted">این محصول را با دوستانت به اشتراک بذار تا مستقیم توی بات باز شود.</p><div class="share-actions">${tgLink?`<button class="share-btn share-tg" data-share-tg="${esc(tgLink)}"><span class="share-btn-icon">✈️</span><div><b>اشتراک‌گذاری در تلگرام</b><small>باز کردن مستقیم در بات</small></div></button>`:''}<button class="share-btn share-copy" id="shareCopyBtn" data-share-copy="${esc(shareUrl)}"><span class="share-btn-icon">🔗</span><div><b>کپی لینک محصول</b><small>${esc(shareUrl.slice(0,48))}…</small></div></button>${navigator.share?`<button class="share-btn share-native" id="shareNativeBtn"><span class="share-btn-icon">⬆️</span><div><b>اشتراک‌گذاری سیستمی</b><small>واتساپ، پیام، ایمیل و...</small></div></button>`:''}</div></div>`;
+  ss.innerHTML=`<div class="share-sheet-inner"><div class="share-sheet-handle" data-close-share></div><div class="share-sheet-head"><div class="share-product-thumb">${cardImage(p,'\uD83D\uDECD')}</div><div class="share-product-info"><h3>${esc(p.name)}</h3><p class="muted">${priceLabel(p)}</p></div><button class="ghost" data-close-share>\u2715</button></div><p class="share-hint muted">\u0627\u06CC\u0646 \u0645\u062D\u0635\u0648\u0644 \u0631\u0627 \u0628\u0627 \u062F\u0648\u0633\u062A\u0627\u0646\u062A \u0628\u0647 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0630\u0627\u0631 \u062A\u0627 \u0645\u0633\u062A\u0642\u06CC\u0645 \u062A\u0648\u06CC \u0628\u0627\u062A \u0628\u0627\u0632 \u0634\u0648\u062F.</p><div class="share-actions">${tgLink?`<button class="share-btn share-tg" data-share-tg-url="${esc(tgLink)}"><span class="share-btn-icon">\u2708\uFE0F</span><div><b>\u0627\u0634\u062A\u0631\u0627\u06A9\u200C\u06AF\u0630\u0627\u0631\u06CC \u062F\u0631 \u062A\u0644\u06AF\u0631\u0627\u0645</b><small>\u0628\u0627\u0632 \u06A9\u0631\u062F\u0646 \u0645\u0633\u062A\u0642\u06CC\u0645 \u062F\u0631 \u0628\u0627\u062A</small></div></button>`:''}<button class="share-btn share-copy" data-share-copy-url><span class="share-btn-icon">\uD83D\uDD17</span><div><b>\u06A9\u067E\u06CC \u0644\u06CC\u0646\u06A9 \u0645\u062D\u0635\u0648\u0644</b><small>${esc(_shareUrl.slice(0,48))}\u2026</small></div></button>${navigator.share?`<button class="share-btn share-native" data-share-native><span class="share-btn-icon">\u2B06\uFE0F</span><div><b>\u0627\u0634\u062A\u0631\u0627\u06A9\u200C\u06AF\u0630\u0627\u0631\u06CC \u0633\u06CC\u0633\u062A\u0645\u06CC</b><small>\u0648\u0627\u062A\u0633\u0627\u067E\u060C \u067E\u06CC\u0627\u0645\u060C \u0627\u06CC\u0645\u06CC\u0644 \u0648...</small></div></button>`:''}</div></div>`;
   ss.classList.add('open');
-  ss.querySelectorAll('[data-close-share]').forEach(el=>el.addEventListener('click',closeShareSheet));
-  ss.querySelector('[data-share-tg]')?.addEventListener('click',e=>{
-    const link=e.currentTarget.dataset.shareTg;
-    try{tg?.openTelegramLink?.(link)}catch(_){try{Telegram?.WebApp?.openLink?.(link)}catch(__){location.href=link}}
-    showStatus('لینک محصول در تلگرام باز شد');
-    closeShareSheet();
-  });
-  ss.querySelector('#shareCopyBtn')?.addEventListener('click',()=>{
-    (async()=>{
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          await navigator.clipboard.writeText(shareUrl);
-        } else {
-          // fallback for Telegram WebView where clipboard API may be absent
-          const ta=document.createElement('textarea');
-          ta.value=shareUrl;
-          ta.setAttribute('readonly','');
-          ta.style.cssText='position:fixed;opacity:0;left:-9999px;top:-9999px;pointer-events:none';
-          document.body.appendChild(ta);
-          ta.focus(); ta.select();
-          document.execCommand('copy');
-          ta.remove();
-        }
-        showStatus('لینک محصول کپی شد 🔗');
-      }catch(err){
-        // last resort: show link so user can copy manually
-        showStatus('لینک: '+shareUrl,'error');
-      }
-    })();
-  });
-  ss.querySelector('#shareNativeBtn')?.addEventListener('click',async()=>{
-    try{
-      await navigator.share({title:p.name,text:`${p.name} — ${priceLabel(p)}`,url:shareUrl});
-      showStatus('اشتراک‌گذاری انجام شد');
-      closeShareSheet();
-    }catch(e){}
-  });
-  ss.addEventListener('click',ev=>{if(ev.target===ss)closeShareSheet()});
+  ss.addEventListener('click',ev=>{ if(ev.target===ss) closeShareSheet(); },{once:true});
 }
-function closeShareSheet(){const ss=$('shareSheet');if(ss){ss.classList.remove('open');ss.innerHTML=''}}
+function closeShareSheet(){const ss=$('shareSheet');if(ss){ss.classList.remove('open');ss.innerHTML='';_shareUrl=''}}
 async function shareProductLegacy(pid){
   const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
-  const title = p? (p.name||'محصول') : 'محصول';
+  const title = p? (p.name||'\u0645\u062D\u0635\u0648\u0644') : '\u0645\u062D\u0635\u0648\u0644';
   const bot = state?.bot_username || '';
   const tgLink = bot ? `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}` : null;
   const webLink = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
   const shareUrl = tgLink || webLink;
   try{
-    if(navigator.share){ await navigator.share({title, text: title, url: shareUrl}); showStatus('لینک به اشتراک گذاشته شد'); return; }
+    if(navigator.share){ await navigator.share({title, text: title, url: shareUrl}); showStatus('\u0644\u06CC\u0646\u06A9 \u0628\u0647 \u0627\u0634\u062A\u0631\u0627\u06A9 \u06AF\u0630\u0627\u0634\u062A\u0647 \u0634\u062F'); return; }
   }catch(e){}
-  try{
-    if(navigator.clipboard){ await navigator.clipboard.writeText(shareUrl); showStatus('پیوند کپی شد'); return; }
-  }catch(e){}
-  if(tgLink){ try{tg?.openTelegramLink?.(tgLink)}catch(_){location.href=tgLink} }
-  else{ showStatus('اشتراک ناموفق','error'); }
+  copyText(shareUrl);
 }
+
 
 
 
@@ -667,7 +654,7 @@ async function adminAction(action,payload={}){
 async function loadAfterAction(action,payload={}){try{state=await api(action,payload);applyTheme(state);renderUser();showStatus('انجام شد');return true}catch(e){showStatus(e.message,'error');return false}}
 
 document.addEventListener('click',async(e)=>{
-  const b=e.target.closest('[data-builder-add],[data-builder-edit],[data-builder-del],[data-admin-color],#applyCustomColor,#applyAdminColor');
+  const b=e.target.closest('[data-builder-add],[data-builder-edit],[data-builder-del],[data-admin-color],#applyCustomColor,#applyAdminColor,[data-close-share],[data-share-tg-url],[data-share-copy-url],[data-share-native],[data-share-product]');
   if(!b) return;
   e.preventDefault(); e.stopPropagation();
   if(b.id==='applyCustomColor'){
@@ -678,6 +665,24 @@ document.addEventListener('click',async(e)=>{
     return;
   }
   if(b.dataset.shareProduct){ openShareSheet(b.dataset.shareProduct); return; }
+  if(b.dataset.closeShare !== undefined){ closeShareSheet(); return; }
+  if(b.dataset.shareTgUrl){
+    const link = b.dataset.shareTgUrl;
+    try{tg?.openTelegramLink?.(link)}catch(_){try{Telegram?.WebApp?.openLink?.(link)}catch(__){location.href=link}}
+    showStatus('لینک محصول در تلگرام باز شد');
+    closeShareSheet();
+    return;
+  }
+  if(b.dataset.shareCopyUrl !== undefined){
+    copyText(_shareUrl);
+    return;
+  }
+  if(b.dataset.shareNative !== undefined){
+    if(navigator.share && _shareUrl){
+      try{ await navigator.share({title: document.title, url: _shareUrl}); showStatus('اشتراک‌گذاری انجام شد'); closeShareSheet(); }catch(_){}
+    }
+    return;
+  }
   if(b.dataset.adminColor){const [id,c]=b.dataset.adminColor.split(':'); if($(id)){$(id).value=c; const t=$(id+'_text'); if(t)t.value=c; showStatus('رنگ انتخاب شد')}}
   if(b.dataset.builderAdd){ if(b.dataset.builderAdd==='card')openCardBuilder(); if(b.dataset.builderAdd==='wallet')openWalletBuilder(); if(b.dataset.builderAdd==='rate')openRateBuilder(); return; }
   if(b.dataset.builderEdit){const [type,idx]=b.dataset.builderEdit.split(':'); const i=Number(idx); if(type==='card')openCardBuilder(i); if(type==='wallet')openWalletBuilder(i); if(type==='rate')openRateBuilder(i); return; }
