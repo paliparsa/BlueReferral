@@ -213,7 +213,25 @@ function priceAdminSummary(obj={}){const m=obj.price_meta||{};if((obj.price_curr
 function orderUsdHint(o){return String(o.price_currency||'IRT').toUpperCase()==='USD' && Number(o.price_usd||0)>0 ? `<p class="muted usd-only-hint">مبنای دلاری این سفارش: $${nf(o.price_usd)} · نرخ تبدیل: ${o.usd_rate_toman?nf(o.usd_rate_toman)+' تومان':''}</p>` : ''}
 function setTab(tab){currentTab=tab;renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;renderAdmin()}
-function render(data){state=data;applyTheme(data);$('brandTitle').textContent=data.brand||'BlueReferral';$('helloText').textContent=`سلام ${data.user?.first_name||data.user?.username||'رفیق'} 👋`;$('userApp').classList.toggle('hidden',isAdminMode);$('adminApp').classList.toggle('hidden',!isAdminMode);if(isAdminMode){loadAdmin();return}renderUser();checkAndCelebrate()}
+function render(data){state=data;applyTheme(data);$('brandTitle').textContent=data.brand||'BlueReferral';$('helloText').textContent=`سلام ${data.user?.first_name||data.user?.username||'رفیق'} 👋`;$('userApp').classList.toggle('hidden',isAdminMode);$('adminApp').classList.toggle('hidden',!isAdminMode);if(isAdminMode){loadAdmin();return}renderUser();checkAndCelebrate();handleDeepLink();}
+let _deepLinkHandled=false;
+function handleDeepLink(){
+  if(_deepLinkHandled) return;
+  _deepLinkHandled=true;
+  // 1) Telegram startapp param: ?startapp=product_5 or tg.initDataUnsafe.start_param = 'product_5'
+  const startParam = tg?.initDataUnsafe?.start_param || getUrlFlag('startapp') || '';
+  let pid = null;
+  if(startParam && /^product_(\d+)$/i.test(startParam)){
+    pid = startParam.replace(/^product_/i,'');
+  }
+  // 2) Web fallback: ?product=5
+  if(!pid){ pid = getUrlFlag('product'); }
+  if(pid && Number(pid) > 0){
+    // Switch to shop tab first so back-button works, then show the product
+    currentTab='shop';
+    showProduct(pid);
+  }
+}
 function hidePages(){['homePage','shopPage','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.bottom-nav [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===currentTab))}
 function renderUser(){hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }}
 function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);$('homePage').innerHTML=`<section class="hero hero-pro wallet-hero"><div class="hero-glow"></div><div class="row profile-row"><div class="profile-head">${userProfileAvatar(u)}<div><small>داشبورد حساب</small><h2>${esc(u.first_name||u.username||'کاربر BlueReferral')}</h2><p class="muted user-line">${u.username?'@'+esc(u.username):'بدون یوزرنیم'} · ${u.phone_number?'📱 '+esc(u.phone_number):'شماره ثبت نشده'}</p></div></div><div class="avatar floating-avatar">${u.vip?.emoji||'💙'}</div></div><div class="wallet-balance"><span>موجودی قابل خرج</span><b data-count-anim="${u.balance}">${fmt(u.balance)}</b></div><p class="muted">موجودی کیف پولت می‌تواند از مبلغ فاکتور فروشگاه کم شود. سطح همکاری ${u.vip?.emoji||''} ${esc(u.vip?.fa||'')} · سطح مشتری ${c.emoji||''} ${esc(c.fa||'')}</p></section><div class="stats-grid vivid"><div class="mini-stat"><b data-count-anim="${u.referrals_count}">${nf(u.referrals_count)}</b><span>زیرمجموعه</span></div><div class="mini-stat"><b data-count-anim="${u.total_earned}">${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div class="mini-stat"><b data-count-anim="${u.spin_balance}">${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div>${vipProgressHtml()}${achievementsHtml()}<article class="mission-preview"> <div><small>ماموریت امروز</small><h3>پیشرفت دعوت‌ها</h3><p class="muted">امروز ${nf(today)} دعوت ثبت شده است.</p></div><button class="secondary" data-tab-jump="wallet">مشاهده</button></article><div class="quick-grid"><button class="quick-card gradient-card" data-tab-jump="orders"><b>🧾 سفارش‌های من</b><span>پیگیری وضعیت و تحویل‌ها</span></button><button class="quick-card gradient-card" data-tab-jump="wallet"><b>💰 کیف پول</b><span>ماموریت، تراکنش و پرداخت</span></button><button class="quick-card gradient-card" data-tab-jump="shop"><b>🛒 فروشگاه</b><span>محصولات دیجیتال و VPN</span></button><button class="quick-card gradient-card" id="paletteQuick"><b>🎨 تغییر رنگ</b><span>ظاهر Mini App را شخصی کن</span></button></div>`;triggerBalanceAnims()}
