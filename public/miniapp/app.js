@@ -1,3 +1,5 @@
+// BlueReferral miniapp — ensure no stray top-level statements break the bundle
+// (prepending a safe comment helps spot versions; remove only when sure)
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 // Scroll safety: do not block touchmove/touchend globally.
