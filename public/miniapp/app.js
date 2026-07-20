@@ -94,7 +94,25 @@ const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&
 const textBlock = (s) => esc(s || '').replace(/\n/g,'<br>');
 function colorMix(c){return c || '#1d9bf0'}
 function applyTheme(data={}){const local=localStorage.getItem('blue_ref_color');const accent=local||data.theme_color||data.settings?.theme_color||'#1d9bf0';document.documentElement.style.setProperty('--accent',accent);document.documentElement.style.setProperty('--primary',data.button_colors_enabled===false?'#1d9bf0':(data.button_colors?.primary||data.settings?.button_colors?.primary||accent));document.documentElement.style.setProperty('--secondary',data.button_colors?.secondary||data.settings?.button_colors?.secondary||'#2563eb');document.documentElement.style.setProperty('--danger',data.button_colors?.danger||data.settings?.button_colors?.danger||'#ef4444');document.documentElement.style.setProperty('--success',data.button_colors?.success||data.settings?.button_colors?.success||'#22c55e');document.documentElement.style.setProperty('--warning',data.button_colors?.warning||data.settings?.button_colors?.warning||'#f59e0b');try{tg?.setHeaderColor?.(accent);tg?.setBackgroundColor?.('#08111f');tg?.MainButton?.setParams?.({color:accent,text_color:'#ffffff'});}catch(e){}}
-function showStatus(text,type='success'){const el=$('status');el.textContent=text;el.className=`toast ${type}`;setTimeout(()=>el.classList.add('hidden'),3500)}
+let _statusTimer=null;
+function showStatus(text,type='success'){
+  const el=$('status');
+  if(!el) return;
+  // icon prefix
+  const icons={success:'✅',error:'❌',warning:'⚠️',info:'🔔'};
+  const icon=icons[type]||icons.success;
+  el.innerHTML=`<span class="toast-icon">${icon}</span><span class="toast-text">${text}</span><div class="toast-bar"></div>`;
+  el.className=`toast ${type}`;
+  el.classList.remove('hidden');
+  // haptic
+  if(type==='error')try{tg?.HapticFeedback?.notificationOccurred?.('error')}catch(e){}
+  else if(type==='success')try{tg?.HapticFeedback?.notificationOccurred?.('success')}catch(e){}
+  // progress bar drain animation
+  const bar=el.querySelector('.toast-bar');
+  if(bar){bar.style.transition='none';bar.style.width='100%';requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.transition='width 3.4s linear';bar.style.width='0%'}));}
+  clearTimeout(_statusTimer);
+  _statusTimer=setTimeout(()=>el.classList.add('hidden'),3500);
+}
 async function api(action,payload={}){const res=await fetch('/api.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,initData,...payload})});const data=await res.json().catch(()=>({}));if(!res.ok||data.ok===false)throw new Error(data.message||data.error||'خطا در ارتباط');return data}
 /* ===== Batch 1 utilities: haptic, chime, confetti, pull-to-refresh, charts, lightbox, stepper ===== */
 function haptic(t='light'){try{tg?.HapticFeedback?.impactOccurred?.(t)}catch(e){}}
@@ -149,9 +167,33 @@ function exportProductsCsv(){const rows=[['#','نام','دسته','قیمت','و
 /* ===== Batch 3 utilities: balance counter, long-press, VIP bar, onboarding, recent, QR, light theme, badges, search, bulk, inline-edit, reorder, command palette, activity log, roles, flash sale, forecast, chat shortcut ===== */
 function animateCount(el,end,duration=900){if(!el)return;const start=0;const t0=performance.now();const tick=now=>{const p=Math.min(1,(now-t0)/duration);const ease=1-Math.pow(1-p,3);el.textContent=nf(Math.round(start+(end-start)*ease));if(p<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)}
 function triggerBalanceAnims(){document.querySelectorAll('[data-count-anim]').forEach(el=>{if(el.dataset.counted)return;el.dataset.counted='1';animateCount(el,Number(el.dataset.countAnim||0))})}
-/* Long-press preview (U6) */
+/* Long-press: products + order rows */
 let _lpTimer=null,_lpTarget=null,_lpAttached=false;
-function attachLongPress(){if(_lpAttached)return;_lpAttached=true;document.addEventListener('touchstart',e=>{if($('previewSheet')?.classList.contains('open'))return;const t=e.target.closest('[data-product]');if(!t)return;_lpTarget=t;_lpTimer=setTimeout(()=>{if(_lpTarget===t){_lpTarget=null;haptic('medium');showProductPreview(Number(t.dataset.product))}},550)},{passive:true});document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTarget=null});document.addEventListener('touchmove',()=>{clearTimeout(_lpTimer);_lpTarget=null},{passive:true})}
+function _showOrderQuickMenu(orderId){
+  const o=(state?.orders||[]).find(x=>Number(x.id)===Number(orderId));
+  if(!o) return;
+  haptic('medium');
+  const ss=$('shareSheet'); // reuse share-sheet overlay
+  if(!ss) return;
+  _shareUrl=''; // not a share context
+  ss.innerHTML=`<div class="share-sheet-inner"><div class="share-sheet-handle" data-close-share></div><div class="share-sheet-head"><div class="share-product-thumb" style="font-size:26px;display:grid;place-items:center">🧾</div><div class="share-product-info"><h3>سفارش #${nf(o.id)}</h3><p class="muted">${esc(o.display_name)} · ${esc(o.status_fa||o.status)}</p></div><button class="ghost" data-close-share>✕</button></div><div class="share-actions"><button class="share-btn" data-order-quick-copy="${o.id}"><span class="share-btn-icon">📋</span><div><b>کپی شناسه سفارش</b><small>#${nf(o.id)}</small></div></button>${state?.support_username?`<button class="share-btn" data-order-quick-support><span class="share-btn-icon">💬</span><div><b>تماس با پشتیبانی</b><small>@${esc(state.support_username)}</small></div></button>`:''}<button class="share-btn" data-order-open="${o.id}"><span class="share-btn-icon">📄</span><div><b>باز کردن جزئیات</b><small>مشاهده کامل سفارش</small></div></button></div></div>`;
+  ss.classList.add('open');
+  ss.addEventListener('click',ev=>{if(ev.target===ss)closeShareSheet();},{once:true});
+}
+function attachLongPress(){if(_lpAttached)return;_lpAttached=true;
+  let _lpOrderTarget=null, _lpOrderTimer=null;
+  document.addEventListener('touchstart',e=>{
+    // product preview
+    if($('previewSheet')?.classList.contains('open')) return;
+    const t=e.target.closest('[data-product]');
+    if(t){_lpTarget=t;_lpTimer=setTimeout(()=>{if(_lpTarget===t){_lpTarget=null;haptic('medium');showProductPreview(Number(t.dataset.product))}},550);}
+    // order quick menu
+    const or=e.target.closest('.order-row[data-order-open]');
+    if(or){_lpOrderTarget=or;_lpOrderTimer=setTimeout(()=>{if(_lpOrderTarget===or){_lpOrderTarget=null;_showOrderQuickMenu(or.dataset.orderOpen)}},600);}
+  },{passive:true});
+  document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTarget=null;clearTimeout(_lpOrderTimer);_lpOrderTarget=null;});
+  document.addEventListener('touchmove',()=>{clearTimeout(_lpTimer);_lpTarget=null;clearTimeout(_lpOrderTimer);_lpOrderTarget=null;},{passive:true});
+}
 function showProductPreview(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;const pv=$('previewSheet');if(!pv)return;pv.innerHTML=`<div class="preview-sheet-inner"><div class="preview-sheet-handle" data-close-preview></div><button class="preview-close-btn" data-close-preview>✕</button><div class="preview-img">${cardImage(p,'🛍')}</div><div class="preview-body"><h3>${esc(p.name)}</h3><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge">${esc(p.delivery_type_fa)}</span>${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div>${p.short_description?`<div class="preview-desc-box">${esc(p.short_description)}</div>`:''}<button class="secondary wide" data-preview-full="${p.id}">مشاهده کامل</button>${buyButtonsForProduct(p)}</div></div>`;pv.classList.add('open');pushRecent(pid);pv.querySelectorAll('[data-close-preview]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();closePreviewSheet()}));pv.querySelector('[data-preview-full]')?.addEventListener('click',e=>{e.stopPropagation();closePreviewSheet();showProduct(pid)});pv.addEventListener('click',function(ev){if(ev.target===pv)closePreviewSheet()})}
 function closePreviewSheet(){const pv=$('previewSheet');if(pv){pv.classList.remove('open');pv.innerHTML=''}}
 /* VIP / loyalty progress (U8) */
@@ -804,4 +846,94 @@ document.addEventListener('click',async function(e){
   }
 }, true);
 
-load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCartFab();attachLongPress();setTimeout(()=>{if(!isAdminMode)showOnboarding()},800);setInterval(()=>{if(currentTab==='shop'||currentTab==='product')renderShopSections&&0},60000);
+/* ===== Quick-win: skeleton loading ===== */
+function showSkeleton(){
+  const app=$('userApp');
+  if(!app) return;
+  app.classList.remove('hidden');
+  app.innerHTML=`
+  <div class="skeleton-wrap">
+    <div class="skeleton-hero sk"></div>
+    <div class="skeleton-stats">
+      <div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div>
+    </div>
+    <div class="skeleton-row">
+      <div class="sk sk-title"></div>
+      <div class="skeleton-cards">
+        <div class="sk sk-product"></div><div class="sk sk-product"></div><div class="sk sk-product"></div>
+      </div>
+    </div>
+    <div class="skeleton-row">
+      <div class="sk sk-title"></div>
+      <div class="skeleton-cards">
+        <div class="sk sk-product"></div><div class="sk sk-product"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ===== Quick-win: flash sale live countdown ===== */
+let _flashInterval=null;
+function startFlashCountdowns(){
+  clearInterval(_flashInterval);
+  _flashInterval=setInterval(()=>{
+    document.querySelectorAll('[data-flash-pid]').forEach(el=>{
+      const p=(state?.shop_products||[]).find(x=>Number(x.id)===Number(el.dataset.flashPid));
+      if(p) el.textContent=flashSaleCountdown(p);
+    });
+  },1000);
+}
+
+/* ===== Quick-win: back-to-top button ===== */
+function initBackToTop(){
+  const btn=document.createElement('button');
+  btn.id='backToTop';
+  btn.className='back-to-top hidden';
+  btn.setAttribute('aria-label','بازگشت به بالا');
+  btn.innerHTML='↑';
+  document.body.appendChild(btn);
+  btn.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+  window.addEventListener('scroll',()=>{
+    btn.classList.toggle('hidden',window.scrollY<300);
+  },{passive:true});
+}
+
+/* ===== Quick-win: order row long-press delegation ===== */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-order-quick-copy],[data-order-quick-support]');
+  if(!b) return;
+  e.preventDefault(); e.stopPropagation();
+  if(b.dataset.orderQuickCopy!==undefined){ copyText('#'+b.dataset.orderQuickCopy); closeShareSheet(); return; }
+  if(b.dataset.orderQuickSupport!==undefined){
+    const u=state?.support_username;
+    if(u){try{tg?.openTelegramLink?.('https://t.me/'+u)}catch(_){location.href='https://t.me/'+u}}
+    closeShareSheet(); return;
+  }
+},true);
+
+/* ===== Quick-win: haptic on tab & cat clicks ===== */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab],[data-tab-jump],[data-cat],[data-shop-sort],[data-shop-toggle]');
+  if(t) haptic('light');
+},{passive:true,capture:false});
+
+async function load(){
+  showSkeleton();
+  try{
+    if(isAdminMode){
+      adminState=await api('admin_summary');
+      applyTheme(adminState.settings||{});
+      $('userApp').classList.add('hidden');
+      $('adminApp').classList.remove('hidden');
+      loadAdmin();
+    } else {
+      state=await api('me');
+      render(state);
+    }
+  }catch(e){
+    const app=$('userApp');
+    if(app) app.innerHTML=`<div class="error-state"><p>⚠️ ${esc(e.message||'خطا در بارگذاری')}</p><button class="primary" onclick="location.reload()">تلاش مجدد</button></div>`;
+    app?.classList.remove('hidden');
+  }
+}
+load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCartFab();attachLongPress();initBackToTop();setTimeout(()=>{if(!isAdminMode)showOnboarding()},800);setInterval(()=>{if(currentTab==='shop'||currentTab==='product'){renderShopSections&&0;startFlashCountdowns();}},60000);
