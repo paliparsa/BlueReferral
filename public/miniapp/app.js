@@ -581,11 +581,7 @@ document.addEventListener('click',async(e)=>{
   if(b.id==='applyCustomColor'){
     const c=$('userCustomColor')?.value || '#1d9bf0';
     localStorage.setItem('blue_ref_color',c);
-    try{
-      const res = await api('set_user_color',{theme_color:c});
-      if(res) state = res;
-    }catch(e){/* ignore */}
-    applyTheme(state || {...state,theme_color:c});
+    applyTheme({...state,theme_color:c});
     showStatus('رنگ دلخواه اعمال شد');
     return;
   }
@@ -594,31 +590,12 @@ document.addEventListener('click',async(e)=>{
   if(b.dataset.builderEdit){const [type,idx]=b.dataset.builderEdit.split(':'); const i=Number(idx); if(type==='card')openCardBuilder(i); if(type==='wallet')openWalletBuilder(i); if(type==='rate')openRateBuilder(i); return; }
   if(b.dataset.builderDel){const [type,idx]=b.dataset.builderDel.split(':'); const i=Number(idx); if(!confirm('این مورد حذف شود؟'))return; if(type==='card')adminUiCards.splice(i,1); if(type==='wallet')adminUiWallets.splice(i,1); if(type==='rate')adminUiRates.splice(i,1); syncPaymentBuilders(); showStatus('حذف شد'); return; }
 },true);
-// Capture-phase handler to persist palette swatch clicks and reset action
-document.addEventListener('click',async function(e){
-  const sw=e.target.closest('[data-color],#resetColor');
-  if(!sw) return;
-  e.preventDefault(); e.stopPropagation();
-  if(sw.id==='resetColor'){
-    localStorage.removeItem('blue_ref_color');
-    try{ await api('set_user_color',{theme_color:''}); state = await api('me'); }catch(err){}
-    applyTheme(state);
-    showStatus('رنگ پیش‌فرض برگشت');
-    return;
-  }
-  const c = sw.dataset.color;
-  if(!c) return;
-  localStorage.setItem('blue_ref_color', c);
-  try{ await api('set_user_color',{theme_color:c}); state = await api('me'); }catch(err){}
-  applyTheme(state||{...state,theme_color:c});
-  showStatus('رنگ تغییر کرد');
-}, true);
+// Removed capture-phase palette persistence to server — palette is local-only now.
 
 // Override applyTheme to prefer per-user theme when available
 function applyTheme(data={}){
   const local = localStorage.getItem('blue_ref_color');
-  const userColor = data && data.user && data.user.theme_color ? data.user.theme_color : null;
-  const accent = local || userColor || (data && data.theme_color) || (data && data.settings && data.settings.theme_color) || '#1d9bf0';
+  const accent = local || (data && data.theme_color) || (data && data.settings && data.settings.theme_color) || '#1d9bf0';
   document.documentElement.style.setProperty('--accent', accent);
   document.documentElement.style.setProperty('--primary', data && data.button_colors_enabled===false ? '#1d9bf0' : (data && (data.button_colors?.primary || (data.settings && data.settings.button_colors?.primary)) || accent));
   document.documentElement.style.setProperty('--secondary', data && (data.button_colors?.secondary || (data.settings && data.settings.button_colors?.secondary)) || '#2563eb');
