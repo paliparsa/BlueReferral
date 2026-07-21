@@ -865,6 +865,15 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .compact-tile .tile-img img { width: 100% !important; height: 100% !important; object-fit: cover !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
 .compact-tile .tile-body h3 { font-size: 13px !important; margin: 0 !important; text-align: center; min-height: 0 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
 .compact-tile { padding-bottom: 0 !important; }
+
+.product-tile.detailed { width: 100% !important; max-width: 100% !important; display: flex; align-items: stretch; padding: 12px; gap: 12px; min-height: 120px; }
+.product-tile.detailed .tile-img { width: 100px !important; height: 100px !important; flex-shrink: 0; aspect-ratio: 1 / 1; background: transparent !important; margin: 0 !important; padding: 0 !important; border-radius: 16px !important; border: none !important; align-self: flex-start; }
+.product-tile.detailed .tile-img img { width: 100% !important; height: 100% !important; object-fit: cover !important; padding: 0 !important; margin: 0 !important; border-radius: 16px !important; background: transparent !important; box-shadow: none !important; }
+.product-tile.detailed .tile-body { flex: 1; padding: 0 !important; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+.product-tile.detailed .tile-body h3 { font-size: 15px !important; margin-bottom: 6px !important; white-space: normal; }
+.product-tile.detailed .tile-desc { -webkit-line-clamp: 2; margin-bottom: 8px !important; font-size: 11px; }
+.product-tile.detailed .price-row-mini { margin-top: auto; }
+
 .compact-price {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(12px);

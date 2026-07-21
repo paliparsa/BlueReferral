@@ -305,12 +305,11 @@ function productCard(p){
   const wishBtn = `<button class="wishlist-fab ${w.includes(Number(p.id))?'active':''}" data-wishlist-pid="${p.id}" aria-label="نشان‌کردن">${w.includes(Number(p.id))?'❤️':'🤍'}</button>`;
   
   if(productCardMode==='detailed'){
-    return `<article class="product-tile detailed ${flash?'flash-sale-tile':''}" data-product="${p.id}">`+
-      `<div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}${wishBtn}${quickBuy}</div>`+
+    return `<article class="product-tile detailed ${flash?'flash-sale-tile':''}" data-product-preview="${p.id}">`+
+      `<div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}${wishBtn}</div>`+
       `<div class="tile-body"><h3>${esc(p.name)}</h3>`+
       (p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:'')+
-      `<div class="product-detail-row"><div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div>`+
-      `<div class="detail-actions">${buyButtonsForProduct(p)}<button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button></div></div></div></article>`;
+      `<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div></div></article>`;
   }
   return `<article class="product-tile compact-tile ${flash?'flash-sale-tile':''}" data-product-preview="${p.id}"><div class="tile-img" style="position:relative">${cardImage(p,'🛍')}<div class="overlay-price" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:2;width:calc(100% - 16px);justify-content:center"><span class="compact-price">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}</div>${flash?'<span class="flash-badge">⚡</span>':''}${wishBtn}</div><div class="tile-body" style="padding:10px;padding-bottom:12px"><h3>${esc(p.name)}</h3></div></article>`;
 }
