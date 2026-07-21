@@ -1048,17 +1048,19 @@ load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCart
 
 function openBroadcast() {
   if (typeof haptic === 'function') haptic('light');
-  openDialog('ارسال پیام همگانی', 'متن پیام خود را بنویسید (پشتیبانی از HTML):', 'سلام کاربران عزیز...', async (text) => {
-    if (!text) return;
-    try {
-      showStatus('در حال ارسال... کمی صبر کنید.', 'info');
-      const res = await api('admin_broadcast', {text: text});
-      showStatus(res.message || 'با موفقیت ارسال شد');
-      adminState = res;
-      renderAdmin();
-    } catch(e) {
-      showStatus('خطا در ارسال: ' + e.message, 'error');
-    }
+  openEdit('ارسال پیام همگانی', [{
+    title: 'متن پیام همگانی',
+    fields: [
+      {id: 'bc_text', label: 'متن پیام (پشتیبانی از HTML)', type: 'textarea', placeholder: 'مثلاً: سلام کاربران عزیز...'}
+    ]
+  }], async () => {
+    const txt = val('bc_text');
+    if (!txt) throw new Error('متن پیام نباید خالی باشد.');
+    showStatus('در حال ارسال... کمی صبر کنید.', 'info');
+    const res = await api('admin_broadcast', {text: txt});
+    showStatus(res.message || 'با موفقیت ارسال شد');
+    adminState = res;
+    renderAdmin();
   });
 }
 
