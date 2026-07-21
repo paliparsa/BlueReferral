@@ -1339,3 +1339,141 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   .searchbar-modern, .shop-controls-row { margin-left: 10px; margin-right: 10px; }
   .modern-cats { padding-left: 10px; padding-right: 10px; }
 }
+
+/* iOS Form Transformation */
+.form-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 20px !important;
+    overflow: hidden !important;
+    margin: 16px 0 !important;
+    padding: 0 !important;
+}
+
+.form-grid > input, 
+.form-grid > select, 
+.form-grid > textarea, 
+.form-grid > label,
+.form-grid > .price-editor {
+    width: 100% !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 18px 16px !important;
+    font-size: 15px !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+.form-grid > *:last-child {
+    border-bottom: none !important;
+}
+
+.form-grid > button {
+    margin: 16px !important;
+    width: calc(100% - 32px) !important;
+    border-radius: 16px !important;
+}
+
+.form-grid > label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+}
+
+.form-grid > label > span {
+    flex: 0 0 auto !important;
+    font-size: 14px !important;
+    color: var(--muted) !important;
+}
+
+.form-grid > label > input,
+.form-grid > label > select,
+.form-grid > label > textarea {
+    flex: 1 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* iOS Toggles */
+.switch-line, .pretty-switch {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 16px !important;
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 20px !important;
+    margin-bottom: 8px !important;
+}
+.form-grid .switch-line, .form-grid .pretty-switch {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+    margin: 0 !important;
+}
+
+.switch-line input[type="checkbox"],
+.pretty-switch input[type="checkbox"] {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    display: inline-block !important;
+    width: 50px !important;
+    height: 30px !important;
+    background: rgba(255,255,255,0.12) !important;
+    border-radius: 16px !important;
+    position: relative !important;
+    cursor: pointer !important;
+    outline: none !important;
+    transition: 0.3s background var(--ease-ios) !important;
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+}
+
+.switch-line input[type="checkbox"]::after,
+.pretty-switch input[type="checkbox"]::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 2px !important;
+    right: 2px !important;
+    width: 26px !important;
+    height: 26px !important;
+    background: #fff !important;
+    border-radius: 50% !important;
+    transition: 0.3s transform var(--ease-ios), 0.3s width var(--ease-ios) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+.switch-line input[type="checkbox"]:active::after,
+.pretty-switch input[type="checkbox"]:active::after {
+    width: 34px !important;
+}
+
+.switch-line input[type="checkbox"]:checked,
+.pretty-switch input[type="checkbox"]:checked {
+    background: var(--success) !important;
+}
+
+.switch-line input[type="checkbox"]:checked::after,
+.pretty-switch input[type="checkbox"]:checked::after {
+    transform: translateX(-20px) !important;
+}
+.switch-line input[type="checkbox"]:checked:active::after,
+.pretty-switch input[type="checkbox"]:checked:active::after {
+    transform: translateX(-12px) !important;
+}
+
+.pretty-switch span { display: none !important; }
+.pretty-switch b { flex: 1 !important; font-size: 15px !important; font-weight: 500 !important; }
+.pretty-switch small { display: none !important; }
