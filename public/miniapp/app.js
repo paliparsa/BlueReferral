@@ -379,7 +379,28 @@ async function shareProductLegacy(pid){
 
 
 
-function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';currentProductId=Number(pid);hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div style="display:flex;justify-content:space-between;padding:16px 20px;align-items:center;background:color-mix(in srgb,var(--accent) 5%,transparent)"><button class="icon-btn" data-share-product="${p.id}" style="width:50px;height:50px;border-radius:50%;background:color-mix(in srgb,var(--accent) 15%,rgba(255,255,255,0.05));font-size:22px;border:1px solid color-mix(in srgb,var(--accent) 30%,rgba(255,255,255,0.1))">🔗</button><button class="icon-btn" data-back-shop style="width:50px;height:50px;border-radius:50%;background:color-mix(in srgb,var(--accent) 15%,rgba(255,255,255,0.05));font-size:34px;border:1px solid color-mix(in srgb,var(--accent) 30%,rgba(255,255,255,0.1));padding-bottom:6px">‹</button></div><div class="detail-hero product-hero">${cardImage(p,'🛍')}</div><article class="detail-card product-detail"><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
+window.applyProductColor = function(imgEl) {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 64; canvas.height = 64;
+    ctx.drawImage(imgEl, 0, 0, 64, 64);
+    const data = ctx.getImageData(0, 0, 64, 64).data;
+    let r=0, g=0, b=0, c=0;
+    for(let i=0; i<data.length; i+=16) {
+      if(data[i+3]>128) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; c++; }
+    }
+    if(c>0) {
+      r=Math.floor(r/c); g=Math.floor(g/c); b=Math.floor(b/c);
+      const max=Math.max(r,g,b);
+      r=Math.floor(r+(max-r)*0.4); g=Math.floor(g+(max-g)*0.4); b=Math.floor(b+(max-b)*0.4);
+      const bg = document.getElementById('productPageBg');
+      if(bg) bg.style.background = `radial-gradient(circle at top, rgba(${r},${g},${b},0.25) 0%, #0b0f17 70%)`;
+    }
+  } catch(e) {}
+};
+
+function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';currentProductId=Number(pid);hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div id="productPageBg" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background:#0b0f17;transition:background 0.5s ease"></div><div style="display:flex;justify-content:space-between;padding:16px 20px;align-items:center;"><button class="icon-btn" data-share-product="${p.id}" style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:22px;border:1px solid rgba(255,255,255,0.1)">🔗</button><button class="icon-btn" data-back-shop style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:34px;border:1px solid rgba(255,255,255,0.1);padding-bottom:6px">‹</button></div><div class="detail-hero product-hero">${p.image_url?`<img src="${esc(p.image_url)}" crossorigin="anonymous" onload="window.applyProductColor(this)" ${p.image_srcset?`srcset="${esc(p.image_srcset)}"`:''} alt="product">`:`<div class="tile-placeholder">🛍</div>`}</div><article class="detail-card product-detail"><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
 function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';return `<article class="order-row" data-order-open="${o.id}"><div class="order-row-main"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted">${esc(o.created_at||'')} · مانده ${fmt(o.final_amount)}${paid}</p></div></div>${orderStatusBadge(o)}<span class="chev">‹</span></article>`}
 function paymentMethodsHtml(o){
