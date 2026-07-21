@@ -1052,14 +1052,10 @@ function openBroadcast() {
     if (!text) return;
     try {
       showStatus('در حال ارسال... کمی صبر کنید.', 'info');
-      const res = await apiReq('admin_broadcast', {text: text});
-      if (res.ok) {
-        showStatus(res.message || 'با موفقیت ارسال شد');
-        adminState = res;
-        renderAdmin();
-      } else {
-        showStatus(res.message || 'خطا در ارسال', 'error');
-      }
+      const res = await api('admin_broadcast', {text: text});
+      showStatus(res.message || 'با موفقیت ارسال شد');
+      adminState = res;
+      renderAdmin();
     } catch(e) {
       showStatus('خطا در ارسال: ' + e.message, 'error');
     }
