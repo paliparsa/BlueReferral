@@ -1152,7 +1152,7 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .wishlist-fab{
   position:absolute;
   top:8px;
-  right:8px;
+  left:8px;
   width:32px;height:32px;
   border-radius:50%!important;
   padding:0!important;
