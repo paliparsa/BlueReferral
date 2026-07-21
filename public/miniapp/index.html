@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css?v=v17-ptr">
+  <link rel="stylesheet" href="style.css?v=v20-shop-redesign">
 </head>
 <body>
   <div id="status" class="toast hidden" role="status" aria-live="polite"></div>
@@ -98,6 +98,12 @@
     </form>
   </dialog>
 
+  <div id="ptrIndicator" class="ptr-indicator">
+    <svg class="ptr-svg" viewBox="0 0 40 40">
+      <path class="ptr-path" d="M20 4 a16 16 0 1 1 0 32 a16 16 0 1 1 0 -32" />
+    </svg>
+  </div>
+
   <script>
     // Dev loader: append dev.init.js when ?dev=1 is present
     if (location.search.includes('dev=1')) {
@@ -107,7 +113,7 @@
       document.head.appendChild(s);
     }
   </script>
-  <script src="app.js?v=v19-rich-empty-state"></script>
+  <script src="app.js?v=v20-shop-redesign"></script>
   <script>
     // Remove the in-page palette quick-button if present (restore original layout)
     const _removePaletteQuick = () => { const el = document.getElementById('paletteQuick'); if(el) el.remove(); };

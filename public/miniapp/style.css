@@ -1150,9 +1150,9 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(8, 17, 31, 0.75);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: color-mix(in srgb, var(--accent) 5%, rgba(0, 0, 0, 0.5));
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
   padding: 14px 0 6px;
   margin: 0 -14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -1211,9 +1211,9 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 
 .segmented-control {
   display: flex;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 8%, rgba(0, 0, 0, 0.4));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
   padding: 4px;
 }
 .segmented-control button {
@@ -1224,13 +1224,13 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   font-size: 12.5px !important;
   color: var(--muted);
   padding: 8px 4px !important;
-  border-radius: 12px !important;
+  border-radius: 16px !important;
   font-weight: 800;
 }
 .segmented-control button.active {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 30%, rgba(255,255,255,0.1)) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent) !important;
 }
 
 .modern-cats {
@@ -1242,19 +1242,26 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   border: none !important;
 }
 .modern-cats .cat-pill {
-  min-width: unset !important;
-  height: 42px !important;
-  border-radius: 14px !important;
-  padding: 6px 12px !important;
-  gap: 6px;
+  min-width: max-content !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+  padding: 0 16px 0 10px !important;
+  gap: 8px;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.05) !important;
+}
+.modern-cats .cat-pill.active {
+  background: color-mix(in srgb, var(--accent) 25%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
 }
 .modern-cats .cat-pill img {
-  width: 24px !important;
-  height: 24px !important;
-  border-radius: 8px !important;
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 50% !important;
+  object-fit: cover;
 }
 .modern-cats .cat-pill b {
-  font-size: 12.5px !important;
+  font-size: 13.5px !important;
   margin-bottom: 0 !important;
 }
 @media(max-width: 520px) {
