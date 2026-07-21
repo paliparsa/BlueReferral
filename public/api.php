@@ -142,6 +142,20 @@ if ($action === 'clear_canceled_orders') { $count=hide_user_cleanup_orders((int)
 
 // Admin Mini Panel actions
 if ($action === 'admin_summary') { require_admin($user); api_out(admin_payload()); }
+if ($action === 'admin_broadcast') { 
+    require_admin($user); 
+    $text = trim((string)($input['text'] ?? '')); 
+    if ($text === '') api_out(['ok'=>false, 'message'=>'متن پیام الزامی است.'], 400); 
+    ignore_user_abort(true); set_time_limit(0); 
+    $ids = db()->query('SELECT telegram_id FROM users')->fetchAll(PDO::FETCH_COLUMN); 
+    $sent = 0; 
+    foreach ($ids as $tid) { 
+        tg('sendMessage', ['chat_id'=>$tid, 'text'=>$text, 'parse_mode'=>'HTML', 'disable_web_page_preview'=>true]); 
+        $sent++; 
+        usleep(45000); 
+    } 
+    api_out(admin_payload() + ['message'=>"پیام همگانی به {$sent} نفر ارسال شد.", 'sent'=>$sent]); 
+}
 if ($action === 'get_receipt_url') { $orderId=(int)($input['order_id']??0); $order=order_by_id($orderId); if(!$order) api_out(['ok'=>false,'error'=>'ORDER_NOT_FOUND','message'=>'سفارش پیدا نشد.'],404); if (!is_admin((int)$user['telegram_id']) && (int)$order['user_id'] !== (int)$user['id']) { api_out(['ok'=>false,'error'=>'FORBIDDEN','message'=>'دسترسی ندارید.'],403); } $fid=trim((string)($order['receipt_file_id']??'')); if($fid==='') api_out(['ok'=>false,'error'=>'NO_RECEIPT_IMAGE','message'=>'این سفارش رسید عکس ندارد.'],400); if (str_starts_with($fid, 'uploads/') || str_starts_with($fid, 'http')) { $url = str_starts_with($fid, 'http') ? $fid : public_url_for_path($fid); } else { $url=telegram_file_to_public_url($fid,'receipts'); } if(!$url) api_out(['ok'=>false,'error'=>'FILE_FETCH_FAILED','message'=>'دریافت فایل رسید ناموفق بود.'],500); api_out(['ok'=>true,'url'=>$url]); }
 if ($action === 'my_referrals') { $refList=user_referrals_list((int)$user['id']); api_out(['ok'=>true,'referrals'=>$refList]); }
 if ($action === 'admin_customer_view') { require_admin($user); $uid=(int)($input['user_id']??0); if(!$uid) api_out(['ok'=>false,'error'=>'USER_ID_REQUIRED','message'=>'user_id الزامی است.'],400); try{ $cv=admin_customer_view($uid); api_out(['ok'=>true]+$cv); }catch(Throwable $e){ api_out(['ok'=>false,'error'=>$e->getMessage(),'message'=>'کاربر پیدا نشد.'],404); } }
@@ -285,5 +299,8 @@ if ($action === 'admin_delete_order') { require_admin($user); $oid=(int)($input[
 if ($action === 'admin_cleanup_orders') { require_admin($user); $days = array_key_exists('older_days',$input) && $input['older_days'] !== '' ? max(0,(int)$input['older_days']) : null; $count=hard_delete_cleanup_orders($days); api_out(admin_payload() + ['deleted'=>$count]); }
 if ($action === 'admin_order_status') { require_admin($user); $oid=(int)($input['order_id']??0); $status=(string)($input['status']??''); if(!in_array(normalize_order_status($status),['reviewing','payment_confirmed','preparing','rejected','canceled','refunded'],true)) api_out(['ok'=>false,'message'=>'وضعیت معتبر نیست.'],400); $order=update_order_status($oid,$status,order_status_fa($status),(string)($input['note']??''),true); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); api_out(admin_payload()); }
 if ($action === 'admin_deliver_order') { require_admin($user); $oid=(int)($input['order_id']??0); $delivery=trim((string)($input['delivery']??'')); if($delivery==='') api_out(['ok'=>false,'message'=>'متن تحویل خالی است.'],400); $order=deliver_order($oid,$delivery); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); send_msg($order['telegram_id'], "📦 سفارش شما تحویل داده شد.\nسفارش: <code>#{$oid}</code>\nمحصول: <b>".h($order['product_name'])."</b>\n\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>", main_menu_keyboard(is_admin($order['telegram_id']))); api_out(admin_payload()); }
+
+if ($action === 'admin_add_balance') { require_admin($user); $tid=(int)($input['telegram_id']??0); $amount=(int)($input['amount']??0); if($tid<=0 || $amount===0) api_out(['ok'=>false,'message'=>'مبلغ و آیدی نامعتبر'],400); $u=get_user_by_tid($tid); if(!$u) api_out(['ok'=>false,'message'=>'کاربر پیدا نشد'],404); add_balance((int)$u['id'], $amount, 'admin_adjust', 'تغییر موجودی توسط ادمین', null); api_out(admin_payload()); }
+if ($action === 'admin_ban_user') { require_admin($user); $tid=(int)($input['telegram_id']??0); if($tid<=0) api_out(['ok'=>false,'message'=>'آیدی نامعتبر'],400); db()->prepare('UPDATE users SET is_banned=1 WHERE telegram_id=?')->execute([$tid]); api_out(admin_payload()); }
 
 api_out(['ok'=>false, 'error'=>'UNKNOWN_ACTION'], 404);
