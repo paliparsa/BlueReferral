@@ -178,10 +178,86 @@ if ($action === 'admin_purchase_reward') {
 if ($action === 'admin_broadcast') { 
     require_admin($user); 
     $text = trim((string)($input['text'] ?? '')); 
-    if ($text === '') api_out(['ok'=>false, 'message'=>'متن پیام الزامی است.'], 400); 
+    if ($text === '' && empty($input['media_b64'])) api_out(['ok'=>false, 'message'=>'متن پیام یا فایل الزامی است.'], 400); 
     
     $ids = db()->query('SELECT telegram_id FROM users')->fetchAll(PDO::FETCH_COLUMN); 
-    $count = count($ids);
+    
+    $adminTid = $user['telegram_id'];
+    $fileId = null;
+    $method = 'sendMessage';
+    $field = 'text';
+
+    if (!empty($input['media_b64'])) {
+        $parts = explode(',', $input['media_b64']);
+        $b64 = count($parts) === 2 ? $parts[1] : $parts[0];
+        $decoded = base64_decode($b64);
+        if ($decoded) {
+            $filename = !empty($input['filename']) ? preg_replace('/[^a-zA-Z0-9.\-_]/', '', $input['filename']) : 'file.dat';
+            if (!$filename) $filename = 'media.file';
+            
+            $tmpPath = sys_get_temp_dir() . '/' . uniqid('bc_') . '_' . $filename;
+            file_put_contents($tmpPath, $decoded);
+            
+            $mime = mime_content_type($tmpPath) ?: 'application/octet-stream';
+            $method = 'sendDocument';
+            $field = 'document';
+            if (strpos($mime, 'image/') === 0 && strpos($mime, 'svg') === false && strpos($mime, 'gif') === false) {
+                $method = 'sendPhoto';
+                $field = 'photo';
+            } elseif (strpos($mime, 'video/') === 0 || strpos($mime, 'gif') !== false) {
+                $method = 'sendVideo';
+                $field = 'video';
+            }
+
+            $token = app_config('BOT_TOKEN');
+            $url = "https://api.telegram.org/bot{$token}/{$method}";
+            
+            $postFields = [
+                'chat_id' => $adminTid,
+                $field => new CURLFile($tmpPath, $mime, $filename),
+                'parse_mode' => 'HTML'
+            ];
+            if ($text !== '') $postFields['caption'] = $text;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $postFields
+            ]);
+            $res = curl_exec($ch);
+            curl_close($ch);
+            
+            @unlink($tmpPath); // Delete immediately
+            
+            $resData = json_decode($res ?: '{}', true);
+            if (!empty($resData['ok']) && !empty($resData['result']['message_id'])) {
+                $msg = $resData['result'];
+                if (isset($msg['photo'])) {
+                    $fileId = end($msg['photo'])['file_id'];
+                    $method = 'sendPhoto';
+                    $field = 'photo';
+                } elseif (isset($msg['video'])) {
+                    $fileId = $msg['video']['file_id'];
+                    $method = 'sendVideo';
+                    $field = 'video';
+                } elseif (isset($msg['document'])) {
+                    $fileId = $msg['document']['file_id'];
+                    $method = 'sendDocument';
+                    $field = 'document';
+                }
+                
+                // Admin already got the message + file, so remove admin from target list
+                $ids = array_filter($ids, fn($id) => $id != $adminTid);
+            } else {
+                api_out(['ok'=>false, 'message'=>'آپلود فایل به تلگرام شکست خورد.'], 500);
+            }
+        } else {
+            api_out(['ok'=>false, 'message'=>'فایل نامعتبر است.'], 400);
+        }
+    }
+
+    $count = count($ids) + ($fileId ? 1 : 0);
     
     $response = admin_payload();
     $response['ok'] = true;
@@ -209,7 +285,13 @@ if ($action === 'admin_broadcast') {
     }
     
     foreach ($ids as $tid) { 
-        tg('sendMessage', ['chat_id'=>$tid, 'text'=>$text, 'parse_mode'=>'HTML', 'disable_web_page_preview'=>true]); 
+        if ($fileId) {
+            $data = ['chat_id'=>$tid, $field=>$fileId, 'parse_mode'=>'HTML'];
+            if ($text !== '') $data['caption'] = $text;
+            tg($method, $data);
+        } else {
+            tg('sendMessage', ['chat_id'=>$tid, 'text'=>$text, 'parse_mode'=>'HTML', 'disable_web_page_preview'=>true]); 
+        }
         usleep(45000); 
     } 
     exit;
