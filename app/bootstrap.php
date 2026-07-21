@@ -2264,10 +2264,10 @@ function refresh_crypto_order_amount_if_open(int $orderId): ?array {
     return order_by_id($orderId);
 }
 
-function order_public_payload(array $o): array {
+function order_public_payload(array $o, bool $is_admin = false): array {
     if (!empty($o['id']) && ($o['payment_method'] ?? '') === 'crypto') { $o = refresh_crypto_order_amount_if_open((int)$o['id']) ?: $o; }
     $name = $o['product_name'].(!empty($o['variant_title']) ? ' - '.$o['variant_title'] : '');
-    return [
+    $payload = [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
         'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'],
@@ -2281,6 +2281,10 @@ function order_public_payload(array $o): array {
         'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
         'user_hidden'=>(int)($o['user_hidden'] ?? 0), 'archived_at'=>$o['archived_at'] ?? null, 'created_at'=>$o['created_at']
     ];
+    if ($is_admin) {
+        $payload['admin_note'] = $o['admin_note'] ?? null;
+    }
+    return $payload;
 }
 function customer_stats(int $userId): array {
     $q=db()->prepare('SELECT COUNT(*) orders_count, COALESCE(SUM(final_amount),0) total_spent FROM orders WHERE user_id=? AND status="delivered"');
