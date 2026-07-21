@@ -94,7 +94,7 @@ function admin_payload(): array {
     return ['ok'=>true,
         'report'=>sales_report(),
         'cleanup'=>['all'=>cleanup_orders_count(), 'older_7'=>cleanup_orders_count(7), 'older_30'=>cleanup_orders_count(30), 'archived'=>archived_orders_count()],
-        'orders'=>array_map('order_public_payload', admin_orders(null, 80)),
+        'orders'=>array_map(fn($o)=>order_public_payload($o, true), admin_orders(null, 80)),
         'products'=>array_map(fn($p)=>product_payload($p, false), shop_products(null, false)),
         'categories'=>array_map('category_payload', shop_categories(false)),
         'inventory'=>inventory_items_for_admin(150),
@@ -439,6 +439,7 @@ if ($action === 'admin_delete_order') { require_admin($user); $oid=(int)($input[
 if ($action === 'admin_cleanup_orders') { require_admin($user); $days = array_key_exists('older_days',$input) && $input['older_days'] !== '' ? max(0,(int)$input['older_days']) : null; $count=hard_delete_cleanup_orders($days); api_out(admin_payload() + ['deleted'=>$count]); }
 if ($action === 'admin_order_status') { require_admin($user); $oid=(int)($input['order_id']??0); $status=(string)($input['status']??''); if(!in_array(normalize_order_status($status),['reviewing','payment_confirmed','preparing','rejected','canceled','refunded'],true)) api_out(['ok'=>false,'message'=>'وضعیت معتبر نیست.'],400); $order=update_order_status($oid,$status,order_status_fa($status),(string)($input['note']??''),true); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); api_out(admin_payload()); }
 if ($action === 'admin_deliver_order') { require_admin($user); $oid=(int)($input['order_id']??0); $delivery=trim((string)($input['delivery']??'')); if($delivery==='') api_out(['ok'=>false,'message'=>'متن تحویل خالی است.'],400); $order=deliver_order($oid,$delivery); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); send_msg($order['telegram_id'], "📦 سفارش شما تحویل داده شد.\nسفارش: <code>#{$oid}</code>\nمحصول: <b>".h($order['product_name'])."</b>\n\nاطلاعات تحویل:\n<code>".h($order['delivery_text'])."</code>", main_menu_keyboard(is_admin($order['telegram_id']))); api_out(admin_payload()); }
+if ($action === 'admin_order_note') { require_admin($user); $oid=(int)($input['order_id']??0); $note=trim((string)($input['note']??'')); $order=order_by_id($oid); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); db()->prepare('UPDATE orders SET admin_note=? WHERE id=?')->execute([$note, $oid]); add_order_event($oid, 'note', 'یادداشت داخلی ثبت/ویرایش شد', $note, false); api_out(admin_payload()); }
 
 if ($action === 'admin_add_balance') { require_admin($user); $tid=(int)($input['telegram_id']??0); $amount=(int)($input['amount']??0); if($tid<=0 || $amount===0) api_out(['ok'=>false,'message'=>'مبلغ و آیدی نامعتبر'],400); $u=get_user_by_tid($tid); if(!$u) api_out(['ok'=>false,'message'=>'کاربر پیدا نشد'],404); add_balance((int)$u['id'], $amount, 'admin_adjust', 'تغییر موجودی توسط ادمین', null); api_out(admin_payload()); }
 if ($action === 'admin_ban_user') { require_admin($user); $tid=(int)($input['telegram_id']??0); if($tid<=0) api_out(['ok'=>false,'message'=>'آیدی نامعتبر'],400); db()->prepare('UPDATE users SET is_banned=1 WHERE telegram_id=?')->execute([$tid]); api_out(admin_payload()); }
