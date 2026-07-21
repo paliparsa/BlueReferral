@@ -559,6 +559,28 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 /* Order admin item cleanup */
 .order-admin-item .admin-item-main h4{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
+/* Admin Orders View Toggle (Segmented Control) */
+.view-toggle-wrapper{display:flex;justify-content:center;margin-bottom:16px}
+.view-toggle{display:inline-flex;background:rgba(255,255,255,0.06);padding:4px;border-radius:12px;gap:4px}
+.view-toggle button{background:transparent;border:none;color:var(--muted);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.2s all}
+.view-toggle button.active{background:var(--surface);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+
+/* Admin Kanban Board */
+.kanban-board{display:flex;gap:16px;overflow-x:auto;padding:4px;padding-bottom:24px;scroll-snap-type:x mandatory;scrollbar-width:none}
+.kanban-board::-webkit-scrollbar{display:none}
+.kanban-col{flex:0 0 85vw;max-width:340px;scroll-snap-align:center;display:flex;flex-direction:column;gap:12px;background:rgba(255,255,255,0.03);padding:14px;border-radius:24px;border:1px solid rgba(255,255,255,0.05);max-height:65vh;overflow-y:auto}
+.kanban-col-head{display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-bottom:4px}
+.kanban-col-head h3{font-size:15px;margin:0;display:flex;align-items:center;gap:8px}
+.kanban-col-count{background:rgba(255,255,255,0.1);font-size:12px;padding:2px 8px;border-radius:12px}
+.kanban-card{background:var(--surface);padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 4px 12px rgba(0,0,0,0.15);cursor:pointer;transition:transform .2s var(--ease-spring), background .2s}
+.kanban-card:active{transform:scale(0.96);background:rgba(255,255,255,0.12)}
+.kanban-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.kanban-card-id{font-size:12px;font-weight:800;color:var(--muted)}
+.kanban-card-amount{font-size:13px;font-weight:800;color:var(--accent)}
+.kanban-card-title{font-size:14px;font-weight:800;margin-bottom:4px;line-height:1.4}
+.kanban-card-meta{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.kanban-card-meta span{display:flex;align-items:center;gap:4px}
+
 /* Responsive */
 @media(max-width:520px){
   .order-stepper{padding:12px 6px 8px}
