@@ -475,8 +475,8 @@ html,body{
 @keyframes stepPulse{0%,100%{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent),0 6px 18px color-mix(in srgb,var(--accent) 45%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 12%,transparent),0 8px 22px color-mix(in srgb,var(--accent) 55%,transparent)}}
 .order-stepper .step-label{font-size:11px;color:var(--muted);font-weight:700;text-align:center;transition:.2s color}
 .order-stepper .step.done .step-label,.order-stepper .step.active .step-label{color:var(--text)}
-.order-stepper .step-line{position:absolute;top:21px;left:calc(50% + 25px);width:calc(100% - 50px);height:3px;background:rgba(255,255,255,0.1);border-radius:2px;z-index:-1;transition:.3s background var(--ease-ios)}
-.order-stepper .step-line.done{background:linear-gradient(90deg,var(--success),var(--accent))}
+.order-stepper .step-line{position:absolute;top:21px;right:calc(50% + 25px);width:calc(100% - 50px);height:3px;background:rgba(255,255,255,0.1);border-radius:2px;z-index:-1;transition:.3s background var(--ease-ios)}
+.order-stepper .step-line.done{background:linear-gradient(270deg,var(--success),var(--accent))}
 .order-stepper.canceled{padding:14px 18px}
 .stepper-cancel{display:flex;align-items:center;gap:12px}
 .stepper-cancel .step-circle.cancel{background:linear-gradient(135deg,var(--danger),#7f1d1d);border-color:var(--danger);color:#fff;flex:0 0 auto}
@@ -564,7 +564,7 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
   .order-stepper{padding:12px 6px 8px}
   .order-stepper .step-circle{width:36px;height:36px;font-size:15px}
   .order-stepper .step-label{font-size:10px}
-  .order-stepper .step-line{top:18px;left:calc(50% + 22px);width:calc(100% - 44px)}
+  .order-stepper .step-line{top:18px;right:calc(50% + 22px);width:calc(100% - 44px)}
   .bar-row{grid-template-columns:60px 1fr 28px}
   .bar-label{font-size:11px}
   .pie{width:100px;height:100px}
@@ -911,7 +911,7 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .order-row-stepper .order-stepper { background: transparent !important; border: none !important; padding: 0 !important; margin: 0 0 4px !important; }
 .order-row-stepper .step-circle { width: 30px !important; height: 30px !important; font-size: 13px !important; }
 .order-row-stepper .step-label { font-size: 9px !important; }
-.order-row-stepper .step-line { top: 15px !important; left: calc(50% + 15px) !important; width: calc(100% - 30px) !important; }
+.order-row-stepper .step-line { top: 15px !important; right: calc(50% + 15px) !important; width: calc(100% - 30px) !important; left: auto !important; }
 .order-row-stepper .stepper-cancel { margin: 0 !important; font-size: 11px !important; }
 
 .compact-price {
