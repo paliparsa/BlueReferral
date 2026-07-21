@@ -1368,14 +1368,11 @@ function keyboard_markup(array $rows, bool $resize=true, bool $oneTime=false): s
     return json_markup(['keyboard'=>$rows, 'resize_keyboard'=>$resize, 'one_time_keyboard'=>$oneTime, 'is_persistent'=>true]);
 }
 function main_menu_keyboard(bool $admin=false): string {
-    $rows = [
-        [['text'=>'🏠 صفحه اول'], ['text'=>'🛒 فروشگاه']],
-        [['text'=>'🧾 سفارش‌های من'], ['text'=>'👤 پروفایل و کیف پول']],
-        [['text'=>'👥 دعوت و درآمد'], ['text'=>'🏆 لیدربورد']],
-        [['text'=>'🎯 مأموریت‌ها'], ['text'=>'🎡 گردونه شانس']],
-        [['text'=>'🏧 برداشت'], ['text'=>'📞 پشتیبانی']],
-    ];
-    if ($admin) $rows[] = [['text'=>'⚙️ پنل ادمین']];
+    $mini = miniapp_url($admin);
+    $rows = [];
+    if ($mini) {
+        $rows[] = [['text'=>$admin ? '🧑‍💼 باز کردن Mini Panel ادمین' : '🚀 باز کردن Mini App', 'web_app'=>['url'=>$mini]]];
+    }
     return keyboard_markup($rows);
 }
 function miniapp_url(bool $admin=false): string {
@@ -1392,7 +1389,6 @@ function miniapp_inline_keyboard(bool $admin=false): string {
     if ($mini) {
         $rows[] = [['text'=>$admin ? '🧑‍💼 باز کردن Mini Panel ادمین' : '🚀 باز کردن Mini App', 'web_app'=>['url'=>$mini]]];
     }
-    $rows[] = [['text'=>'🛒 فروشگاه', 'callback_data'=>'u_shop'], ['text'=>'👤 پروفایل و کیف پول', 'callback_data'=>'u_wallet']];
     return json_markup(['inline_keyboard'=>$rows]);
 }
 function contact_request_keyboard(): string {
@@ -1715,7 +1711,7 @@ function force_join_keyboard(): string {
 }
 function main_text(array $user): string {
     $brand = h(setting('brand_name', app_config('BRAND_NAME', 'BlueGate')));
-    return "💙 <b>{$brand}</b>\n\nاز دکمه‌های پایین برای فروشگاه، سفارش‌ها، کیف پول و دعوت دوستان استفاده کن. دکمه Mini App هم همیشه همین زیر قرار دارد.\n\n" . vip_line($user);
+    return "💙 <b>{$brand}</b>\n\nسلام! 👋\nبرای استفاده از تمامی امکانات ربات، اعم از فروشگاه، سفارش‌ها و کیف پول، فقط کافیست وارد مینی اپلیکیشن اختصاصی ما شوید.\nلطفاً از دکمه زیر برای باز کردن مینی اپ استفاده کنید 👇\n\n" . vip_line($user);
 }
 function validate_theme_color(string $color): ?string {
     $color = trim($color);

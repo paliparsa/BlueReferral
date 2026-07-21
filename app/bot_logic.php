@@ -154,7 +154,7 @@ Rows: <b>{$res['restored_rows']}</b>", admin_keyboard());
 
     if (handle_keyboard_text($chat_id, $user, $text)) return;
 
-    send_msg($chat_id, "برای کار با ربات از دکمه‌های پایین استفاده کن 👇", main_menu_keyboard(is_admin($chat_id)));
+    send_msg($chat_id, "برای استفاده از امکانات ربات لطفاً مینی اپلیکیشن را باز کنید 👇", main_menu_keyboard(is_admin($chat_id)));
 }
 
 
