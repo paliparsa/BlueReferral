@@ -894,10 +894,9 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .bottom-nav button.active::before {
     content: "";
     position: absolute;
-    inset: -2px 4px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 60%, rgba(255,255,255,0.1)), rgba(255,255,255,0.08));
-    box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px rgba(255,255,255,0.2);
+    inset: 0px 10px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
     z-index: -1;
     animation: popPill 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
 }
