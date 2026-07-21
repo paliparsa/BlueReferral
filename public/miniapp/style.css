@@ -861,7 +861,8 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .product-tile{transition:.22s transform,.22s box-shadow,.22s border-color;animation:cardIn .28s ease both}
 .product-tile:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--accent) 42%,#ffffff13);box-shadow:0 14px 36px color-mix(in srgb,var(--accent) 18%,#0008)}
 .product-tile:active{transform:scale(0.98)}
-.compact-tile .tile-img { aspect-ratio: 1 / 1; height: auto !important; background: #0c111a !important; }
+.compact-tile .tile-img { aspect-ratio: 1 / 1; height: auto !important; background: transparent !important; margin: 0 !important; padding: 0 !important; border-radius: 22px 22px 0 0 !important; border: none !important; }
+.compact-tile .tile-img img { width: 100% !important; height: 100% !important; object-fit: cover !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
 .compact-tile .tile-body h3 { font-size: 13px !important; margin: 0 !important; text-align: center; min-height: 0 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
 .compact-tile { padding-bottom: 0 !important; }
 .compact-price {
