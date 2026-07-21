@@ -79,6 +79,7 @@
       <h3 id="dialogTitle">ورودی</h3>
       <p id="dialogText" class="muted"></p>
       <textarea id="dialogInput" rows="5"></textarea>
+      <input type="file" id="dialogFileInput" accept="image/*" style="display:none; margin-bottom: 10px; width: 100%;" />
       <div class="dialog-actions">
         <button value="cancel" class="secondary">لغو</button>
         <button id="dialogSubmit" value="ok" class="primary">ثبت</button>
@@ -106,7 +107,7 @@
       document.head.appendChild(s);
     }
   </script>
-  <script src="app.js?v=v14-receipt-preview"></script>
+  <script src="app.js?v=v15-receipt-upload"></script>
   <script>
     // Remove the in-page palette quick-button if present (restore original layout)
     const _removePaletteQuick = () => { const el = document.getElementById('paletteQuick'); if(el) el.remove(); };
