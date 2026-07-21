@@ -1140,3 +1140,121 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .wishlist-fab:active{
   transform:scale(0.85)!important;
 }
+
+/* ===== Shop Redesign ===== */
+.shop-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(8, 17, 31, 0.75);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  padding: 14px 0 6px;
+  margin: 0 -14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.searchbar-modern {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 8px 12px;
+  margin: 0 14px 12px;
+}
+.searchbar-modern input {
+  all: unset;
+  flex: 1;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.quick-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon-toggle {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+  font-size: 15px;
+  transition: .2s all;
+}
+.icon-toggle.active {
+  background: var(--primary) !important;
+  border-color: color-mix(in srgb, var(--primary) 50%, #fff) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.v-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 2px;
+}
+
+.shop-controls-row {
+  padding: 0 14px;
+  margin-bottom: 12px;
+}
+
+.segmented-control {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 4px;
+}
+.segmented-control button {
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 12.5px !important;
+  color: var(--muted);
+  padding: 8px 4px !important;
+  border-radius: 12px !important;
+  font-weight: 800;
+}
+.segmented-control button.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.modern-cats {
+  margin: 0;
+  padding: 0 14px 6px;
+  top: auto !important; /* override previous sticky */
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+}
+.modern-cats .cat-pill {
+  min-width: unset !important;
+  height: 42px !important;
+  border-radius: 14px !important;
+  padding: 6px 12px !important;
+  gap: 6px;
+}
+.modern-cats .cat-pill img {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 8px !important;
+}
+.modern-cats .cat-pill b {
+  font-size: 12.5px !important;
+  margin-bottom: 0 !important;
+}
+@media(max-width: 520px) {
+  .shop-header-sticky { margin: 0 -10px 16px; }
+  .searchbar-modern, .shop-controls-row { margin-left: 10px; margin-right: 10px; }
+  .modern-cats { padding-left: 10px; padding-right: 10px; }
+}
