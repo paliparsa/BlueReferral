@@ -1513,3 +1513,39 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 /* Clean up old elements */
 .pretty-switch span, .pretty-switch small { display: none !important; }
 .pretty-switch b { flex: 1 !important; font-size: 16px !important; font-weight: 500 !important; text-align: right !important; }
+
+/* iOS Action Sheets */
+.ios-action-group {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 24px !important;
+    margin: 10px 16px 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+.ios-action-btn {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 16px !important;
+    font-size: 16px !important;
+    color: var(--text) !important;
+    border-radius: 0 !important;
+    text-align: center !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    font-weight: 600 !important;
+    display: block !important;
+}
+.ios-action-btn:active {
+    background: rgba(255, 255, 255, 0.15) !important;
+    transform: scale(1) !important;
+}
+.ios-action-btn:last-child {
+    border-bottom: none !important;
+}
+.ios-action-btn.danger-action {
+    color: var(--danger) !important;
+}
