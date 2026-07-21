@@ -225,7 +225,7 @@ if ($action === 'admin_add_product') {
     $flashDiscount = max(0, (int)($input['flash_sale_discount'] ?? 0));
     $flashStart = (!empty($input['flash_sale_start']) && strtotime((string)$input['flash_sale_start'])) ? date('Y-m-d H:i:s', strtotime((string)$input['flash_sale_start'])) : null;
     $flashEnd = (!empty($input['flash_sale_end']) && strtotime((string)$input['flash_sale_end'])) ? date('Y-m-d H:i:s', strtotime((string)$input['flash_sale_end'])) : null;
-    db()->prepare('INSERT INTO products (category_id,name,price,price_currency,price_usd,price_rate_toman,price_rate_source,price_rate_updated_at,short_description,full_description,image_url,image_srcset,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active,flash_sale_start,flash_sale_end,flash_sale_discount) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
+    db()->prepare('INSERT INTO products (category_id,name,price,price_currency,price_usd,price_rate_toman,price_rate_source,price_rate_updated_at,short_description,full_description,image_url,image_srcset,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active,flash_sale_start,flash_sale_end,flash_sale_discount) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
         $catId ?: null,
         $name,
         $pp['price'],
