@@ -1582,9 +1582,14 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
     z-index: 10;
 }
 .presentation-header h3 {
-    margin: 0;
+    margin: 0 16px;
     font-size: 17px;
     font-weight: 600;
+    flex: 1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .presentation-body {
     flex: 1;
