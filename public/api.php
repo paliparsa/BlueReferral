@@ -146,15 +146,40 @@ if ($action === 'admin_broadcast') {
     require_admin($user); 
     $text = trim((string)($input['text'] ?? '')); 
     if ($text === '') api_out(['ok'=>false, 'message'=>'متن پیام الزامی است.'], 400); 
-    ignore_user_abort(true); set_time_limit(0); 
+    
     $ids = db()->query('SELECT telegram_id FROM users')->fetchAll(PDO::FETCH_COLUMN); 
-    $sent = 0; 
+    $count = count($ids);
+    
+    $response = admin_payload();
+    $response['ok'] = true;
+    $response['message'] = "ارسال پیام همگانی به {$count} نفر شروع شد.";
+    
+    ignore_user_abort(true);
+    set_time_limit(0);
+    
+    if (function_exists('fastcgi_finish_request')) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        session_write_close();
+        fastcgi_finish_request();
+    } else {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Connection: close');
+        ob_start();
+        echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $size = ob_get_length();
+        header("Content-Length: $size");
+        ob_end_flush();
+        @ob_flush();
+        flush();
+        session_write_close();
+    }
+    
     foreach ($ids as $tid) { 
         tg('sendMessage', ['chat_id'=>$tid, 'text'=>$text, 'parse_mode'=>'HTML', 'disable_web_page_preview'=>true]); 
-        $sent++; 
         usleep(45000); 
     } 
-    api_out(admin_payload() + ['message'=>"پیام همگانی به {$sent} نفر ارسال شد.", 'sent'=>$sent]); 
+    exit;
 }
 if ($action === 'get_receipt_url') { $orderId=(int)($input['order_id']??0); $order=order_by_id($orderId); if(!$order) api_out(['ok'=>false,'error'=>'ORDER_NOT_FOUND','message'=>'سفارش پیدا نشد.'],404); if (!is_admin((int)$user['telegram_id']) && (int)$order['user_id'] !== (int)$user['id']) { api_out(['ok'=>false,'error'=>'FORBIDDEN','message'=>'دسترسی ندارید.'],403); } $fid=trim((string)($order['receipt_file_id']??'')); if($fid==='') api_out(['ok'=>false,'error'=>'NO_RECEIPT_IMAGE','message'=>'این سفارش رسید عکس ندارد.'],400); if (str_starts_with($fid, 'uploads/') || str_starts_with($fid, 'http')) { $url = str_starts_with($fid, 'http') ? $fid : public_url_for_path($fid); } else { $url=telegram_file_to_public_url($fid,'receipts'); } if(!$url) api_out(['ok'=>false,'error'=>'FILE_FETCH_FAILED','message'=>'دریافت فایل رسید ناموفق بود.'],500); api_out(['ok'=>true,'url'=>$url]); }
 if ($action === 'my_referrals') { $refList=user_referrals_list((int)$user['id']); api_out(['ok'=>true,'referrals'=>$refList]); }
