@@ -1049,15 +1049,34 @@ load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCart
 function openBroadcast() {
   if (typeof haptic === 'function') haptic('light');
   openEdit('ارسال پیام همگانی', [{
-    title: 'متن پیام همگانی',
+    title: 'محتوای پیام',
     fields: [
-      {id: 'bc_text', label: 'متن پیام (پشتیبانی از HTML)', type: 'textarea', placeholder: 'مثلاً: سلام کاربران عزیز...'}
+      {id: 'bc_text', label: 'متن پیام (پشتیبانی از HTML)', type: 'textarea', placeholder: 'مثلاً: سلام کاربران عزیز...'},
+      {html: '<label class="full"><span>فایل ضمیمه (اختیاری)</span><input id="bc_file" type="file" accept="image/*,video/*,audio/*,.pdf,.zip,.doc,.docx"></label>'}
     ]
   }], async () => {
     const txt = val('bc_text');
-    if (!txt) throw new Error('متن پیام نباید خالی باشد.');
-    showStatus('در حال ارسال... کمی صبر کنید.', 'info');
-    const res = await api('admin_broadcast', {text: txt});
+    const fileInput = $('bc_file');
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+    
+    if (!txt && !hasFile) throw new Error('متن پیام یا فایل نباید خالی باشد.');
+    
+    let b64 = null;
+    let filename = null;
+    if (hasFile) {
+      const file = fileInput.files[0];
+      filename = file.name;
+      if (file.size > 40 * 1024 * 1024) throw new Error('حجم فایل نباید بیشتر از 40 مگابایت باشد.');
+      b64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = e => res(e.target.result);
+        reader.onerror = e => rej(new Error('خطا در خواندن فایل'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    showStatus('در حال ارسال و آپلود... کمی صبر کنید.', 'info');
+    const res = await api('admin_broadcast', {text: txt, media_b64: b64, filename: filename});
     showStatus(res.message || 'با موفقیت ارسال شد');
     adminState = res;
     renderAdmin();
