@@ -885,6 +885,27 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .compact-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .compact-title h3 { margin: 0 !important; font-size: 18px !important; flex: 1; }
 
+.bottom-nav button { position: relative; z-index: 1; overflow: visible !important; }
+.bottom-nav button.active {
+    background: transparent !important;
+    box-shadow: none !important;
+    transform: translateY(-6px) !important;
+}
+.bottom-nav button.active::before {
+    content: "";
+    position: absolute;
+    inset: -2px 4px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 60%, rgba(255,255,255,0.1)), rgba(255,255,255,0.08));
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px rgba(255,255,255,0.2);
+    z-index: -1;
+    animation: popPill 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+@keyframes popPill {
+    0% { opacity: 0; transform: scale(0.6) translateY(8px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .compact-price {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(12px);
