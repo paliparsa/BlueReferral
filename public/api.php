@@ -142,6 +142,39 @@ if ($action === 'clear_canceled_orders') { $count=hide_user_cleanup_orders((int)
 
 // Admin Mini Panel actions
 if ($action === 'admin_summary') { require_admin($user); api_out(admin_payload()); }
+if ($action === 'admin_purchase_reward') {
+    require_admin($user);
+    $buyerTid = (int)($input['buyer_tid'] ?? 0);
+    $baseAmount = (int)($input['base_amount'] ?? 0);
+    if (!$buyerTid || !$baseAmount) api_out(['ok'=>false, 'message'=>'آیدی عددی خریدار و مبلغ پایه الزامی است.'], 400);
+
+    $buyer = get_user_by_tid($buyerTid);
+    if (!$buyer || empty($buyer['referrer_id'])) {
+        api_out(['ok'=>false, 'message'=>'این خریدار پیدا نشد یا معرف ثبت‌شده ندارد.'], 404);
+    }
+    
+    $referrer = get_user_by_id((int)$buyer['referrer_id']);
+    if (!$referrer) {
+        api_out(['ok'=>false, 'message'=>'معرف کاربر پیدا نشد.'], 404);
+    }
+
+    $vip = vip_info((int)$referrer['referrals_count']);
+    $amount = (int)round($baseAmount * (float)$vip['multiplier']);
+    
+    add_balance($referrer['id'], $amount, 'purchase_reward', 'پورسانت خرید زیرمجموعه با ضریب VIP', $buyer['id']);
+    
+    $refName = display_name($referrer);
+    $msgAdmin = "پاداش خرید با موفقیت ثبت شد.\nمعرف: {$refName}\nمبلغ نهایی: ".number_format($amount)." تومان";
+    
+    tg('sendMessage', [
+        'chat_id' => $referrer['telegram_id'],
+        'text' => "🎁 زیرمجموعه شما خرید انجام داد.\nپورسانت: <b>".number_format($amount)." تومان</b>\nسطح شما: {$vip['emoji']} {$vip['fa']}",
+        'parse_mode' => 'HTML',
+        'reply_markup' => json_encode(main_menu_keyboard(is_admin($referrer['telegram_id'])))
+    ]);
+
+    api_out(admin_payload() + ['message' => $msgAdmin, 'amount' => $amount, 'referrer' => $refName]);
+}
 if ($action === 'admin_broadcast') { 
     require_admin($user); 
     $text = trim((string)($input['text'] ?? '')); 
