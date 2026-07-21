@@ -861,10 +861,26 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .product-tile{transition:.22s transform,.22s box-shadow,.22s border-color;animation:cardIn .28s ease both}
 .product-tile:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--accent) 42%,#ffffff13);box-shadow:0 14px 36px color-mix(in srgb,var(--accent) 18%,#0008)}
 .product-tile:active{transform:scale(0.98)}
-.compact-tile .tile-img { height: 130px !important; }
-.compact-tile .tile-body h3 { font-size: 14px !important; margin: 0 !important; text-align: right; min-height: 0 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compact-tile .tile-img { height: 130px !important; background: #0c111a !important; }
+.compact-tile .tile-body h3 { font-size: 13px !important; margin: 0 !important; text-align: center; min-height: 0 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
 .compact-tile { padding-bottom: 0 !important; }
-@media(max-width: 430px) { .compact-tile .tile-img { height: 110px !important; } }
+.compact-price {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+@media(max-width: 430px) { .compact-tile .tile-img { height: 115px !important; } }
 
 /* Spin wheel v2 — redesigned aesthetics */
 .spin-section-v2{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 8%,var(--card)),var(--card))!important;border-color:color-mix(in srgb,var(--accent) 20%,rgba(255,255,255,0.08))!important;padding:18px!important}
