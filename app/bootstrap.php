@@ -1170,7 +1170,7 @@ function tg(string $method, array $data = []) {
 }
 
 function h($value): string { return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-function money($amount): string { return number_format((int)$amount) . ' تومان'; }
+function money($amount): string { $a = (int)$amount; if ($a === 0) return 'رایگان'; return number_format($a) . ' تومان'; }
 function is_admin($id): bool {
     $admins = app_config('ADMIN_IDS', []);
     return in_array((int)$id, array_map('intval', $admins), true);
@@ -1822,7 +1822,10 @@ function find_or_create_category(string $title, string $emoji='🛒'): int {
 }
 function normalize_price_currency($currency): string {
     $c = strtoupper(trim((string)$currency));
-    return in_array($c, ['USD','USDT','$'], true) ? 'USD' : 'IRT';
+    if (in_array($c, ['USD','USDT','$'], true)) return 'USD';
+    if ($c === 'STARS') return 'STARS';
+    if ($c === 'FREE') return 'FREE';
+    return 'IRT';
 }
 function decimal_price($value): float {
     if (is_int($value) || is_float($value)) return max(0.0, (float)$value);
@@ -1844,6 +1847,16 @@ function price_runtime_meta(array $row, string $prefix=''): array {
     $currency = normalize_price_currency($row[$prefix.'price_currency'] ?? 'IRT');
     $storedToman = max(0, (int)($row[$prefix.'price'] ?? 0));
     $usd = decimal_price($row[$prefix.'price_usd'] ?? 0);
+    
+    if ($currency === 'FREE') {
+        return ['currency'=>'FREE','usd'=>0,'toman'=>0,'rate_toman'=>null,'rate_source'=>null,'rate_updated_at'=>null,'dynamic'=>false,'label'=>'رایگان'];
+    }
+    if ($currency === 'STARS') {
+        $rate = (float)setting_int('stars_rate_toman', 3200);
+        $toman = (int)round($usd * $rate);
+        return ['currency'=>'STARS','usd'=>$usd,'toman'=>$toman,'rate_toman'=>$rate,'rate_source'=>'settings','rate_updated_at'=>date('Y-m-d H:i:s'),'dynamic'=>true,'label'=>number_format($usd).' ⭐️'];
+    }
+    
     $rateMeta = usd_toman_rate_meta();
     $rate = (float)$rateMeta['rate'];
     if ($currency === 'USD' && $usd > 0 && $rate > 0) {
@@ -1856,6 +1869,16 @@ function product_current_price_toman(array $p): int { return (int)price_runtime_
 function variant_current_price_toman(array $v): int { return (int)price_runtime_meta($v)['toman']; }
 function price_admin_payload_from_input(array $input): array {
     $currency = normalize_price_currency($input['price_currency'] ?? 'IRT');
+    if ($currency === 'FREE') {
+        return ['price'=>0,'price_currency'=>'FREE','price_usd'=>0,'price_rate_toman'=>null,'price_rate_source'=>null,'price_rate_updated_at'=>null];
+    }
+    if ($currency === 'STARS') {
+        $stars = decimal_price($input['price_usd'] ?? $input['price'] ?? 0);
+        if ($stars <= 0) throw new RuntimeException('INVALID_STARS_PRICE');
+        $rate = (float)setting_int('stars_rate_toman', 3200);
+        $toman = (int)round($stars * $rate);
+        return ['price'=>$toman,'price_currency'=>'STARS','price_usd'=>$stars,'price_rate_toman'=>$rate,'price_rate_source'=>'settings','price_rate_updated_at'=>date('Y-m-d H:i:s')];
+    }
     if ($currency === 'USD') {
         $usd = decimal_price($input['price_usd'] ?? $input['price'] ?? 0);
         if ($usd <= 0) throw new RuntimeException('INVALID_USD_PRICE');
@@ -1892,7 +1915,7 @@ function product_price_label(array $p): string {
     if ($vc > 0) {
         $prices=[];
         try { foreach (product_variants((int)$p['id'], true) as $v) $prices[] = variant_current_price_toman($v); } catch (Throwable $e) {}
-        $prices = array_values(array_filter($prices, fn($x)=>$x>0));
+        $prices = array_values(array_filter($prices, fn($x)=>$x>=0));
         if ($prices) return 'از '.money(min($prices));
     }
     return price_runtime_meta($p)['label'];
