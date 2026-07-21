@@ -498,8 +498,12 @@ dialog.bottom-sheet::before{content:"";display:block;width:40px;height:4px;borde
 /* U5 — Pull-to-refresh */
 .ptr-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);width:120px;height:48px;border-radius:0 0 24px 24px;background:rgba(7,17,31,0.92);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,0.1);border-top:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:700;color:var(--muted);z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;will-change:opacity}
 .ptr-indicator.ready{color:var(--accent)}
-.ptr-indicator.ready .ptr-spinner{color:var(--accent)}
-.ptr-spinner{font-size:20px;display:grid;place-items:center;transition:color .2s}
+.ptr-indicator.ready .ptr-arc-fill{stroke:var(--accent)}
+.ptr-arc-wrapper{display:flex;align-items:center;justify-content:center;width:24px;height:24px}
+.ptr-arc{width:24px;height:24px;overflow:visible}
+.ptr-arc-bg{fill:none;stroke:rgba(255,255,255,0.1);stroke-width:3}
+.ptr-arc-fill{fill:none;stroke:var(--muted);stroke-width:3;stroke-dasharray:100.53;stroke-dashoffset:100.53;stroke-linecap:round}
+.ptr-indicator.loading .ptr-arc-fill{stroke:var(--accent)}
 .ptr-indicator.loading .ptr-label{color:var(--accent)}
 @keyframes ptrSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
