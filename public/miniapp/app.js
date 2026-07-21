@@ -297,15 +297,18 @@ function sectionHtml(title,products){return `<details class="section-row section
 function gridHtml(products){return `<section class="section-row"><div class="h-scroll product-grid-wrap">${products.map(productCard).join('')}</div></section>`}
 function productCard(p){
   const flash=flashSaleActive(p);
+  const noVariants = (!p.variants || p.variants.length === 0);
+  const quickBuy = noVariants ? `<button class="quick-buy-fab pulse" data-buy="${p.id}" aria-label="خرید سریع">⚡</button>` : '';
+  
   if(productCardMode==='detailed'){
     return `<article class="product-tile detailed ${flash?'flash-sale-tile':''}" data-product="${p.id}">`+
-      `<div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div>`+
+      `<div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}${quickBuy}</div>`+
       `<div class="tile-body"><h3>${esc(p.name)}</h3>`+
       (p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:'')+
       `<div class="product-detail-row"><div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div>`+
       `<div class="detail-actions">${buyButtonsForProduct(p)}<button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button></div></div></div></article>`;
   }
-  return `<article class="product-tile ${flash?'flash-sale-tile':''}" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}</div><div class="tile-body"><h3>${esc(p.name)}</h3>${p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:''}<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div><div class="tile-actions"><button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button></div></div></article>`;
+  return `<article class="product-tile ${flash?'flash-sale-tile':''}" data-product="${p.id}"><div class="tile-img">${cardImage(p,'🛍')}${flash?'<span class="flash-badge">⚡</span>':''}${quickBuy}</div><div class="tile-body"><h3>${esc(p.name)}</h3>${p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:''}<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill">−${nf(p.flash_sale_discount)}٪</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div><div class="tile-actions"><button class="ghost" data-share-product="${p.id}">🔗 اشتراک</button></div></div></article>`;
 }
 function buyButtonsForProduct(p){const bal=Number(state.user?.balance||0);const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';if((p.variants||[]).length){return `${walletHint}<div class="variant-list">${(p.variants||[]).map(v=>`<div class="variant-card"><div><b>${esc(v.title)}</b><span>${priceLabel(v)}</span></div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒 سبد</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف پول</button>`:''}</div></div>`).join('')}</div>`}return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`}
 

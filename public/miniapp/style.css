@@ -1093,3 +1093,23 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   margin:20px 0;
 }
 .error-state p{font-size:15px;line-height:1.8;color:var(--muted)}
+
+/* ===== Feature: Quick Buy Button (One-Tap) ===== */
+.quick-buy-fab{
+  position:absolute;
+  bottom:8px;
+  right:8px;
+  width:34px;height:34px;
+  border-radius:50%!important;
+  padding:0!important;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 62%,#000))!important;
+  border:1px solid rgba(255,255,255,0.2)!important;
+  font-size:16px!important;
+  box-shadow:0 6px 16px color-mix(in srgb,var(--primary) 35%,transparent);
+  z-index:3;
+  transition:.25s transform var(--ease-spring),.25s box-shadow var(--ease-spring);
+}
+.quick-buy-fab:active{
+  transform:scale(0.85)!important;
+}
