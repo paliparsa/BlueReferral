@@ -236,36 +236,46 @@ html,body{
 .valid-indicator.ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
 .valid-indicator.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
 
-/* Realistic Iranian Bank Card Widget Component */
-.bank-card-widget {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
-  padding: 18px 20px;
-  margin: 12px 0;
+/* Luxury Iranian Bank Card Widget Component */
+.bank-card-widget, .luxury-bank-card {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 22px;
+  padding: 20px 22px;
+  margin: 14px 0;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: transform 0.25s ease, border-color 0.25s ease;
 }
-.bank-card-widget:hover {
-  border-color: color-mix(in srgb, var(--accent) 50%, rgba(255, 255, 255, 0.25));
+.bank-card-widget::before, .luxury-bank-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+.bank-card-widget:hover, .luxury-bank-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, rgba(255, 255, 255, 0.3));
   transform: translateY(-2px);
 }
 .bank-card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .bank-card-chip {
-  width: 40px;
-  height: 28px;
-  background: linear-gradient(135deg, #f1f5f9, #94a3b8);
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
+  width: 44px;
+  height: 32px;
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  border-radius: 7px;
+  border: 1px solid #fef08a;
   position: relative;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
 }
 .bank-card-chip::after {
   content: '';
@@ -274,26 +284,26 @@ html,body{
   left: 0;
   right: 0;
   height: 1px;
-  background: #64748b;
+  background: #78350f;
 }
 .bank-card-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--text);
   letter-spacing: 0.5px;
 }
 .bank-card-number-row {
-  margin: 14px 0 12px;
+  margin: 16px 0 14px;
   direction: ltr;
   text-align: center;
 }
 .bank-card-number {
   font-family: 'Courier New', Courier, monospace;
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 900;
-  letter-spacing: 2.5px;
+  letter-spacing: 3px;
   color: #ffffff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
   display: inline-block;
   direction: ltr;
 }
@@ -309,18 +319,19 @@ html,body{
   direction: ltr;
   text-align: right;
   font-family: monospace;
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .bank-card-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 10px;
+  margin-top: 16px;
 }
 .bank-card-actions button {
   flex: 1;
-  padding: 8px 12px;
-  font-size: 12px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 14px;
 }
 
 /* Support Confirmation Warning Box */
