@@ -857,22 +857,28 @@ function currencyOptions(selected=''){
   return `<option value="USDT" ${cur==='USDT'||cur==='USD'?'selected':''}>USDT (تتر / دلار)</option><option value="IRR" ${cur==='IRR'||cur==='IRT'?'selected':''}>تومان (IRR)</option><option value="STARS" ${cur==='STARS'?'selected':''}>Stars (⭐️)</option><option value="FREE" ${cur==='FREE'?'selected':''}>رایگان</option>`;
 }
 
-function setupPricingFormListeners(prefix){
+let liveUsdtRateCache = null;
+
+async function setupPricingFormListeners(prefix){
   const curEl = $(prefix + '_currency');
   const amtEl = $(prefix + '_price_amount');
+
   const update = () => {
     const cur = curEl?.value || 'USDT';
     const amt = Number(amtEl?.value || 0);
     const hintEl = $(prefix + '_price_hint');
     if(!hintEl) return;
-    const usdtRate = Number(adminState?.settings?.crypto_rate_cache?.rate || 65000);
+
+    const usdtRate = liveUsdtRateCache?.rate || 65000;
+    const srcName = liveUsdtRateCache?.source || 'ثبت‌شده';
+    const rateSourceStr = ` (نرخ زنده ${srcName}: ${fmt(usdtRate)} تومان)`;
     const starsRate = Number(adminState?.settings?.stars_rate_toman || 3200);
 
     if(cur === 'USDT' || cur === 'USD'){
       const toman = Math.round(amt * usdtRate);
       hintEl.innerHTML = amt > 0 
-        ? `💵 معادل <b style="color:var(--accent)">${fmt(toman)} تومان</b> (نرخ تتر: ${fmt(usdtRate)} تومان)` 
-        : `💵 قیمت را به <b>تتر / دلار (USDT)</b> وارد کنید. (نرخ فعلی: ${fmt(usdtRate)} تومان)`;
+        ? `💵 معادل <b style="color:var(--accent)">${fmt(toman)} تومان</b>${rateSourceStr}` 
+        : `💵 قیمت را به <b>تتر / دلار (USDT)</b> وارد کنید.${rateSourceStr}`;
     } else if(cur === 'STARS'){
       const toman = Math.round(amt * starsRate);
       hintEl.innerHTML = amt > 0 
@@ -886,9 +892,17 @@ function setupPricingFormListeners(prefix){
       hintEl.innerHTML = '🎁 این محصول / پلن به صورت رایگان ارائه می‌شود.';
     }
   };
+
   curEl?.addEventListener('change', update);
   amtEl?.addEventListener('input', update);
   update();
+
+  api('get_usdt_rate').then(res => {
+    if(res && res.rate > 0){
+      liveUsdtRateCache = res;
+      update();
+    }
+  }).catch(_ => {});
 }
 
 function editProduct(id){
