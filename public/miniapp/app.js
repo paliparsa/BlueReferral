@@ -795,35 +795,109 @@ function openCardBuilder(index=null){
   });
   setupCardValidation();
 }
+let cachedCryptoRates = null;
+
 function setupWalletValidation(){
-  setTimeout(()=>{
+  setTimeout(async()=>{
+    const assetSelect = $('bw_asset');
+    const netSelect = $('bw_network');
+    const rateInput = $('bw_rate');
     const addrInput = $('bw_address');
-    const netInput = $('bw_network');
+    const rateInfo = $('bw_rate_info');
+
+    if(!cachedCryptoRates){
+      try {
+        const res = await api('get_crypto_rates');
+        if(res && res.rates) cachedCryptoRates = res.rates;
+      } catch(e){}
+    }
+
+    const networkOptions = {
+      'USDT': [
+        { value: 'TRC20', label: 'TRC20 (TRON Network - پیش‌فرض)' },
+        { value: 'TON', label: 'TON (The Open Network)' },
+        { value: 'BEP20', label: 'BEP20 (BNB Smart Chain)' },
+        { value: 'ERC20', label: 'ERC20 (Ethereum)' }
+      ],
+      'TRX': [
+        { value: 'TRON', label: 'TRON (شبکه اختصاصی ترون)' }
+      ],
+      'TON': [
+        { value: 'TON', label: 'TON (شبکه اختصاصی تن)' }
+      ]
+    };
+
+    const updateNetworkOptions = ()=>{
+      const asset = (assetSelect?.value || 'USDT').toUpperCase();
+      if(rateInput) rateInput.value = asset;
+      
+      if(netSelect && networkOptions[asset]) {
+        const currentNet = netSelect.value;
+        const opts = networkOptions[asset];
+        netSelect.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+        const exists = opts.some(o => o.value === currentNet);
+        netSelect.value = exists ? currentNet : opts[0].value;
+      }
+
+      if(rateInfo && cachedCryptoRates && cachedCryptoRates[asset]) {
+        const rData = cachedCryptoRates[asset];
+        const formattedRate = nf(rData.rate);
+        const sourceName = rData.source || 'Live';
+        rateInfo.innerHTML = `📈 <b>نرخ زنده:</b> ۱ ${asset} = ${formattedRate} تومان <small class="muted">(${esc(sourceName)})</small>`;
+      } else if(rateInfo) {
+        rateInfo.textContent = '';
+      }
+
+      updateAddrVal();
+    };
+
     const updateAddrVal = ()=>{
       const addr = (addrInput?.value || '').trim();
-      const net = (netInput?.value || 'TRC20').trim().toUpperCase();
+      const net = (netSelect?.value || 'TRC20').trim().toUpperCase();
+      const asset = (assetSelect?.value || 'USDT').trim().toUpperCase();
       const ind = $('bw_address_val');
       if(!ind) return;
-      if(!addr) { ind.className='valid-indicator warn'; ind.textContent='⚠️ آدرس کیف پول را وارد کنید'; }
-      else if((net==='TRC20'||net==='TRON') && addr.startsWith('T') && addr.length===34) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس TRC20 معتبر است (۳۴ کاراکتر با T)'; }
-      else if(net==='TON' && (addr.startsWith('EQ')||addr.startsWith('UQ')) && addr.length>=44) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس شبکه TON معتبر است'; }
-      else if((net==='EVM'||net==='BEP20'||net==='ERC20') && addr.startsWith('0x') && addr.length===42) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس EVM معتبر است (0x + ۴۰ کاراکتر)'; }
-      else if(addr.length >= 10) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس ثبت شد'; }
-      else { ind.className='valid-indicator warn'; ind.textContent='⚠️ آدرس کوتاه یا فرمت نامشخص است'; }
+
+      if(!addr) {
+        ind.className='valid-indicator warn'; ind.textContent='⚠️ آدرس کیف پول را وارد کنید';
+      } else if((net==='TRC20'||net==='TRON'||asset==='TRX') && addr.startsWith('T') && addr.length===34) {
+        ind.className='valid-indicator ok'; ind.textContent='✅ آدرس TRC20 / TRON معتبر است (۳۴ کاراکتر با T)';
+      } else if((net==='TON'||asset==='TON') && (addr.startsWith('EQ')||addr.startsWith('UQ')) && addr.length>=44) {
+        ind.className='valid-indicator ok'; ind.textContent='✅ آدرس شبکه TON معتبر است (EQ/UQ)';
+      } else if((net==='EVM'||net==='BEP20'||net==='ERC20') && addr.startsWith('0x') && addr.length===42) {
+        ind.className='valid-indicator ok'; ind.textContent='✅ آدرس EVM معتبر است (0x + ۴۰ کاراکتر)';
+      } else if(addr.length >= 10) {
+        ind.className='valid-indicator ok'; ind.textContent='✅ آدرس ثبت شد';
+      } else {
+        ind.className='valid-indicator warn'; ind.textContent='⚠️ آدرس کوتاه یا فرمت نامشخص است';
+      }
     };
+
+    if(assetSelect) { assetSelect.addEventListener('change', updateNetworkOptions); }
+    if(netSelect) { netSelect.addEventListener('change', updateAddrVal); }
     if(addrInput) { addrInput.addEventListener('input', updateAddrVal); }
-    if(netInput) { netInput.addEventListener('input', updateAddrVal); }
-    updateAddrVal();
+
+    updateNetworkOptions();
   }, 50);
 }
 function openWalletBuilder(index=null){
   const w=index===null?{network:'TRC20',asset:'USDT',rate_symbol:'USDT',is_active:'1',sort_order:'99'}:adminUiWallets[index]||{};
+  const currentAsset = (w.asset || 'USDT').toUpperCase();
   openEdit(index===null?'افزودن کیف پول رمزارز':'ویرایش کیف پول',[
-    field('عنوان ولت',`<input id="bw_title" value="${esc(w.title||'')}" placeholder="USDT TRC20">`),
-    field('شبکه',`<input id="bw_network" value="${esc((w.network||'TRC20').toUpperCase())}" list="networkSuggestions" placeholder="TRC20 / TON / BEP20"><datalist id="networkSuggestions"><option value="TRC20"><option value="TRON"><option value="TON"><option value="BEP20"><option value="ERC20"></datalist>`),
-    field('ارز',`<input id="bw_asset" value="${esc((w.asset||'USDT').toUpperCase())}" placeholder="USDT">`),
+    field('ارز رمزنگاری',`<select id="bw_asset">
+      <option value="USDT" ${currentAsset==='USDT'?'selected':''}>USDT (تتر / دلار)</option>
+      <option value="TRX" ${currentAsset==='TRX'?'selected':''}>TRX (ترون)</option>
+      <option value="TON" ${currentAsset==='TON'?'selected':''}>TON (تن کوین)</option>
+    </select><div id="bw_rate_info" style="margin-top:6px;font-size:11px;color:var(--accent)"></div>`),
+    field('عنوان ولت',`<input id="bw_title" value="${esc(w.title||'')}" placeholder="مثلاً ولت اختصاصی تتر">`),
+    field('شبکه کیف پول',`<select id="bw_network">
+      <option value="TRC20">TRC20 (TRON Network)</option>
+      <option value="TON">TON Network</option>
+      <option value="BEP20">BEP20 (BNB Smart Chain)</option>
+      <option value="ERC20">ERC20 (Ethereum)</option>
+    </select>`),
     field('آدرس ولت',`<textarea id="bw_address" placeholder="آدرس کیف پول">${esc(w.address||'')}</textarea><div id="bw_address_val" class="valid-indicator warn"></div>`),
-    field('نماد نرخ',`<input id="bw_rate" value="${esc((w.rate_symbol||w.asset||'USDT').toUpperCase())}" placeholder="USDT">`),
+    field('نماد نرخ',`<input id="bw_rate" value="${esc((w.rate_symbol||w.asset||'USDT').toUpperCase())}" readonly placeholder="USDT">`),
     field('ترتیب نمایش',`<input id="bw_sort" value="${esc(w.sort_order||'99')}" inputmode="numeric">`),
     `<label class="switch-line">فعال باشد؟ <input id="bw_active" type="checkbox" ${String(w.is_active??'1')!=='0'?'checked':''}></label>`
   ],async()=>{
