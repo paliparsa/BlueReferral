@@ -16,7 +16,7 @@ function getUrlFlag(name){
 }
 const adminFlag = getUrlFlag('admin') || getUrlFlag('mode') || getUrlFlag('startapp') || tg?.initDataUnsafe?.start_param || '';
 const isAdminMode = adminFlag === '1' || String(adminFlag).toLowerCase() === 'admin';
-let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', walletTab = 'overview', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, currentProductId = null, orderFilter = 'all', adminOrderViewMode = 'board', adminOrdersLimit = 25, lastSpinPrize = null, searchTimeout = null, shopSort = 'newest', shopFilterInStock = false, shopFilterFeatured = false, shopFilterWishlist = false, _shareUrl = '';
+let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'dashboard', settingsSubTab = 'general', walletTab = 'overview', searchTerm = '', activeCategory = 'all', pendingDialog = null, pendingEdit = null, currentOrderId = null, currentProductId = null, orderFilter = 'all', adminOrderViewMode = 'board', adminOrdersLimit = 25, lastSpinPrize = null, searchTimeout = null, shopSort = 'newest', shopFilterInStock = false, shopFilterFeatured = false, shopFilterWishlist = false, _shareUrl = '';
 // Product card display mode: 'compact' (grid) or 'detailed' (list)
 let productCardMode = localStorage.getItem('blue_ref_card_mode') || 'compact';
 
@@ -762,95 +762,132 @@ function renderAdminSettings(){
   const cryptoActive=pm.crypto===true || pm.crypto===1 || pm.crypto==='1';
   const walletActive=pm.wallet!==false && pm.wallet!==0 && pm.wallet!=='0';
   const cardActive=pm.card!==false && pm.card!==0 && pm.card!=='0';
+
+  const isGen = settingsSubTab === 'general';
+  const isPay = settingsSubTab === 'payments';
+  const isCry = settingsSubTab === 'crypto';
+  const isApp = settingsSubTab === 'appearance';
+  const isGam = settingsSubTab === 'gamification';
+
   return `<section class="settings-dashboard better-settings">
     <article class="settings-hero admin-card">
-      <div><small>مرکز تنظیمات</small><h3>⚙️ تنظیمات BlueReferral</h3><p class="muted">روش‌های پرداخت، رنگ‌ها و تنظیمات حساس به صورت کارت جدا و کم‌خطا مدیریت می‌شوند.</p></div>
+      <div><small>مرکز تنظیمات</small><h3>⚙️ تنظیمات فروشگاه</h3><p class="muted">تنظیمات در ۵ بخش دسته‌بندی شده‌اند. تغییرات را اعمال و ذخیره کنید.</p></div>
       <button class="primary" data-admin-save-settings>ذخیره همه</button>
     </article>
-    <article class="settings-card admin-card">
-      <div class="settings-card-head"><span>🏷️</span><div><h3>نام فروشگاه</h3><p class="muted">این نام در صفحه فروشگاه و بالای مینی‌اپ نمایش داده می‌شود.</p></div></div>
-      <div class="form-grid settings-form">
-        <label class="full"><span>نام فروشگاه</span><input id="as_brand_name" value="${esc(s.brand_name||'BlueReferral')}" placeholder="مثلاً BlueGate Store"></label>
-      </div>
-    </article>
-    <article class="settings-card admin-card">
-      <div class="settings-card-head"><span>🌐</span><div><h3>ارز پایه پیش‌فرض</h3><p class="muted">ارزی که هنگام افزودن محصول یا پلن جدید به صورت پیش‌فرض انتخاب می‌شود.</p></div></div>
-      <div class="form-grid settings-form">
-        <label class="full"><span>ارز پایه پیش‌فرض جدید برای محصولات و پلن‌ها</span>
-          <select id="as_default_base_currency">
-            <option value="USDT" ${s.default_base_currency==='USDT'||!s.default_base_currency?'selected':''}>USDT (تتر / دلار)</option>
-            <option value="IRR" ${s.default_base_currency==='IRR'?'selected':''}>تومان (IRR)</option>
-            <option value="STARS" ${s.default_base_currency==='STARS'?'selected':''}>Stars (استارز)</option>
-          </select>
-        </label>
-      </div>
-    </article>
-    <article class="settings-card admin-card">
-      <div class="settings-card-head"><span>💳</span><div><h3>روش‌های پرداخت</h3><p class="muted">روش‌هایی که کاربر در صفحه سفارش می‌بیند.</p></div></div>
-      <div class="settings-toggles">
-        <label class="pretty-switch"><input id="as_pay_wallet" type="checkbox" ${walletActive?'checked':''}><span></span><b>کیف پول داخلی</b><small>کم‌کردن مبلغ فاکتور از موجودی</small></label>
-        <label class="pretty-switch"><input id="as_pay_card" type="checkbox" ${cardActive?'checked':''}><span></span><b>کارت به کارت</b><small>پرداخت دستی با رسید</small></label>
-        <label class="pretty-switch"><input id="as_pay_stars" type="checkbox" ${starsActive?'checked':''}><span></span><b>Telegram Stars</b><small>فاکتور مستقیم داخل تلگرام</small></label>
-        <label class="pretty-switch"><input id="as_pay_crypto" type="checkbox" ${cryptoActive?'checked':''}><span></span><b>پرداخت رمزارز</b><small>کیف پول دستی + بررسی TXID</small></label>
-      </div>
-      <div class="form-grid settings-form">
-        <label><span>ارزش هر Star به تومان</span><input id="as_stars_rate" value="${esc(s.stars_rate_toman||3200)}" inputmode="numeric" placeholder="مثلاً 3200"></label>
-        <label class="full"><span>متن راهنمای پرداخت</span><textarea id="as_payment" placeholder="متن راهنمای پرداخت برای کاربر">${esc(s.payment_instructions||'')}</textarea></label>
-      </div>
-    </article>
-    <article class="settings-card admin-card builder-card">
-      <div class="settings-card-head"><span>💳</span><div><h3>حساب‌های کارت به کارت</h3><p class="muted">به جای فرمت خطی، کارت‌ها را جدا جدا اضافه یا ویرایش کن.</p></div></div>
-      <input type="hidden" id="as_cards">
-      <div id="cardBuilderList"></div>
-      <button class="secondary wide" data-builder-add="card">➕ افزودن کارت جدید</button>
-    </article>
-    <article class="settings-card admin-card builder-card">
-      <div class="settings-card-head"><span>🪙</span><div><h3>کیف پول‌های رمزارز</h3><p class="muted">هر ولت را جدا با شبکه، ارز، آدرس و وضعیت فعال بودن تعریف کن.</p></div></div>
-      <div class="form-grid settings-form compact-form">
-        <label><span>منبع نرخ</span><select id="as_crypto_source"><option value="auto">خودکار: Wallex → Ramzinex → Nobitex → دستی/cache</option><option value="wallex">اولویت با Wallex + fallback</option><option value="ramzinex">اولویت با Ramzinex + fallback</option><option value="nobitex">اولویت با Nobitex + fallback</option><option value="manual">فقط نرخ دستی</option></select></label>
-        <label><span>درصد احتیاط نرخ</span><input id="as_crypto_markup" value="${esc(s.crypto_rate_markup_percent||1)}" inputmode="decimal" placeholder="مثلاً 1"></label><label><span>رفرش نرخ هر چند ثانیه</span><input id="as_crypto_refresh_interval" value="${esc(s.crypto_rate_refresh_interval_seconds||600)}" inputmode="numeric" placeholder="60"></label>
-        <label class="pretty-switch inline"><input id="as_crypto_notify" type="checkbox" ${s.crypto_notify_rate_fail!==false?'checked':''}><span></span><b>اعلان خطای نرخ به ادمین</b></label>
-      </div>
-      <input type="hidden" id="as_crypto_wallets">
-      <div id="walletBuilderList"></div>
-      <button class="secondary wide" data-builder-add="wallet">➕ افزودن ولت جدید</button>
-    </article>
-    <article class="settings-card admin-card builder-card">
-      <div class="settings-card-head"><span>📈</span><div><h3>نرخ دستی fallback</h3><p class="muted">اگر Providerها جواب ندادند یا منبع دستی باشد، این نرخ‌ها استفاده می‌شوند.</p></div></div>
-      <input type="hidden" id="as_crypto_rates">
-      <div class="rate-live-box"><b>نرخ‌های فعلی Providerها/cache</b><pre id="cryptoRateCacheView">${esc(cryptoRateCacheText())}</pre><button class="secondary wide" data-refresh-crypto-rates>🔄 رفرش نرخ از Wallex/Ramzinex/Nobitex</button></div>
-      <div id="rateBuilderList"></div>
-      <button class="secondary wide" data-builder-add="rate">➕ افزودن نرخ دستی</button>
-    </article>
-    <article class="settings-card admin-card">
-      <div class="settings-card-head"><span>🎨</span><div><h3>پالت رنگ Mini App</h3><p class="muted">رنگ اصلی و دکمه‌ها را با color picker یا پالت سریع تنظیم کن.</p></div></div>
-      <div class="settings-color-grid">
-        <label><span>رنگ اصلی</span>${colorPicker('as_theme',s.theme_color||'#1d9bf0')}${settingsPalette('as_theme')}</label>
-        <label class="pretty-switch inline"><input id="as_btn_enabled" type="checkbox" ${s.button_colors_enabled?'checked':''}><span></span><b>رنگی بودن دکمه‌های Mini App</b></label>
-        <label><span>دکمه اصلی</span>${colorPicker('as_primary',bc.primary||'#1d9bf0')}${settingsPalette('as_primary')}</label>
-        <label><span>دکمه دوم</span>${colorPicker('as_secondary',bc.secondary||'#2563eb')}${settingsPalette('as_secondary')}</label>
-        <label><span>موفق</span>${colorPicker('as_success',bc.success||'#22c55e')}${settingsPalette('as_success')}</label>
-        <label><span>هشدار</span>${colorPicker('as_warning',bc.warning||'#f59e0b')}${settingsPalette('as_warning')}</label>
-        <label><span>حذف/خطر</span>${colorPicker('as_danger',bc.danger||'#ef4444')}${settingsPalette('as_danger')}</label>
-      </div>
-    </article>
-    <article class="settings-card admin-card">
-      <div class="settings-card-head"><span>👤</span><div><h3>کاربر و احراز</h3><p class="muted">کنترل ورود، شماره تماس و اعلان عضو جدید.</p></div></div>
-      <div class="settings-toggles two">
-        <label class="pretty-switch"><input id="as_require_contact" type="checkbox" ${s.require_contact_auth?'checked':''}><span></span><b>احراز شماره اجباری</b><small>کاربر باید Share Contact بزند</small></label>
-        <label class="pretty-switch"><input id="as_notify_new" type="checkbox" ${s.notify_new_user!==false?'checked':''}><span></span><b>اعلان عضو جدید</b><small>فقط دفعه اول استارت</small></label>
-      </div>
-    </article>
-    <article class="settings-card admin-card">
-      <div class="settings-card-head"><span>🎡</span><div><h3>گردونه و مأموریت</h3><p class="muted">شانس گردونه و جایزه‌های قابل تنظیم.</p></div></div>
-      <div class="form-grid settings-form">
-        <label><span>هر چند دعوت = ۱ شانس</span><input id="as_spin_every" value="${esc(s.spin_referrals_per_chance||5)}" inputmode="numeric"></label>
-        <label class="full"><span>جایزه‌های گردونه</span><textarea id="as_spin_rewards" placeholder="هر خط: عنوان|مبلغ|وزن|اعلان ادمین">${esc(s.spin_rewards_text||'')}</textarea></label>
-      </div>
-      <div class="hint-box">فرمت جایزه: <code>عنوان|مبلغ کیف پول|وزن احتمال|اعلان ادمین ۰/۱</code></div>
-    </article>
+
+    <div class="settings-subtabs-nav">
+      <button class="settings-subtab-btn ${isGen?'active':''}" data-settings-subtab="general">🏪 عمومی</button>
+      <button class="settings-subtab-btn ${isPay?'active':''}" data-settings-subtab="payments">💳 پرداخت</button>
+      <button class="settings-subtab-btn ${isCry?'active':''}" data-settings-subtab="crypto">🪙 کریپتو</button>
+      <button class="settings-subtab-btn ${isApp?'active':''}" data-settings-subtab="appearance">🎨 ظاهر</button>
+      <button class="settings-subtab-btn ${isGam?'active':''}" data-settings-subtab="gamification">🎡 پاداش</button>
+    </div>
+
+    <!-- PANE 1: GENERAL -->
+    <div class="settings-subtab-pane ${isGen?'':'hidden'}" data-pane="general">
+      <article class="settings-card admin-card">
+        <div class="settings-card-head"><span>🏷️</span><div><h3>نام فروشگاه</h3><p class="muted">این نام در صفحه فروشگاه و بالای مینی‌اپ نمایش داده می‌شود.</p></div></div>
+        <div class="form-grid settings-form">
+          <label class="full"><span>نام فروشگاه</span><input id="as_brand_name" value="${esc(s.brand_name||'BlueReferral')}" placeholder="مثلاً BlueGate Store"></label>
+        </div>
+      </article>
+      <article class="settings-card admin-card">
+        <div class="settings-card-head"><span>🌐</span><div><h3>ارز پایه پیش‌فرض</h3><p class="muted">ارزی که هنگام افزودن محصول یا پلن جدید به صورت پیش‌فرض انتخاب می‌شود.</p></div></div>
+        <div class="form-grid settings-form">
+          <label class="full"><span>ارز پایه پیش‌فرض جدید برای محصولات و پلن‌ها</span>
+            <select id="as_default_base_currency">
+              <option value="USDT" ${s.default_base_currency==='USDT'||!s.default_base_currency?'selected':''}>USDT (تتر / دلار)</option>
+              <option value="IRR" ${s.default_base_currency==='IRR'?'selected':''}>تومان (IRR)</option>
+              <option value="STARS" ${s.default_base_currency==='STARS'?'selected':''}>Stars (استارز)</option>
+            </select>
+          </label>
+        </div>
+      </article>
+      <article class="settings-card admin-card">
+        <div class="settings-card-head"><span>👤</span><div><h3>کاربر و احراز</h3><p class="muted">کنترل ورود، شماره تماس و اعلان عضو جدید.</p></div></div>
+        <div class="settings-toggles two">
+          <label class="pretty-switch"><input id="as_require_contact" type="checkbox" ${s.require_contact_auth?'checked':''}><span></span><b>احراز شماره اجباری</b><small>کاربر باید Share Contact بزند</small></label>
+          <label class="pretty-switch"><input id="as_notify_new" type="checkbox" ${s.notify_new_user!==false?'checked':''}><span></span><b>اعلان عضو جدید</b><small>فقط دفعه اول استارت</small></label>
+        </div>
+      </article>
+    </div>
+
+    <!-- PANE 2: PAYMENTS -->
+    <div class="settings-subtab-pane ${isPay?'':'hidden'}" data-pane="payments">
+      <article class="settings-card admin-card">
+        <div class="settings-card-head"><span>💳</span><div><h3>روش‌های پرداخت</h3><p class="muted">روش‌هایی که کاربر در صفحه سفارش می‌بیند.</p></div></div>
+        <div class="settings-toggles">
+          <label class="pretty-switch"><input id="as_pay_wallet" type="checkbox" ${walletActive?'checked':''}><span></span><b>کیف پول داخلی</b><small>کم‌کردن مبلغ فاکتور از موجودی</small></label>
+          <label class="pretty-switch"><input id="as_pay_card" type="checkbox" ${cardActive?'checked':''}><span></span><b>کارت به کارت</b><small>پرداخت دستی با رسید</small></label>
+          <label class="pretty-switch"><input id="as_pay_stars" type="checkbox" ${starsActive?'checked':''}><span></span><b>Telegram Stars</b><small>فاکتور مستقیم داخل تلگرام</small></label>
+          <label class="pretty-switch"><input id="as_pay_crypto" type="checkbox" ${cryptoActive?'checked':''}><span></span><b>پرداخت رمزارز</b><small>کیف پول دستی + بررسی TXID</small></label>
+        </div>
+        <div class="form-grid settings-form">
+          <label><span>ارزش هر Star به تومان</span><input id="as_stars_rate" value="${esc(s.stars_rate_toman||3200)}" inputmode="numeric" placeholder="مثلاً 3200"></label>
+          <label class="full"><span>متن راهنمای پرداخت</span><textarea id="as_payment" placeholder="متن راهنمای پرداخت برای کاربر">${esc(s.payment_instructions||'')}</textarea></label>
+        </div>
+      </article>
+      <article class="settings-card admin-card builder-card">
+        <div class="settings-card-head"><span>💳</span><div><h3>حساب‌های کارت به کارت</h3><p class="muted">کارت‌های بانکی برای واریز دستی کاربران.</p></div></div>
+        <input type="hidden" id="as_cards">
+        <div id="cardBuilderList"></div>
+        <button class="secondary wide" data-builder-add="card">➕ افزودن کارت جدید</button>
+      </article>
+    </div>
+
+    <!-- PANE 3: CRYPTO -->
+    <div class="settings-subtab-pane ${isCry?'':'hidden'}" data-pane="crypto">
+      <article class="settings-card admin-card builder-card">
+        <div class="settings-card-head"><span>🪙</span><div><h3>تنظیمات نرخ و ولت‌های رمزارز</h3><p class="muted">منبع نرخ، ولت‌ها و درصد احتیاط.</p></div></div>
+        <div class="form-grid settings-form compact-form">
+          <label><span>منبع نرخ</span><select id="as_crypto_source"><option value="auto">خودکار: Wallex → Ramzinex → Nobitex → دستی/cache</option><option value="wallex">اولویت با Wallex + fallback</option><option value="ramzinex">اولویت با Ramzinex + fallback</option><option value="nobitex">اولویت با Nobitex + fallback</option><option value="manual">فقط نرخ دستی</option></select></label>
+          <label><span>درصد احتیاط نرخ</span><input id="as_crypto_markup" value="${esc(s.crypto_rate_markup_percent||1)}" inputmode="decimal" placeholder="مثلاً 1"></label><label><span>رفرش نرخ هر چند ثانیه</span><input id="as_crypto_refresh_interval" value="${esc(s.crypto_rate_refresh_interval_seconds||600)}" inputmode="numeric" placeholder="60"></label>
+          <label class="pretty-switch inline"><input id="as_crypto_notify" type="checkbox" ${s.crypto_notify_rate_fail!==false?'checked':''}><span></span><b>اعلان خطای نرخ به ادمین</b></label>
+        </div>
+        <input type="hidden" id="as_crypto_wallets">
+        <div id="walletBuilderList"></div>
+        <button class="secondary wide" data-builder-add="wallet">➕ افزودن ولت جدید</button>
+      </article>
+      <article class="settings-card admin-card builder-card">
+        <div class="settings-card-head"><span>📈</span><div><h3>نرخ دستی fallback</h3><p class="muted">اگر Providerها جواب ندادند یا منبع دستی باشد.</p></div></div>
+        <input type="hidden" id="as_crypto_rates">
+        <div class="rate-live-box"><b>نرخ‌های فعلی Providerها/cache</b><pre id="cryptoRateCacheView">${esc(cryptoRateCacheText())}</pre><button class="secondary wide" data-refresh-crypto-rates>🔄 رفرش نرخ از Wallex/Ramzinex/Nobitex</button></div>
+        <div id="rateBuilderList"></div>
+        <button class="secondary wide" data-builder-add="rate">➕ افزودن نرخ دستی</button>
+      </article>
+    </div>
+
+    <!-- PANE 4: APPEARANCE -->
+    <div class="settings-subtab-pane ${isApp?'':'hidden'}" data-pane="appearance">
+      <article class="settings-card admin-card">
+        <div class="settings-card-head"><span>🎨</span><div><h3>پالت رنگ Mini App</h3><p class="muted">رنگ اصلی و دکمه‌ها را با color picker یا پالت سریع تنظیم کن.</p></div></div>
+        <div class="settings-color-grid">
+          <label><span>رنگ اصلی</span>${colorPicker('as_theme',s.theme_color||'#1d9bf0')}${settingsPalette('as_theme')}</label>
+          <label class="pretty-switch inline"><input id="as_btn_enabled" type="checkbox" ${s.button_colors_enabled?'checked':''}><span></span><b>رنگی بودن دکمه‌های Mini App</b></label>
+          <label><span>دکمه اصلی</span>${colorPicker('as_primary',bc.primary||'#1d9bf0')}${settingsPalette('as_primary')}</label>
+          <label><span>دکمه دوم</span>${colorPicker('as_secondary',bc.secondary||'#2563eb')}${settingsPalette('as_secondary')}</label>
+          <label><span>موفق</span>${colorPicker('as_success',bc.success||'#22c55e')}${settingsPalette('as_success')}</label>
+          <label><span>هشدار</span>${colorPicker('as_warning',bc.warning||'#f59e0b')}${settingsPalette('as_warning')}</label>
+          <label><span>حذف/خطر</span>${colorPicker('as_danger',bc.danger||'#ef4444')}${settingsPalette('as_danger')}</label>
+        </div>
+      </article>
+    </div>
+
+    <!-- PANE 5: GAMIFICATION -->
+    <div class="settings-subtab-pane ${isGam?'':'hidden'}" data-pane="gamification">
+      <article class="settings-card admin-card">
+        <div class="settings-card-head"><span>🎡</span><div><h3>گردونه و مأموریت</h3><p class="muted">شانس گردونه و جایزه‌های قابل تنظیم.</p></div></div>
+        <div class="form-grid settings-form">
+          <label><span>هر چند دعوت = ۱ شانس</span><input id="as_spin_every" value="${esc(s.spin_referrals_per_chance||5)}" inputmode="numeric"></label>
+          <label class="full"><span>جایزه‌های گردونه</span><textarea id="as_spin_rewards" placeholder="هر خط: عنوان|مبلغ|وزن|اعلان ادمین">${esc(s.spin_rewards_text||'')}</textarea></label>
+        </div>
+        <div class="hint-box">فرمت جایزه: <code>عنوان|مبلغ کیف پول|وزن احتمال|اعلان ادمین ۰/۱</code></div>
+      </article>
+    </div>
+
     <button class="primary save-floating" data-admin-save-settings>ذخیره همه تنظیمات</button>
-  </section>`}
+  </section>`;
+}
 function currencyOptions(selected=''){
   const def = adminState?.settings?.default_base_currency || 'USDT';
   const cur = selected || def;
@@ -1118,7 +1155,7 @@ function applyTheme(data={}){
   document.documentElement.style.setProperty('--warning', data && (data.button_colors?.warning || (data.settings && data.settings.button_colors?.warning)) || '#f59e0b');
   try{tg?.setHeaderColor?.(accent);tg?.setBackgroundColor?.('#08111f');tg?.MainButton?.setParams?.({color:accent,text_color:'#ffffff'});}catch(e){}
 }
-document.addEventListener('click',async(e)=>{const t=e.target.closest('button,[data-product],[data-product-preview],[data-order-open],[data-accordion-toggle],[data-admin-action-sheet],[data-admin-view-mode]');if(!t)return;if(t.dataset.walletTab){haptic('light');walletTab=t.dataset.walletTab;renderWallet();return}if(t.dataset.adminViewMode){adminOrderViewMode=t.dataset.adminViewMode;renderAdmin();return}if(t.dataset.adminActionSheet){const [type,id]=t.dataset.adminActionSheet.split(':');openAdminActionSheet(type,id);return}if(t.dataset.tab){setTab(t.dataset.tab)}if(t.dataset.tabJump){setTab(t.dataset.tabJump)}if(t.id==='openPalette'||t.id==='paletteQuick'){openPalettePopup()}if(t.dataset.color){localStorage.setItem('blue_ref_color',t.dataset.color);applyTheme({...state,theme_color:t.dataset.color});showStatus('رنگ تغییر کرد')}if(t.id==='resetColor'){localStorage.removeItem('blue_ref_color');applyTheme(state);showStatus('رنگ پیش‌فرض برگشت')}if(t.id==='applyCustomColor'){const c=$('userCustomColor')?.value||'#1d9bf0';localStorage.setItem('blue_ref_color',c);applyTheme({...state,theme_color:c});showStatus('رنگ دلخواه اعمال شد')}if(t.dataset.cat){activeCategory=t.dataset.cat;document.querySelectorAll('.cat-pill').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));renderShopSections()}if(t.dataset.shopSort!==undefined){shopSort=t.dataset.shopSort;document.querySelectorAll('[data-shop-sort]').forEach(el=>el.classList.toggle('active',el.dataset.shopSort===shopSort));renderShopSections()}if(t.dataset.shopToggle!==undefined){if(t.dataset.shopToggle==='instock'){shopFilterInStock=!shopFilterInStock;t.textContent=shopFilterInStock?'⚡':'📦'}else if(t.dataset.shopToggle==='featured')shopFilterFeatured=!shopFilterFeatured;else if(t.dataset.shopToggle==='wishlist'){shopFilterWishlist=!shopFilterWishlist;t.textContent=shopFilterWishlist?'❤️':'🤍'}t.classList.toggle('active');renderShopSections()}if(t.dataset.clearFilters!==undefined){searchTerm='';activeCategory='all';shopSort='newest';shopFilterInStock=false;shopFilterFeatured=false;shopFilterWishlist=false;renderShop()}if(t.id==='searchInput')return;if(t.dataset.product)showProduct(t.dataset.product);if(t.dataset.productPreview)showProductPreview(t.dataset.productPreview);if(t.dataset.backShop!==undefined){currentTab='shop';renderUser()}if(t.dataset.buy||t.dataset.buyWallet){if(!confirm('آیا از ثبت سفارش خود مطمئن هستید؟'))return;closePreviewSheet();await loadAfterAction('create_order',{product_id:t.dataset.buy||t.dataset.buyWallet,variant_id:t.dataset.variant||null,use_wallet:t.dataset.buyWallet?1:0});currentTab='orders';currentOrderId=state.order?.id||null;renderUser()}if(t.dataset.walletOrder){await loadAfterAction('apply_wallet',{order_id:t.dataset.walletOrder});currentTab='orders';currentOrderId=t.dataset.walletOrder;renderUser()}if(t.dataset.selectCard){await loadAfterAction('select_payment_method',{order_id:t.dataset.selectCard,method:'card',details:{}});currentTab='orders';currentOrderId=t.dataset.selectCard;renderUser();showStatus('کارت به کارت انتخاب شد')}if(t.dataset.payStars){await loadAfterAction('start_stars_invoice',{order_id:t.dataset.payStars});currentTab='orders';currentOrderId=t.dataset.payStars;renderUser();showStatus('فاکتور Stars داخل تلگرام ارسال شد')}if(t.dataset.selectCrypto){const [oid,wid]=t.dataset.selectCrypto.split(':');await loadAfterAction('select_crypto_wallet',{order_id:oid,wallet_id:wid});currentTab='orders';currentOrderId=oid;renderUser();showStatus('کیف پول رمزارز انتخاب شد')}if(t.dataset.showCrypto){showStatus('کمی پایین‌تر کیف پول رمزارز را انتخاب کن')}if(t.dataset.cryptoHash){openDialog('ثبت TXID / Hash',`هش تراکنش رمزارز سفارش #${t.dataset.cryptoHash} را وارد کن.`, 'TXID / Hash', async(txt)=>{await loadAfterAction('submit_crypto_hash',{order_id:t.dataset.cryptoHash,tx_hash:txt});currentTab='orders';currentOrderId=t.dataset.cryptoHash;renderUser();showStatus('هش ثبت شد و در صف بررسی قرار گرفت')})}if(t.dataset.checkCrypto){await loadAfterAction('check_crypto_payment',{order_id:t.dataset.checkCrypto});currentTab='orders';currentOrderId=t.dataset.checkCrypto;renderUser();showStatus('بررسی پرداخت انجام شد')}
+document.addEventListener('click',async(e)=>{const t=e.target.closest('button,[data-product],[data-product-preview],[data-order-open],[data-accordion-toggle],[data-admin-action-sheet],[data-admin-view-mode],[data-settings-subtab]');if(!t)return;if(t.dataset.settingsSubtab){if(typeof haptic==='function')haptic('light');settingsSubTab=t.dataset.settingsSubtab;document.querySelectorAll('.settings-subtab-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.settingsSubtab===settingsSubTab));document.querySelectorAll('.settings-subtab-pane').forEach(pane=>pane.classList.toggle('hidden',pane.dataset.pane!==settingsSubTab));return}if(t.dataset.walletTab){haptic('light');walletTab=t.dataset.walletTab;renderWallet();return}if(t.dataset.adminViewMode){adminOrderViewMode=t.dataset.adminViewMode;renderAdmin();return}if(t.dataset.adminActionSheet){const [type,id]=t.dataset.adminActionSheet.split(':');openAdminActionSheet(type,id);return}if(t.dataset.tab){setTab(t.dataset.tab)}if(t.dataset.tabJump){setTab(t.dataset.tabJump)}if(t.id==='openPalette'||t.id==='paletteQuick'){openPalettePopup()}if(t.dataset.color){localStorage.setItem('blue_ref_color',t.dataset.color);applyTheme({...state,theme_color:t.dataset.color});showStatus('رنگ تغییر کرد')}if(t.id==='resetColor'){localStorage.removeItem('blue_ref_color');applyTheme(state);showStatus('رنگ پیش‌فرض برگشت')}if(t.id==='applyCustomColor'){const c=$('userCustomColor')?.value||'#1d9bf0';localStorage.setItem('blue_ref_color',c);applyTheme({...state,theme_color:c});showStatus('رنگ دلخواه اعمال شد')}if(t.dataset.cat){activeCategory=t.dataset.cat;document.querySelectorAll('.cat-pill').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));renderShopSections()}if(t.dataset.shopSort!==undefined){shopSort=t.dataset.shopSort;document.querySelectorAll('[data-shop-sort]').forEach(el=>el.classList.toggle('active',el.dataset.shopSort===shopSort));renderShopSections()}if(t.dataset.shopToggle!==undefined){if(t.dataset.shopToggle==='instock'){shopFilterInStock=!shopFilterInStock;t.textContent=shopFilterInStock?'⚡':'📦'}else if(t.dataset.shopToggle==='featured')shopFilterFeatured=!shopFilterFeatured;else if(t.dataset.shopToggle==='wishlist'){shopFilterWishlist=!shopFilterWishlist;t.textContent=shopFilterWishlist?'❤️':'🤍'}t.classList.toggle('active');renderShopSections()}if(t.dataset.clearFilters!==undefined){searchTerm='';activeCategory='all';shopSort='newest';shopFilterInStock=false;shopFilterFeatured=false;shopFilterWishlist=false;renderShop()}if(t.id==='searchInput')return;if(t.dataset.product)showProduct(t.dataset.product);if(t.dataset.productPreview)showProductPreview(t.dataset.productPreview);if(t.dataset.backShop!==undefined){currentTab='shop';renderUser()}if(t.dataset.buy||t.dataset.buyWallet){if(!confirm('آیا از ثبت سفارش خود مطمئن هستید؟'))return;closePreviewSheet();await loadAfterAction('create_order',{product_id:t.dataset.buy||t.dataset.buyWallet,variant_id:t.dataset.variant||null,use_wallet:t.dataset.buyWallet?1:0});currentTab='orders';currentOrderId=state.order?.id||null;renderUser()}if(t.dataset.walletOrder){await loadAfterAction('apply_wallet',{order_id:t.dataset.walletOrder});currentTab='orders';currentOrderId=t.dataset.walletOrder;renderUser()}if(t.dataset.selectCard){await loadAfterAction('select_payment_method',{order_id:t.dataset.selectCard,method:'card',details:{}});currentTab='orders';currentOrderId=t.dataset.selectCard;renderUser();showStatus('کارت به کارت انتخاب شد')}if(t.dataset.payStars){await loadAfterAction('start_stars_invoice',{order_id:t.dataset.payStars});currentTab='orders';currentOrderId=t.dataset.payStars;renderUser();showStatus('فاکتور Stars داخل تلگرام ارسال شد')}if(t.dataset.selectCrypto){const [oid,wid]=t.dataset.selectCrypto.split(':');await loadAfterAction('select_crypto_wallet',{order_id:oid,wallet_id:wid});currentTab='orders';currentOrderId=oid;renderUser();showStatus('کیف پول رمزارز انتخاب شد')}if(t.dataset.showCrypto){showStatus('کمی پایین‌تر کیف پول رمزارز را انتخاب کن')}if(t.dataset.cryptoHash){openDialog('ثبت TXID / Hash',`هش تراکنش رمزارز سفارش #${t.dataset.cryptoHash} را وارد کن.`, 'TXID / Hash', async(txt)=>{await loadAfterAction('submit_crypto_hash',{order_id:t.dataset.cryptoHash,tx_hash:txt});currentTab='orders';currentOrderId=t.dataset.cryptoHash;renderUser();showStatus('هش ثبت شد و در صف بررسی قرار گرفت')})}if(t.dataset.checkCrypto){await loadAfterAction('check_crypto_payment',{order_id:t.dataset.checkCrypto});currentTab='orders';currentOrderId=t.dataset.checkCrypto;renderUser();showStatus('بررسی پرداخت انجام شد')}
   if(t.id==='openQrHome'||t.id==='openQrWallet'){openQrSheet();return}if(t.id==='openPromoSheetBtn'){openPromoSheet();return}if(t.id==='adminOrderSearchBtn'){adminOrderSearch=$('adminOrderSearchInput')?.value||'';adminOrderStatusFilter=$('adminOrderStatusSelect')?.value||'all';adminSearchOrdersNow();return}if(t.id==='adminOrderResetBtn'){adminOrderSearch='';adminOrderStatusFilter='all';adminSearchOrdersNow();return}if(t.id==='bulkClearBtn'){selectedOrderIds.clear();renderAdmin();return}if(t.dataset.bulkAction){bulkOrderAction(t.dataset.bulkAction);return}if(t.dataset.reorder){const [type,id,dir]=t.dataset.reorder.split(':');reorderItem(type,Number(id),dir);return}if(t.dataset.chatUser){openUserChat(t.dataset.chatUser);return}if(t.dataset.editRole){const r=(adminState.admin_roles||[]).find(x=>Number(x.id)===Number(t.dataset.editRole));if(!r)return;openEdit(`ویرایش نقش ${esc(r.display_name||'')}`,[{title:'سطح دسترسی',fields:[{id:'erl_name',label:'نام نمایشی',value:r.display_name||''},{id:'erl_role',label:'نوع دسترسی',type:'select',options:`<option value="full" ${r.role==='full'?'selected':''}>ادمین کامل</option><option value="orders" ${r.role==='orders'?'selected':''}>فقط سفارش‌ها</option><option value="products" ${r.role==='products'?'selected':''}>فقط محصولات</option><option value="finance" ${r.role==='finance'?'selected':''}>فقط مالی</option>`}]}],async()=>adminAction('admin_set_role',{telegram_id:r.telegram_id,role:val('erl_role'),display_name:val('erl_name')}));return}if(t.dataset.adminRemoveRole&&confirm('نقش این کاربر حذف شود؟')){adminAction('admin_remove_role',{telegram_id:Number(t.dataset.adminRemoveRole)});return}
 if(t.dataset.contactWallet){openDialog('افزایش/کاهش موجودی',`مبلغی که می‌خواهید به موجودی کاربر با ID ${t.dataset.contactWallet} اضافه شود را وارد کنید. برای کاهش، عدد منفی وارد کنید.`,'مثلا 50000 یا -20000',async(txt)=>{const amount=Number(txt);if(isNaN(amount)||!amount)return showStatus('مبلغ نامعتبر است','error');const ok=await adminAction('admin_add_balance',{telegram_id:t.dataset.contactWallet,amount});if(ok){showStatus('موجودی تغییر کرد');closeCustomer360();setTimeout(()=>openCustomer360(t.dataset.contactWallet),500)}});return}if(t.dataset.contactBan){if(confirm('آیا از مسدود کردن این کاربر اطمینان دارید؟')){const ok=await adminAction('admin_ban_user',{telegram_id:t.dataset.contactBan});if(ok)showStatus('کاربر مسدود شد')}return}if(t.dataset.adminTab){setAdminTab(t.dataset.adminTab)}if(t.id==='reloadAdmin')loadAdmin();if(t.id==='openCmdPalette'){openCommandPalette();return}if(t.dataset.editProduct)editProduct(t.dataset.editProduct);if(t.dataset.adminToggleProduct)adminAction('admin_toggle_product',{product_id:t.dataset.adminToggleProduct});if(t.dataset.adminDeleteProduct&&confirm('محصول غیرفعال شود؟'))adminAction('admin_delete_product',{product_id:t.dataset.adminDeleteProduct});if(t.dataset.adminHardDeleteProduct&&confirm('حذف کامل محصول؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_product',{product_id:t.dataset.adminHardDeleteProduct});if(t.dataset.editCategory)editCategory(t.dataset.editCategory);if(t.dataset.adminDeleteCategory&&confirm('دسته غیرفعال شود؟'))adminAction('admin_delete_category',{category_id:t.dataset.adminDeleteCategory});if(t.dataset.adminHardDeleteCategory&&confirm('حذف کامل دسته؟ محصولات بدون دسته می‌شوند.'))adminAction('admin_hard_delete_category',{category_id:t.dataset.adminHardDeleteCategory});if(t.dataset.editVariant)editVariant(t.dataset.editVariant);if(t.dataset.adminDeleteVariant&&confirm('پلن غیرفعال شود؟'))adminAction('admin_delete_variant',{variant_id:t.dataset.adminDeleteVariant});if(t.dataset.adminHardDeleteVariant&&confirm('حذف کامل پلن؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_variant',{variant_id:t.dataset.adminHardDeleteVariant});if(t.dataset.editInventory)editInventory(t.dataset.editInventory);if(t.dataset.adminDeleteInventory&&confirm('حذف امن آیتم؟'))adminAction('admin_delete_inventory',{inventory_id:t.dataset.adminDeleteInventory});if(t.dataset.adminHardDeleteInventory&&confirm('حذف کامل آیتم؟'))adminAction('admin_hard_delete_inventory',{inventory_id:t.dataset.adminHardDeleteInventory});if(t.dataset.adminStatus){const [id,status]=t.dataset.adminStatus.split(':');adminAction('admin_order_status',{order_id:id,status})}if(t.dataset.adminOrderNote){const id=t.dataset.adminOrderNote;const o=(adminState.orders||[]).find(x=>Number(x.id)===Number(id));if(o)openEdit(`یادداشت داخلی #${id}`,[{title:'یادداشت داخلی (مخفی)',fields:[{id:'adm_note',label:'متن یادداشت',type:'textarea',placeholder:'فقط شما می‌بینید...',value:o.admin_note||''}]}],async()=>adminAction('admin_order_note',{order_id:id,note:val('adm_note')}))}if(t.dataset.adminArchiveOrder&&confirm('این سفارش آرشیو شود؟'))adminAction('admin_archive_order',{order_id:t.dataset.adminArchiveOrder});if(t.dataset.adminDeleteOrder&&confirm('حذف کامل سفارش؟ این عملیات قابل برگشت نیست.'))adminAction('admin_delete_order',{order_id:t.dataset.adminDeleteOrder});if(t.dataset.adminCleanup&&confirm('پاکسازی گروهی سفارش‌های لغو/رد شده انجام شود؟'))adminAction('admin_cleanup_orders',{older_days:t.dataset.adminCleanup==='all'?null:t.dataset.adminCleanup});if(t.dataset.adminDeliver){const oid=t.dataset.adminDeliver;openDialog('تحویل سفارش',`متن تحویل سفارش #${oid} را وارد کن.`, 'ایمیل/پسورد، لینک ساب یا کد', async(txt)=>{const ok=await adminAction('admin_deliver_order',{order_id:oid,delivery:txt});if(ok){currentAdminTab='orders';showStatus('تحویل ثبت شد و برای کاربر ارسال شد')}})}if(t.dataset.viewReceipt!==undefined){loadReceiptImage(t.dataset.viewReceipt)}if(t.dataset.adminSaveSettings!==undefined){syncPaymentBuilders();adminAction('admin_save_settings',{brand_name:val('as_brand_name'),default_base_currency:val('as_default_base_currency'),theme_color:val('as_theme'),button_colors_enabled:val('as_btn_enabled')?1:0,require_contact_auth:val('as_require_contact')?1:0,notify_new_user:val('as_notify_new')?1:0,button_colors:{primary:val('as_primary'),secondary:val('as_secondary'),success:val('as_success'),warning:val('as_warning'),danger:val('as_danger')},payment_instructions:val('as_payment'),payment_methods_enabled:{wallet:val('as_pay_wallet')?1:0,card:val('as_pay_card')?1:0,stars:val('as_pay_stars')?1:0,crypto:val('as_pay_crypto')?1:0},card_accounts_text:val('as_cards'),stars_rate_toman:val('as_stars_rate'),crypto_wallets_text:val('as_crypto_wallets'),crypto_manual_rates_text:val('as_crypto_rates'),crypto_rate_source:val('as_crypto_source'),crypto_rate_provider_priority:'wallex,ramzinex,nobitex',crypto_rate_markup_percent:val('as_crypto_markup'),crypto_rate_refresh_interval_seconds:val('as_crypto_refresh_interval'),crypto_notify_rate_fail:val('as_crypto_notify')?1:0,spin_referrals_per_chance:val('as_spin_every'),spin_rewards_text:val('as_spin_rewards')})}
 if(t.dataset.openUrl){try{Telegram?.WebApp?.openLink?.(t.dataset.openUrl)}catch(_){location.href=t.dataset.openUrl}}if(t.dataset.copy){navigator.clipboard?.writeText(t.dataset.copy);showStatus('کپی شد')}if(t.dataset.receipt){openDialog('ارسال رسید',`عکس رسید یا توضیح سفارش #${t.dataset.receipt} را وارد کن.`, 'مثلاً کد پیگیری', async(txt, b64)=>{await loadAfterAction('submit_receipt',{order_id:t.dataset.receipt,note:txt||'رسید تصویری', receipt_b64: b64});currentTab='orders';renderUser();showStatus('رسید ثبت شد؛ اگر لازم است اطلاعات اکانت را با دکمه یادداشت سفارش بفرست')}, '', true)}if(t.dataset.customerNote){openDialog('یادداشت سفارش',`ایمیل، رمز، یوزرنیم یا توضیح لازم برای سفارش #${t.dataset.customerNote} را وارد کن.`, 'مثلاً email@example.com / Password یا توضیح مورد نیاز', async(txt)=>{await loadAfterAction('customer_order_note',{order_id:t.dataset.customerNote,note:txt});currentTab='orders';renderUser()})}if(t.dataset.coupon){openDialog('کد تخفیف',`کد تخفیف سفارش #${t.dataset.coupon} را وارد کن.`, 'BLUE10', async(txt)=>{await loadAfterAction('apply_coupon',{order_id:t.dataset.coupon,code:txt});currentTab='orders';renderUser()})}if(t.dataset.orderFilter){orderFilter=t.dataset.orderFilter;currentOrderId=null;renderOrders()}if(t.dataset.orderOpen){currentOrderId=t.dataset.orderOpen;renderOrders()}if(t.dataset.orderBack!==undefined){currentOrderId=null;renderOrders()}if(t.dataset.hideOrder&&confirm('این سفارش از لیست شما حذف شود؟')){await loadAfterAction('hide_order',{order_id:t.dataset.hideOrder});currentTab='orders';currentOrderId=null;renderUser()}if(t.dataset.clearCanceled!==undefined&&confirm('همه سفارش‌های لغو/رد شده از لیست شما مخفی شوند؟')){await loadAfterAction('clear_canceled_orders');currentTab='orders';currentOrderId=null;renderUser()}if(t.dataset.cancel){await loadAfterAction('cancel_order',{order_id:t.dataset.cancel});currentTab='orders';currentOrderId=null;renderUser()}if(t.id==='shareInviteNative'){const l=state.user?.referral_link;if(navigator.share&&l){try{await navigator.share({title:document.title,url:l});showStatus('اشتراک‌گذاری انجام شد')}catch(e){}}else if(l){navigator.clipboard?.writeText(l);showStatus('لینک کپی شد')}}if(t.id==='copyLink'||t.id==='copyRefHome'){navigator.clipboard?.writeText(state.user.referral_link);showStatus('لینک دعوت کپی شد')}if(t.id==='claimBtn')await loadAfterAction('claim_missions');if(t.id==='spinBtn')await doSpinWheel();if(t.dataset.refreshCryptoRates!==undefined){const ok=await adminAction('admin_refresh_crypto_rates',{});if(ok){showStatus('نرخ‌ها از Providerها رفرش شد')}}if(t.dataset.adminBackupCreate!==undefined){const ok=await adminAction('admin_backup_create',{});if(ok){showStatus('بکاپ روی سرور ساخته شد')}}if(t.dataset.adminBackupSendbot!==undefined){const ok=await adminAction('admin_backup_send_bot',{});if(ok){showStatus('بکاپ داخل چت بات ارسال شد')}}if(t.dataset.adminBackupDelete&&confirm('این بکاپ از سرور حذف شود؟')){await adminAction('admin_backup_delete',{filename:t.dataset.adminBackupDelete})}if(t.dataset.adminBackupRestoreServer&&confirm('Restore این فایل انجام شود؟ دیتابیس فعلی جایگزین می‌شود.')){await adminAction('admin_backup_restore_server',{filename:t.dataset.adminBackupRestoreServer,confirm:'RESTORE'})}if(t.dataset.adminBackupUpload!==undefined){try{await uploadBackupRestore()}catch(e){showStatus(e.message||'Restore failed','error')}}if(t.dataset.adminLoadMoreOrders!==undefined){adminOrdersLimit+=25;renderAdmin();return}if(t.dataset.accordionToggle!==undefined){toggleVariantProduct(t.dataset.accordionToggle, t);return}if(t.dataset.accordionAddVariant!==undefined){openAddVariant(Number(t.dataset.accordionAddVariant));return}
