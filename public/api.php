@@ -27,7 +27,7 @@ function webapp_auth_user(string $initData): array {
     return get_user_by_tid((int)$tgUser['id']);
 }
 function product_payload(array $p, bool $activeVariants=true): array {
-    $variants = array_map(function($v){ $pm=price_meta_public($v); return ['id'=>(int)$v['id'], 'product_id'=>(int)$v['product_id'], 'title'=>$v['title'], 'price'=>(int)$pm['toman'], 'price_label'=>$pm['label'], 'price_currency'=>$pm['currency'], 'price_usd'=>$pm['usd'], 'price_meta'=>$pm, 'duration_days'=>(int)$v['duration_days'], 'sort_order'=>(int)($v['sort_order'] ?? 0), 'is_active'=>(int)($v['is_active'] ?? 1)]; }, product_variants((int)$p['id'], $activeVariants));
+    $variants = array_map(function($v){ $pm=price_meta_public($v); return ['id'=>(int)$v['id'], 'product_id'=>(int)$v['product_id'], 'title'=>$v['title'], 'price'=>(int)$pm['toman'], 'price_label'=>$pm['label'], 'price_currency'=>$pm['currency'], 'price_usd'=>$pm['usd'], 'price_meta'=>$pm, 'duration_days'=>(int)$v['duration_days'], 'discount_percent'=>(int)($v['discount_percent'] ?? 0), 'sort_order'=>(int)($v['sort_order'] ?? 0), 'is_active'=>(int)($v['is_active'] ?? 1)]; }, product_variants((int)$p['id'], $activeVariants));
     $pm = price_meta_public($p);
     return [
         'id'=>(int)$p['id'], 'category_id'=>isset($p['category_id'])?(int)$p['category_id']:0, 'category_title'=>$p['category_title'] ?? null, 'category_emoji'=>$p['category_emoji'] ?? null,
