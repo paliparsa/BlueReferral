@@ -255,7 +255,102 @@ function priceLabel(p){return esc(p.price_label || fmt(p.price))}
 function priceCurrencyOptions(selected='IRT'){selected=String(selected||'IRT').toUpperCase();return `<option value="IRT" ${selected!=='USD'?'selected':''}>تومان</option><option value="USD" ${selected==='USD'?'selected':''}>دلار / USDT</option>`}
 function priceAdminFields(prefix,item={}){const c=String(item.price_currency||'IRT').toUpperCase();const usd=item.price_usd||'';const toman=item.price||'';return `<div class="price-editor full"><div class="price-editor-head"><span>💸</span><div><b>نوع قیمت‌گذاری</b><small>تومان ثابت یا دلار با تبدیل خودکار به تومان</small></div></div><div class="price-editor-grid"><label><span>واحد قیمت</span><select id="${prefix}_currency">${priceCurrencyOptions(c)}</select></label><label><span>قیمت تومان</span><input id="${prefix}_price" value="${esc(toman)}" inputmode="numeric" placeholder="مثلاً 2199000"></label><label><span>قیمت دلار</span><input id="${prefix}_price_usd" value="${esc(usd)}" inputmode="decimal" placeholder="مثلاً 19.99"></label><p class="muted full">اگر دلار انتخاب شود، کاربر فقط قیمت تومانی لحظه‌ای را می‌بیند؛ مبلغ دلاری فقط هنگام پرداخت رمزارز/ارزی نمایش داده می‌شود.</p></div></div>`}
 function priceAdminSummary(obj={}){const m=obj.price_meta||{};if((obj.price_currency||m.currency)==='USD'){return `قیمت دلاری: ${nf(obj.price_usd||m.usd||0)}$ → ${fmt(obj.price||m.toman||0)} ${m.rate_source?`· نرخ ${esc(m.rate_source)}`:''}`}return `قیمت تومانی: ${fmt(obj.price||0)}`}
-function orderUsdHint(o){return String(o.price_currency||'IRT').toUpperCase()==='USD' && Number(o.price_usd||0)>0 ? `<p class="muted usd-only-hint">مبنای دلاری این سفارش: $${nf(o.price_usd)} · نرخ تبدیل: ${o.usd_rate_toman?nf(o.usd_rate_toman)+' تومان':''}</p>` : ''}
+function orderUsdHint(o){
+  const cur = String(o.price_currency || o.currency || 'IRT').toUpperCase();
+  if (['USD', 'USDT', 'TRX', 'TON', 'STARS'].includes(cur)) {
+    if (cur === 'USD' || cur === 'USDT') {
+      return Number(o.price_usd || 0) > 0 ? `<p class="muted usd-only-hint">مبنای دلاری این سفارش: $${nf(o.price_usd)} USDT · نرخ تبدیل: ${o.usd_rate_toman ? nf(o.usd_rate_toman) + ' تومان' : ''}</p>` : '';
+    }
+    if (cur === 'TRX') {
+      return Number(o.price_crypto || 0) > 0 ? `<p class="muted usd-only-hint">مبنای ترون این سفارش: ${nf(o.price_crypto)} TRX · نرخ تبدیل: ${o.usd_rate_toman ? nf(o.usd_rate_toman) + ' تومان' : ''}</p>` : '';
+    }
+    if (cur === 'TON') {
+      return Number(o.price_crypto || 0) > 0 ? `<p class="muted usd-only-hint">مبنای تون این سفارش: ${nf(o.price_crypto)} TON · نرخ تبدیل: ${o.usd_rate_toman ? nf(o.usd_rate_toman) + ' تومان' : ''}</p>` : '';
+    }
+  }
+  return '';
+}
+
+function paymentMethodsHtml(o){
+  const methods=state.payment_methods||{wallet:{enabled:true},card:{enabled:true,accounts:[],instructions:state.payment_instructions||''},stars:{enabled:false,rate_toman:3200},crypto:{enabled:false,wallets:[],markup_percent:1}};
+  if(!['pending_payment','rejected'].includes(o.status)||Number(o.final_amount||0)<=0)return '';
+  const bal=Number(state.user?.balance||0);
+  let html=`<article class="payment-box"><div class="section-title compact"><h3>💳 روش پرداخت</h3><span class="badge">${esc(o.payment_method_fa||'انتخاب نشده')}</span></div><div class="payment-grid">`;
+  if(methods.wallet?.enabled) html+=`<button class="pay-method success" data-wallet-order="${o.id}"><b>💰 کیف پول</b><span>موجودی: ${fmt(bal)}</span></button>`;
+  if(methods.card?.enabled) html+=`<button class="pay-method" data-select-card="${o.id}"><b>💳 کارت به کارت</b><span>پرداخت دستی با رسید</span></button>`;
+  if(methods.stars?.enabled) html+=`<button class="pay-method warning" data-pay-stars="${o.id}"><b>⭐ Telegram Stars</b><span>${nf(Math.max(1,Math.ceil(Number(o.final_amount||0)/Number(methods.stars?.rate_toman||3200))))} استار</span></button>`;
+  if(methods.crypto?.enabled) html+=`<button class="pay-method crypto" data-show-crypto="${o.id}"><b>🪙 رمزارز</b><span>USDT / TRX / TON با TXID</span></button>`;
+  if(!methods.wallet?.enabled && !methods.card?.enabled && !methods.stars?.enabled && !methods.crypto?.enabled) html+=`<p class="muted empty-state">فعلاً هیچ روش پرداختی فعال نیست. لطفاً به پشتیبانی پیام بده.</p>`;
+  html+=`</div>`;
+  if(o.payment_method==='card'&&methods.card?.accounts?.length){
+    html+=`<div class="card-pay-list"><p class="muted">یکی از کارت‌های زیر را کپی کن، پرداخت را انجام بده و رسید را ارسال کن.</p>`+methods.card.accounts.map(c=>`<div class="pay-card"><div><b>${esc(c.title||'کارت')}</b><small>${esc(c.owner||'')}</small></div><button class="secondary" data-copy="${esc(c.card||'')}">کپی کارت</button><code>${esc(c.card||'')}</code>${c.sheba?`<small>شبا: ${esc(c.sheba)}</small>`:''}</div>`).join('')+`</div>`;
+  }
+  const cryptoWallets=methods.crypto?.wallets||[];
+  const cryptoCheck=o.crypto_check||null;
+  if(methods.crypto?.enabled && (o.payment_method==='crypto' || cryptoWallets.length)){
+    html+=`<div class="crypto-pay-panel"><h4>🪙 پرداخت رمزارز (USDT / TRX / TON)</h4>`;
+    if(o.payment_method!=='crypto'){
+      html+=`<p class="muted">کیف پول و شبکه موردنظر را برای پرداخت انتخاب کن.</p><div class="crypto-wallet-grid">`+cryptoWallets.map(w=>{
+        const asset = esc(w.asset || w.rate_symbol || 'USDT');
+        const network = esc(w.network || 'TRC20');
+        const rate = Number(w.rate_toman || 0);
+        const markup = Number(methods.crypto?.markup_percent || 0) / 100;
+        const amount = rate > 0 ? ((Number(o.final_amount || 0) / rate) * (1 + markup)).toFixed(6) : null;
+        return `<button class="crypto-wallet" data-select-crypto="${o.id}:${w.id}">
+          <b>${esc(w.title || asset)}</b>
+          <span>${network} · ${asset}</span>
+          <em>${amount ? `${amount} ${asset}` : 'نرخ دستی لازم است'}</em>
+          <small>${rate ? `۱ ${asset} = ${nf(rate)} تومان${w.rate_updated_at ? ' · ' + esc(w.rate_updated_at) : ''}` : ''}</small>
+        </button>`;
+      }).join('')+`</div>`;
+    } else if(cryptoCheck){
+      const assetStr = esc(cryptoCheck.asset || 'USDT');
+      const amountText = Number(cryptoCheck.expected_amount || 0).toFixed(6) + ' ' + assetStr;
+      html+=`<div class="crypto-invoice live">
+        ${orderUsdHint(o)}
+        <div class="full warning-box">
+          <b>مبلغ دقیق پرداخت رمزارز</b>
+          <p>دقیقاً <b>${amountText}</b> به آدرس ولت زیر و در شبکه <b>${esc(cryptoCheck.network)}</b> واریز شود. کارمزد شبکه به عهده خریدار است.</p>
+          <button class="secondary" data-copy="${Number(cryptoCheck.expected_amount || 0).toFixed(6)}">کپی مبلغ (${assetStr})</button>
+        </div>
+        <div><small>شبکه / ارز</small><b>${esc(cryptoCheck.network)} / ${assetStr}</b></div>
+        <div><small>نرخ تبدیل لحظه‌ای</small><b>${cryptoCheck.rate_toman ? '۱ ' + assetStr + ' = ' + nf(cryptoCheck.rate_toman) + ' تومان' : '-'}</b></div>
+        <div class="full"><small>آدرس ولت ${assetStr}</small><code>${esc(cryptoCheck.address)}</code><button class="secondary" data-copy="${esc(cryptoCheck.address)}">کپی ولت</button></div>
+        ${cryptoCheck.tx_hash ? `<div class="full"><small>TXID / Hash ثبت‌شده</small><code>${esc(cryptoCheck.tx_hash)}</code></div>` : ''}
+        <div class="full"><small>وضعیت بررسی خودکار شبکه</small><b>${cryptoCheck.status === 'confirmed' ? '✅ تایید شده' : cryptoCheck.status === 'pending' ? 'در حال بررسی شبکه...' : 'در انتظار ثبت Hash'}</b>${cryptoCheck.fail_reason ? `<p class="muted">${esc(cryptoCheck.fail_reason)}</p>` : ''}</div>
+      </div>
+      <div class="actions">
+        <button class="primary" data-crypto-hash="${o.id}">ثبت TXID / Hash</button>
+        <button class="secondary" data-check-crypto="${o.id}">بررسی دوباره</button>
+      </div>`;
+    }
+    html+=`</div>`;
+  }
+  html+=`</article>`;
+  return html;
+}
+
+function orderDetailHtml(o){
+  const bal=Number(state.user?.balance||0);
+  const d=Number(o.variant_discount_percent)||Number(o.product_flash_sale_discount)||0;
+  let basePriceHtml=`${fmt(o.amount)}`;
+  if(d>0){
+    const orig=Math.round(Number(o.amount)/(1-d/100));
+    basePriceHtml=`<div style="display:flex;align-items:center;gap:6px"><s class="muted" style="font-size:0.85em">${fmt(orig)}</s><span>${fmt(o.amount)}</span><span class="flash-pill">−${nf(d)}٪</span></div>`;
+  }
+  const cur = String(o.price_currency || o.currency || 'IRT').toUpperCase();
+  let nativeCurrencyPill = '';
+  if (cur === 'USDT' || cur === 'USD') {
+    nativeCurrencyPill = `<span class="badge" style="margin-right:6px">💵 ${nf(o.price_usd || 0)} USDT</span>`;
+  } else if (cur === 'TRX') {
+    nativeCurrencyPill = `<span class="badge" style="margin-right:6px">🔴 ${nf(o.price_crypto || 0)} TRX</span>`;
+  } else if (cur === 'TON') {
+    nativeCurrencyPill = `<span class="badge" style="margin-right:6px">💎 ${nf(o.price_crypto || 0)} TON</span>`;
+  } else if (cur === 'STARS') {
+    nativeCurrencyPill = `<span class="badge" style="margin-right:6px">⭐ ${nf(o.price_stars || 0)} Stars</span>`;
+  }
+  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
+}
 function setTab(tab){currentTab=tab;renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;renderAdmin()}
 function render(data){
