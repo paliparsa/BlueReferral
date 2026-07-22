@@ -478,12 +478,19 @@ function crypto_market_price_from_row(array $row): float {
 }
 function crypto_collect_market_rows(array $data): array {
     $rows = [];
-    $walk = function($node, $key=null) use (&$walk, &$rows) {
+    $getString = function($val) {
+        if (is_string($val) || is_numeric($val)) return (string)$val;
+        if (is_array($val)) {
+            return (string)($val['en'] ?? $val['symbol'] ?? $val['code'] ?? reset($val) ?: '');
+        }
+        return '';
+    };
+    $walk = function($node, $key=null) use (&$walk, &$rows, $getString) {
         if (!is_array($node)) return;
         $isAssoc = array_keys($node) !== range(0, count($node)-1);
-        $symbol = strtoupper((string)($node['symbol'] ?? $node['market'] ?? $node['pair'] ?? $node['pair_symbol'] ?? ($isAssoc ? (string)$key : '')));
-        $base = strtoupper((string)($node['baseAsset'] ?? $node['base_asset'] ?? $node['baseCurrency'] ?? $node['base_currency'] ?? $node['base_currency_symbol'] ?? $node['srcCurrency'] ?? $node['currency1'] ?? ''));
-        $quote = strtoupper((string)($node['quoteAsset'] ?? $node['quote_asset'] ?? $node['quoteCurrency'] ?? $node['quote_currency'] ?? $node['quote_currency_symbol'] ?? $node['dstCurrency'] ?? $node['currency2'] ?? ''));
+        $symbol = strtoupper($getString($node['symbol'] ?? $node['market'] ?? $node['pair'] ?? $node['pair_symbol'] ?? ($isAssoc ? (string)$key : '')));
+        $base = strtoupper($getString($node['baseAsset'] ?? $node['base_asset'] ?? $node['baseCurrency'] ?? $node['base_currency'] ?? $node['base_currency_symbol'] ?? $node['srcCurrency'] ?? $node['currency1'] ?? ''));
+        $quote = strtoupper($getString($node['quoteAsset'] ?? $node['quote_asset'] ?? $node['quoteCurrency'] ?? $node['quote_currency'] ?? $node['quote_currency_symbol'] ?? $node['dstCurrency'] ?? $node['currency2'] ?? ''));
         if (($base === '' || $quote === '') && preg_match('/^([A-Z0-9]{2,12})(TMN|IRT|IRR|RLS|USDT)$/', $symbol, $m)) { $base=$m[1]; $quote=$m[2]; }
         if (($base === '' || $quote === '') && preg_match('/^([A-Z0-9]{2,12})[-_\/](TMN|IRT|IRR|RLS|USDT)$/', $symbol, $m)) { $base=$m[1]; $quote=$m[2]; }
         $price = crypto_market_price_from_row($node);
@@ -576,7 +583,7 @@ function crypto_rate_provider_order(): array {
     $source = strtolower(trim((string)setting('crypto_rate_source','auto')));
     $all = ['wallex','ramzinex','nobitex'];
     if ($source === 'manual') return [];
-    if (in_array($source, $all, true)) return array_values(array_unique(array_merge([$source], array_values(array_diff($all, [$source])))));
+    if (in_array($source, $all, true)) return [$source];
     $priority = strtolower((string)setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'));
     $out=[];
     foreach (preg_split('/[,\s]+/', $priority) as $p) if(in_array($p,$all,true)) $out[]=$p;
