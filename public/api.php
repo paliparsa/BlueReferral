@@ -338,6 +338,9 @@ if ($action === 'admin_save_settings') {
     if(isset($input['spin_referrals_per_chance'])) set_setting('spin_referrals_per_chance', max(1,(int)$input['spin_referrals_per_chance']));
     if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text']));
     if(isset($input['default_base_currency'])) set_setting('default_base_currency', strtoupper(trim((string)$input['default_base_currency'])));
+    if(isset($input['crypto_rate_source']) || isset($input['crypto_rate_provider_priority'])) {
+        try { crypto_refresh_rates_from_providers(false); } catch(Throwable $e){}
+    }
     refresh_usd_product_price_cache();
     api_out(admin_payload());
 }
