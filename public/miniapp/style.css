@@ -204,10 +204,11 @@ html,body{
 #editFields label{display:grid;gap:6px;text-align:right;color:var(--muted);font-size:12px}#editFields label input,#editFields label textarea,#editFields label select{width:100%;box-sizing:border-box}#editFields .switch-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-radius:14px;background:#ffffff08;border:1px solid #ffffff12;color:var(--text)}
 @media(max-width:560px){.settings-color-grid{grid-template-columns:1fr}.builder-row{grid-template-columns:1fr}.builder-actions{flex-direction:row;min-width:0}.builder-actions .tiny{flex:1}.color-picker-row{grid-template-columns:44px 1fr}.better-settings .settings-card{padding:11px!important}.settings-card-head{align-items:flex-start}}
 /* Settings Sub-Tabs Navigation */
-.settings-subtabs-nav { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px 2px; margin-bottom: 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.settings-subtabs-nav { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 12px 2px; margin-bottom: 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .settings-subtabs-nav::-webkit-scrollbar { display: none; }
-.settings-subtab-btn { flex: 0 0 auto; padding: 9px 16px; font-size: 13px; font-weight: 600; border-radius: 14px; background: rgba(255, 255, 255, 0.05); color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.08); white-space: nowrap; transition: all 0.2s ease; cursor: pointer; }
-.settings-subtab-btn.active { background: var(--accent, #1d9bf0); color: #ffffff; border-color: var(--accent, #1d9bf0); box-shadow: 0 4px 14px rgba(29, 155, 240, 0.3); }
+.settings-subtab-btn { position: relative; flex: 0 0 auto; padding: 9px 16px; font-size: 13px; font-weight: 600; border-radius: 14px; background: rgba(255, 255, 255, 0.05); color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.08); white-space: nowrap; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+.settings-subtab-btn.active { background: var(--accent, #1d9bf0) !important; color: #ffffff !important; border-color: var(--accent, #1d9bf0) !important; box-shadow: 0 4px 16px rgba(29, 155, 240, 0.4); transform: translateY(-1px); }
+.settings-subtab-btn.active::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 14px; height: 3px; background: #ffffff; border-radius: 3px; }
 .settings-subtab-pane { display: grid; gap: 12px; }
 .settings-subtab-pane.hidden { display: none !important; }
 /* Crypto live-rate and exact invoice polish */
