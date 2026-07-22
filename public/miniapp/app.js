@@ -774,6 +774,18 @@ function renderAdminSettings(){
       </div>
     </article>
     <article class="settings-card admin-card">
+      <div class="settings-card-head"><span>🌐</span><div><h3>ارز پایه پیش‌فرض</h3><p class="muted">ارزی که هنگام افزودن محصول یا پلن جدید به صورت پیش‌فرض انتخاب می‌شود.</p></div></div>
+      <div class="form-grid settings-form">
+        <label class="full"><span>ارز پایه پیش‌فرض جدید برای محصولات و پلن‌ها</span>
+          <select id="as_default_base_currency">
+            <option value="USDT" ${s.default_base_currency==='USDT'||!s.default_base_currency?'selected':''}>USDT (تتر / دلار)</option>
+            <option value="IRR" ${s.default_base_currency==='IRR'?'selected':''}>تومان (IRR)</option>
+            <option value="STARS" ${s.default_base_currency==='STARS'?'selected':''}>Stars (استارز)</option>
+          </select>
+        </label>
+      </div>
+    </article>
+    <article class="settings-card admin-card">
       <div class="settings-card-head"><span>💳</span><div><h3>روش‌های پرداخت</h3><p class="muted">روش‌هایی که کاربر در صفحه سفارش می‌بیند.</p></div></div>
       <div class="settings-toggles">
         <label class="pretty-switch"><input id="as_pay_wallet" type="checkbox" ${walletActive?'checked':''}><span></span><b>کیف پول داخلی</b><small>کم‌کردن مبلغ فاکتور از موجودی</small></label>
@@ -839,12 +851,195 @@ function renderAdminSettings(){
     </article>
     <button class="primary save-floating" data-admin-save-settings>ذخیره همه تنظیمات</button>
   </section>`}
-function editProduct(id){const p=adminState.products.find(x=>Number(x.id)===Number(id));if(!p)return;openEdit(`ویرایش محصول #${id}`,[{title:'اطلاعات اصلی',fields:[{id:'ep_name',label:'نام محصول',value:p.name},{id:'ep_cat',label:'دسته‌بندی',type:'select',options:catOptions(p.category_id)},{id:'ep_delivery',label:'نوع تحویل',type:'select',options:`<option value="manual">دستی</option><option value="account">اکانت</option><option value="vpn">VPN / لینک ساب</option><option value="code">کد</option><option value="file">فایل/متن</option>`}]},{title:'قیمت‌گذاری',fields:[{id:'ep_currency',label:'ارز پایه',type:'select',options:`<option value="IRR" ${p.price_currency==='IRR'?'selected':''}>تومان</option><option value="USDT" ${p.price_currency==='USDT'?'selected':''}>تتر</option><option value="STARS" ${p.price_currency==='STARS'?'selected':''}>Stars</option><option value="FREE" ${p.price_currency==='FREE'?'selected':''}>رایگان</option>`},{id:'ep_price_usd',label:'قیمت ارزی',type:'number',props:'inputmode="decimal"',value:p.price_usd||0},{id:'ep_price',label:'قیمت تومان',type:'number',props:'inputmode="numeric"',value:p.price||0},{id:'ep_commission_type',label:'نوع پورسانت',type:'select',options:`<option value="none">بدون پورسانت</option><option value="fixed">مبلغ ثابت</option><option value="percent">درصدی</option>`},{id:'ep_commission_value',label:'مقدار پورسانت',value:p.commission_value||0},{id:'ep_duration',label:'مدت روز',type:'number',value:p.duration_days||0}]},{title:'فروش ویژه (اختیاری)',fields:[{id:'ep_flash_discount',label:'درصد تخفیف',type:'number',props:'inputmode="numeric"',value:p.flash_sale_discount||0},{id:'ep_flash_start',label:'شروع فلش',type:'datetime-local',value:p.flash_sale_start?String(p.flash_sale_start).slice(0,16):''},{id:'ep_flash_end',label:'پایان فلش',type:'datetime-local',value:p.flash_sale_end?String(p.flash_sale_end).slice(0,16):''}]},{title:'تنظیمات پیشرفته',fields:[{id:'ep_img',label:'لینک عکس',value:p.image_url||''},{id:'ep_active',label:'فعال باشد؟',type:'checkbox',value:Number(p.is_active)},{id:'ep_featured',label:'ویژه باشد؟',type:'checkbox',value:Number(p.is_featured)},{id:'ep_short',label:'توضیح کوتاه',type:'textarea',value:p.short_description||''},{id:'ep_full',label:'توضیح کامل',type:'textarea',value:p.full_description||''}]}],async()=>{await adminAction('admin_update_product',{product_id:id,name:val('ep_name'),price_currency:val('ep_currency'),price:val('ep_price'),price_usd:val('ep_price_usd'),category_id:val('ep_cat'),delivery_type:val('ep_delivery'),commission_type:val('ep_commission_type'),commission_value:val('ep_commission_value'),duration_days:val('ep_duration'),image_url:val('ep_img'),is_active:val('ep_active')?1:0,is_featured:val('ep_featured')?1:0,flash_sale_discount:val('ep_flash_discount'),flash_sale_start:val('ep_flash_start'),flash_sale_end:val('ep_flash_end'),short_description:val('ep_short'),full_description:val('ep_full')})});setTimeout(()=>{if($('ep_delivery'))$('ep_delivery').value=p.delivery_type;if($('ep_commission_type'))$('ep_commission_type').value=p.commission_type||'none'},0)}
+function currencyOptions(selected=''){
+  const def = adminState?.settings?.default_base_currency || 'USDT';
+  const cur = selected || def;
+  return `<option value="USDT" ${cur==='USDT'||cur==='USD'?'selected':''}>USDT (تتر / دلار)</option><option value="IRR" ${cur==='IRR'||cur==='IRT'?'selected':''}>تومان (IRR)</option><option value="STARS" ${cur==='STARS'?'selected':''}>Stars (⭐️)</option><option value="FREE" ${cur==='FREE'?'selected':''}>رایگان</option>`;
+}
+
+function setupPricingFormListeners(prefix){
+  const curEl = $(prefix + '_currency');
+  const amtEl = $(prefix + '_price_amount');
+  const update = () => {
+    const cur = curEl?.value || 'USDT';
+    const amt = Number(amtEl?.value || 0);
+    const hintEl = $(prefix + '_price_hint');
+    if(!hintEl) return;
+    const usdtRate = Number(adminState?.settings?.crypto_rate_cache?.rate || 65000);
+    const starsRate = Number(adminState?.settings?.stars_rate_toman || 3200);
+
+    if(cur === 'USDT' || cur === 'USD'){
+      const toman = Math.round(amt * usdtRate);
+      hintEl.innerHTML = amt > 0 
+        ? `💵 معادل <b style="color:var(--accent)">${fmt(toman)} تومان</b> (نرخ تتر: ${fmt(usdtRate)} تومان)` 
+        : `💵 قیمت را به <b>تتر / دلار (USDT)</b> وارد کنید. (نرخ فعلی: ${fmt(usdtRate)} تومان)`;
+    } else if(cur === 'STARS'){
+      const toman = Math.round(amt * starsRate);
+      hintEl.innerHTML = amt > 0 
+        ? `⭐️ معادل <b style="color:var(--accent)">${fmt(toman)} تومان</b> (هر Star = ${fmt(starsRate)} تومان)` 
+        : '⭐️ تعداد Telegram Stars را وارد کنید.';
+    } else if(cur === 'IRR' || cur === 'IRT'){
+      hintEl.innerHTML = amt > 0 
+        ? `💰 قیمت ثابت: <b style="color:var(--accent)">${fmt(amt)} تومان</b>` 
+        : '💰 قیمت را به <b>تومان</b> وارد کنید.';
+    } else if(cur === 'FREE'){
+      hintEl.innerHTML = '🎁 این محصول / پلن به صورت رایگان ارائه می‌شود.';
+    }
+  };
+  curEl?.addEventListener('change', update);
+  amtEl?.addEventListener('input', update);
+  update();
+}
+
+function editProduct(id){
+  const p=adminState.products.find(x=>Number(x.id)===Number(id));
+  if(!p)return;
+  const cur = p.price_currency || adminState?.settings?.default_base_currency || 'USDT';
+  const initialAmt = (cur === 'USDT' || cur === 'USD' || cur === 'STARS') ? (p.price_usd || 0) : (p.price || 0);
+  openEdit(`ویرایش محصول #${id}`,[
+    {title:'اطلاعات اصلی',fields:[{id:'ep_name',label:'نام محصول',value:p.name},{id:'ep_cat',label:'دسته‌بندی',type:'select',options:catOptions(p.category_id)},{id:'ep_delivery',label:'نوع تحویل',type:'select',options:`<option value="manual">دستی</option><option value="account">اکانت</option><option value="vpn">VPN / لینک ساب</option><option value="code">کد</option><option value="file">فایل/متن</option>`}]},
+    {title:'قیمت‌گذاری',fields:[
+      {id:'ep_currency',label:'ارز پایه',type:'select',options:currencyOptions(cur)},
+      {id:'ep_price_amount',label:'قیمت',type:'number',props:'inputmode="decimal"',value:initialAmt},
+      {html:'<div id="ep_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
+      {id:'ep_commission_type',label:'نوع پورسانت',type:'select',options:`<option value="none">بدون پورسانت</option><option value="fixed">مبلغ ثابت</option><option value="percent">درصدی</option>`},
+      {id:'ep_commission_value',label:'مقدار پورسانت',value:p.commission_value||0},
+      {id:'ep_duration',label:'مدت روز',type:'number',value:p.duration_days||0}
+    ]},
+    {title:'فروش ویژه (اختیاری)',fields:[{id:'ep_flash_discount',label:'درصد تخفیف',type:'number',props:'inputmode="numeric"',value:p.flash_sale_discount||0},{id:'ep_flash_start',label:'شروع فلش',type:'datetime-local',value:p.flash_sale_start?String(p.flash_sale_start).slice(0,16):''},{id:'ep_flash_end',label:'پایان فلش',type:'datetime-local',value:p.flash_sale_end?String(p.flash_sale_end).slice(0,16):''}]},
+    {title:'تنظیمات پیشرفته',fields:[{id:'ep_img',label:'لینک عکس',value:p.image_url||''},{id:'ep_active',label:'فعال باشد؟',type:'checkbox',value:Number(p.is_active)},{id:'ep_featured',label:'ویژه باشد؟',type:'checkbox',value:Number(p.is_featured)},{id:'ep_short',label:'توضیح کوتاه',type:'textarea',value:p.short_description||''},{id:'ep_full',label:'توضیح کامل',type:'textarea',value:p.full_description||''}]}
+  ],async()=>{
+    const c = val('ep_currency');
+    const a = Number(val('ep_price_amount')||0);
+    await adminAction('admin_update_product',{
+      product_id:id,
+      name:val('ep_name'),
+      price_currency:c,
+      price: (c==='IRR'||c==='IRT')?a:0,
+      price_usd: (c==='USDT'||c==='USD'||c==='STARS')?a:0,
+      category_id:val('ep_cat'),
+      delivery_type:val('ep_delivery'),
+      commission_type:val('ep_commission_type'),
+      commission_value:val('ep_commission_value'),
+      duration_days:val('ep_duration'),
+      image_url:val('ep_img'),
+      is_active:val('ep_active')?1:0,
+      is_featured:val('ep_featured')?1:0,
+      flash_sale_discount:val('ep_flash_discount'),
+      flash_sale_start:val('ep_flash_start'),
+      flash_sale_end:val('ep_flash_end'),
+      short_description:val('ep_short'),
+      full_description:val('ep_full')
+    });
+  });
+  setTimeout(()=>{
+    if($('ep_delivery'))$('ep_delivery').value=p.delivery_type;
+    if($('ep_commission_type'))$('ep_commission_type').value=p.commission_type||'none';
+    setupPricingFormListeners('ep');
+  },50);
+}
 function editCategory(id){const c=adminState.categories.find(x=>Number(x.id)===Number(id));if(!c)return;openEdit(`ویرایش دسته #${id}`,[{title:'اطلاعات دسته',fields:[{id:'ec_title',label:'نام دسته',value:c.title},{id:'ec_emoji',label:'اموجی',value:c.emoji||''},{id:'ec_img',label:'لینک عکس',value:c.image_url||''},{id:'ec_sort',label:'ترتیب نمایش',type:'number',value:c.sort_order||0},{id:'ec_active',label:'فعال باشد؟',type:'checkbox',value:Number(c.is_active)}]}],async()=>adminAction('admin_update_category',{category_id:id,title:val('ec_title'),emoji:val('ec_emoji'),image_url:val('ec_img'),sort_order:val('ec_sort'),is_active:val('ec_active')?1:0}))}
-function editVariant(id){const v=adminState.variants.find(x=>Number(x.id)===Number(id));if(!v)return;openEdit(`ویرایش پلن #${id}`,[{title:'اطلاعات پلن',fields:[{id:'ev_title',label:'نام پلن',value:v.title},{id:'ev_currency',label:'ارز پایه',type:'select',options:`<option value="IRR" ${v.price_currency==='IRR'?'selected':''}>تومان</option><option value="USDT" ${v.price_currency==='USDT'?'selected':''}>تتر</option><option value="STARS" ${v.price_currency==='STARS'?'selected':''}>Stars</option><option value="FREE" ${v.price_currency==='FREE'?'selected':''}>رایگان</option>`},{id:'ev_price_usd',label:'قیمت ارزی',type:'number',props:'inputmode="decimal"',value:v.price_usd||0},{id:'ev_price',label:'قیمت تومان',type:'number',props:'inputmode="numeric"',value:v.price||0},{id:'ev_duration',label:'مدت روز',type:'number',value:v.duration_days||0},{id:'ev_discount',label:'درصد تخفیف',type:'number',value:v.discount_percent||0},{id:'ev_sort',label:'ترتیب نمایش',type:'number',value:v.sort_order||0},{id:'ev_active',label:'فعال باشد؟',type:'checkbox',value:Number(v.is_active)}]}],async()=>adminAction('admin_update_variant',{variant_id:id,title:val('ev_title'),price_currency:val('ev_currency'),price:val('ev_price'),price_usd:val('ev_price_usd'),duration_days:val('ev_duration'),discount_percent:val('ev_discount'),sort_order:val('ev_sort'),is_active:val('ev_active')?1:0}))}
-function openAddProduct(){openEdit('افزودن محصول جدید',[{title:'اطلاعات اصلی',fields:[{id:'ap_name',label:'نام محصول',placeholder:'مثلاً: اکانت پرمیوم اسپاتیفای'},{id:'ap_cat',label:'دسته‌بندی',type:'select',options:catOptions()},{id:'ap_delivery',label:'نوع تحویل',type:'select',options:`<option value="manual">دستی</option><option value="account">اکانت</option><option value="vpn">VPN / لینک ساب</option><option value="code">کد</option><option value="file">فایل/متن</option>`}]},{title:'قیمت‌گذاری',fields:[{id:'ap_currency',label:'ارز پایه',type:'select',options:`<option value="IRR" selected>تومان</option><option value="USDT">تتر</option><option value="STARS">Stars</option><option value="FREE">رایگان</option>`},{id:'ap_price_usd',label:'قیمت ارزی',type:'number',props:'inputmode="decimal"',value:0},{id:'ap_price',label:'قیمت تومان',type:'number',props:'inputmode="numeric"',value:0},{id:'ap_commission_type',label:'نوع پورسانت',type:'select',options:`<option value="none" selected>بدون پورسانت</option><option value="fixed">مبلغ ثابت</option><option value="percent">درصدی</option>`},{id:'ap_commission_value',label:'مقدار پورسانت',value:0},{id:'ap_duration',label:'مدت روز',type:'number',value:0}]},{title:'فروش ویژه (اختیاری)',fields:[{id:'ap_flash_discount',label:'درصد تخفیف',type:'number',props:'inputmode="numeric"',value:0},{id:'ap_flash_start',label:'شروع فلش',type:'datetime-local'},{id:'ap_flash_end',label:'پایان فلش',type:'datetime-local'}]},{title:'تنظیمات پیشرفته',fields:[{id:'ap_img',label:'لینک عکس',placeholder:'https://...'},{id:'ap_featured',label:'ویژه باشد؟',type:'checkbox',value:0},{id:'ap_short',label:'توضیح کوتاه',type:'textarea'},{id:'ap_full',label:'توضیح کامل',type:'textarea'}]}],async()=>{await adminAction('admin_add_product',{name:val('ap_name'),price_currency:val('ap_currency'),price:val('ap_price'),price_usd:val('ap_price_usd'),category_id:val('ap_cat'),delivery_type:val('ap_delivery'),commission_type:val('ap_commission_type'),commission_value:val('ap_commission_value'),duration_days:val('ap_duration'),image_url:val('ap_img'),is_featured:val('ap_featured')?1:0,flash_sale_discount:val('ap_flash_discount'),flash_sale_start:val('ap_flash_start'),flash_sale_end:val('ap_flash_end'),short_description:val('ap_short'),full_description:val('ap_full')})})}
+function editVariant(id){
+  const v=adminState.variants.find(x=>Number(x.id)===Number(id));
+  if(!v)return;
+  const cur = v.price_currency || adminState?.settings?.default_base_currency || 'USDT';
+  const initialAmt = (cur === 'USDT' || cur === 'USD' || cur === 'STARS') ? (v.price_usd || 0) : (v.price || 0);
+  openEdit(`ویرایش پلن #${id}`,[
+    {title:'اطلاعات پلن',fields:[
+      {id:'ev_title',label:'نام پلن',value:v.title},
+      {id:'ev_currency',label:'ارز پایه',type:'select',options:currencyOptions(cur)},
+      {id:'ev_price_amount',label:'قیمت',type:'number',props:'inputmode="decimal"',value:initialAmt},
+      {html:'<div id="ev_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
+      {id:'ev_duration',label:'مدت روز',type:'number',value:v.duration_days||0},
+      {id:'ev_discount',label:'درصد تخفیف',type:'number',value:v.discount_percent||0},
+      {id:'ev_sort',label:'ترتیب نمایش',type:'number',value:v.sort_order||0},
+      {id:'ev_active',label:'فعال باشد؟',type:'checkbox',value:Number(v.is_active)}
+    ]}
+  ],async()=>{
+    const c = val('ev_currency');
+    const a = Number(val('ev_price_amount')||0);
+    await adminAction('admin_update_variant',{
+      variant_id:id,
+      title:val('ev_title'),
+      price_currency:c,
+      price: (c==='IRR'||c==='IRT')?a:0,
+      price_usd: (c==='USDT'||c==='USD'||c==='STARS')?a:0,
+      duration_days:val('ev_duration'),
+      discount_percent:val('ev_discount'),
+      sort_order:val('ev_sort'),
+      is_active:val('ev_active')?1:0
+    });
+  });
+  setTimeout(()=>{ setupPricingFormListeners('ev'); }, 50);
+}
+function openAddProduct(){
+  const defCur = adminState?.settings?.default_base_currency || 'USDT';
+  openEdit('افزودن محصول جدید',[
+    {title:'اطلاعات اصلی',fields:[{id:'ap_name',label:'نام محصول',placeholder:'مثلاً: اکانت پرمیوم اسپاتیفای'},{id:'ap_cat',label:'دسته‌بندی',type:'select',options:catOptions()},{id:'ap_delivery',label:'نوع تحویل',type:'select',options:`<option value="manual">دستی</option><option value="account">اکانت</option><option value="vpn">VPN / لینک ساب</option><option value="code">کد</option><option value="file">فایل/متن</option>`}]},
+    {title:'قیمت‌گذاری',fields:[
+      {id:'ap_currency',label:'ارز پایه',type:'select',options:currencyOptions(defCur)},
+      {id:'ap_price_amount',label:'قیمت',type:'number',props:'inputmode="decimal"',value:0},
+      {html:'<div id="ap_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
+      {id:'ap_commission_type',label:'نوع پورسانت',type:'select',options:`<option value="none" selected>بدون پورسانت</option><option value="fixed">مبلغ ثابت</option><option value="percent">درصدی</option>`},
+      {id:'ap_commission_value',label:'مقدار پورسانت',value:0},
+      {id:'ap_duration',label:'مدت روز',type:'number',value:0}
+    ]},
+    {title:'فروش ویژه (اختیاری)',fields:[{id:'ap_flash_discount',label:'درصد تخفیف',type:'number',props:'inputmode="numeric"',value:0},{id:'ap_flash_start',label:'شروع فلش',type:'datetime-local'},{id:'ap_flash_end',label:'پایان فلش',type:'datetime-local'}]},
+    {title:'تنظیمات پیشرفته',fields:[{id:'ap_img',label:'لینک عکس',placeholder:'https://...'},{id:'ap_featured',label:'ویژه باشد؟',type:'checkbox',value:0},{id:'ap_short',label:'توضیح کوتاه',type:'textarea'},{id:'ap_full',label:'توضیح کامل',type:'textarea'}]}
+  ],async()=>{
+    const c = val('ap_currency');
+    const a = Number(val('ap_price_amount')||0);
+    await adminAction('admin_add_product',{
+      name:val('ap_name'),
+      price_currency:c,
+      price: (c==='IRR'||c==='IRT')?a:0,
+      price_usd: (c==='USDT'||c==='USD'||c==='STARS')?a:0,
+      category_id:val('ap_cat'),
+      delivery_type:val('ap_delivery'),
+      commission_type:val('ap_commission_type'),
+      commission_value:val('ap_commission_value'),
+      duration_days:val('ap_duration'),
+      image_url:val('ap_img'),
+      is_featured:val('ap_featured')?1:0,
+      flash_sale_discount:val('ap_flash_discount'),
+      flash_sale_start:val('ap_flash_start'),
+      flash_sale_end:val('ap_flash_end'),
+      short_description:val('ap_short'),
+      full_description:val('ap_full')
+    });
+  });
+  setTimeout(()=>{ setupPricingFormListeners('ap'); }, 50);
+}
 function openAddCategory(){openEdit('افزودن دسته جدید',[{title:'اطلاعات دسته',fields:[{id:'ac_title',label:'نام دسته'},{id:'ac_emoji',label:'اموجی',placeholder:'🛒'},{id:'ac_img',label:'لینک عکس'},{id:'ac_sort',label:'ترتیب نمایش',type:'number',value:0}]}],async()=>adminAction('admin_add_category',{title:val('ac_title'),emoji:val('ac_emoji'),image_url:val('ac_img'),sort_order:val('ac_sort')}))}
-function openAddVariant(productId){openEdit('افزودن پلن جدید',[{title:'اطلاعات پلن',fields:[{id:'av_product',label:'محصول والد',type:'select',options:productOptions(productId)},{id:'av_title',label:'نام پلن'},{id:'av_currency',label:'ارز پایه',type:'select',options:`<option value="IRR" selected>تومان</option><option value="USDT">تتر</option><option value="STARS">Stars</option><option value="FREE">رایگان</option>`},{id:'av_price_usd',label:'قیمت ارزی',type:'number',props:'inputmode="decimal"',value:0},{id:'av_price',label:'قیمت تومان',type:'number',props:'inputmode="numeric"',value:0},{id:'av_duration',label:'مدت روز',type:'number',value:0},{id:'av_discount',label:'درصد تخفیف',type:'number',value:0},{id:'av_sort',label:'ترتیب نمایش',type:'number',value:0}]}],async()=>adminAction('admin_add_variant',{product_id:val('av_product'),title:val('av_title'),price_currency:val('av_currency'),price:val('av_price'),price_usd:val('av_price_usd'),duration_days:val('av_duration'),discount_percent:val('av_discount'),sort_order:val('av_sort')}))}
+function openAddVariant(productId){
+  const defCur = adminState?.settings?.default_base_currency || 'USDT';
+  openEdit('افزودن پلن جدید',[
+    {title:'اطلاعات پلن',fields:[
+      {id:'av_product',label:'محصول والد',type:'select',options:productOptions(productId)},
+      {id:'av_title',label:'نام پلن'},
+      {id:'av_currency',label:'ارز پایه',type:'select',options:currencyOptions(defCur)},
+      {id:'av_price_amount',label:'قیمت',type:'number',props:'inputmode="decimal"',value:0},
+      {html:'<div id="av_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
+      {id:'av_duration',label:'مدت روز',type:'number',value:0},
+      {id:'av_discount',label:'درصد تخفیف',type:'number',value:0},
+      {id:'av_sort',label:'ترتیب نمایش',type:'number',value:0}
+    ]}
+  ],async()=>{
+    const c = val('av_currency');
+    const a = Number(val('av_price_amount')||0);
+    await adminAction('admin_add_variant',{
+      product_id:val('av_product'),
+      title:val('av_title'),
+      price_currency:c,
+      price: (c==='IRR'||c==='IRT')?a:0,
+      price_usd: (c==='USDT'||c==='USD'||c==='STARS')?a:0,
+      duration_days:val('av_duration'),
+      discount_percent:val('av_discount'),
+      sort_order:val('av_sort')
+    });
+  });
+  setTimeout(()=>{ setupPricingFormListeners('av'); }, 50);
+}
 function openAddCoupon(){openEdit('افزودن کد تخفیف',[{title:'اطلاعات کد',fields:[{id:'acp_code',label:'کد تخفیف',placeholder:'مثلا BLUE10'},{id:'acp_type',label:'نوع',type:'select',options:`<option value="percent" selected>درصدی</option><option value="fixed">مبلغ ثابت</option>`},{id:'acp_value',label:'مقدار',type:'number',props:'inputmode="numeric"',value:0},{id:'acp_max',label:'حداکثر استفاده',type:'number',props:'inputmode="numeric"',value:0,placeholder:'۰ = نامحدود'},{id:'acp_expires',label:'تاریخ انقضا',type:'datetime-local'}]}],async()=>adminAction('admin_add_coupon',{code:val('acp_code'),discount_type:val('acp_type'),discount_value:val('acp_value'),max_uses:val('acp_max'),expires_at:val('acp_expires')}))}
 function openAddInventory(){openEdit('افزودن انبار',[{title:'جزئیات آیتم',fields:[{id:'ai_product',label:'محصول مرتبط',type:'select',options:productOptions()},{id:'ai_variant',label:'پلن مرتبط',type:'select',options:variantOptions()},{id:'ai_content',label:'محتوای آیتم',type:'textarea',placeholder:'هر آیتم یک خط؛ ایمیل/پسورد، لینک ساب، کد یا متن آماده'}]}],async()=>adminAction('admin_add_inventory',{product_id:val('ai_product'),variant_id:val('ai_variant'),content:val('ai_content')}))}
 function editInventory(id){const i=adminState.inventory.find(x=>Number(x.id)===Number(id));if(!i)return;openEdit(`ویرایش آیتم انبار #${id}`,[{title:'جزئیات آیتم',fields:[{id:'ei_product',label:'محصول مرتبط',type:'select',options:productOptions(i.product_id)},{id:'ei_variant',label:'پلن مرتبط',type:'select',options:variantOptions(i.variant_id)},{id:'ei_status',label:'وضعیت فروش',type:'select',options:`<option value="available" ${i.status==='available'?'selected':''}>available</option><option value="reserved" ${i.status==='reserved'?'selected':''}>reserved</option><option value="delivered" ${i.status==='delivered'?'selected':''}>delivered</option><option value="disabled" ${i.status==='disabled'?'selected':''}>disabled</option>`},{id:'ei_content',label:'محتوای آیتم',type:'textarea',value:i.content||''}]}],async()=>adminAction('admin_update_inventory',{inventory_id:id,product_id:val('ei_product'),variant_id:val('ei_variant'),status:val('ei_status'),content:val('ei_content')}))}
@@ -911,7 +1106,7 @@ function applyTheme(data={}){
 }
 document.addEventListener('click',async(e)=>{const t=e.target.closest('button,[data-product],[data-product-preview],[data-order-open],[data-accordion-toggle],[data-admin-action-sheet],[data-admin-view-mode]');if(!t)return;if(t.dataset.walletTab){haptic('light');walletTab=t.dataset.walletTab;renderWallet();return}if(t.dataset.adminViewMode){adminOrderViewMode=t.dataset.adminViewMode;renderAdmin();return}if(t.dataset.adminActionSheet){const [type,id]=t.dataset.adminActionSheet.split(':');openAdminActionSheet(type,id);return}if(t.dataset.tab){setTab(t.dataset.tab)}if(t.dataset.tabJump){setTab(t.dataset.tabJump)}if(t.id==='openPalette'||t.id==='paletteQuick'){openPalettePopup()}if(t.dataset.color){localStorage.setItem('blue_ref_color',t.dataset.color);applyTheme({...state,theme_color:t.dataset.color});showStatus('رنگ تغییر کرد')}if(t.id==='resetColor'){localStorage.removeItem('blue_ref_color');applyTheme(state);showStatus('رنگ پیش‌فرض برگشت')}if(t.id==='applyCustomColor'){const c=$('userCustomColor')?.value||'#1d9bf0';localStorage.setItem('blue_ref_color',c);applyTheme({...state,theme_color:c});showStatus('رنگ دلخواه اعمال شد')}if(t.dataset.cat){activeCategory=t.dataset.cat;document.querySelectorAll('.cat-pill').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));renderShopSections()}if(t.dataset.shopSort!==undefined){shopSort=t.dataset.shopSort;document.querySelectorAll('[data-shop-sort]').forEach(el=>el.classList.toggle('active',el.dataset.shopSort===shopSort));renderShopSections()}if(t.dataset.shopToggle!==undefined){if(t.dataset.shopToggle==='instock'){shopFilterInStock=!shopFilterInStock;t.textContent=shopFilterInStock?'⚡':'📦'}else if(t.dataset.shopToggle==='featured')shopFilterFeatured=!shopFilterFeatured;else if(t.dataset.shopToggle==='wishlist'){shopFilterWishlist=!shopFilterWishlist;t.textContent=shopFilterWishlist?'❤️':'🤍'}t.classList.toggle('active');renderShopSections()}if(t.dataset.clearFilters!==undefined){searchTerm='';activeCategory='all';shopSort='newest';shopFilterInStock=false;shopFilterFeatured=false;shopFilterWishlist=false;renderShop()}if(t.id==='searchInput')return;if(t.dataset.product)showProduct(t.dataset.product);if(t.dataset.productPreview)showProductPreview(t.dataset.productPreview);if(t.dataset.backShop!==undefined){currentTab='shop';renderUser()}if(t.dataset.buy||t.dataset.buyWallet){if(!confirm('آیا از ثبت سفارش خود مطمئن هستید؟'))return;closePreviewSheet();await loadAfterAction('create_order',{product_id:t.dataset.buy||t.dataset.buyWallet,variant_id:t.dataset.variant||null,use_wallet:t.dataset.buyWallet?1:0});currentTab='orders';currentOrderId=state.order?.id||null;renderUser()}if(t.dataset.walletOrder){await loadAfterAction('apply_wallet',{order_id:t.dataset.walletOrder});currentTab='orders';currentOrderId=t.dataset.walletOrder;renderUser()}if(t.dataset.selectCard){await loadAfterAction('select_payment_method',{order_id:t.dataset.selectCard,method:'card',details:{}});currentTab='orders';currentOrderId=t.dataset.selectCard;renderUser();showStatus('کارت به کارت انتخاب شد')}if(t.dataset.payStars){await loadAfterAction('start_stars_invoice',{order_id:t.dataset.payStars});currentTab='orders';currentOrderId=t.dataset.payStars;renderUser();showStatus('فاکتور Stars داخل تلگرام ارسال شد')}if(t.dataset.selectCrypto){const [oid,wid]=t.dataset.selectCrypto.split(':');await loadAfterAction('select_crypto_wallet',{order_id:oid,wallet_id:wid});currentTab='orders';currentOrderId=oid;renderUser();showStatus('کیف پول رمزارز انتخاب شد')}if(t.dataset.showCrypto){showStatus('کمی پایین‌تر کیف پول رمزارز را انتخاب کن')}if(t.dataset.cryptoHash){openDialog('ثبت TXID / Hash',`هش تراکنش رمزارز سفارش #${t.dataset.cryptoHash} را وارد کن.`, 'TXID / Hash', async(txt)=>{await loadAfterAction('submit_crypto_hash',{order_id:t.dataset.cryptoHash,tx_hash:txt});currentTab='orders';currentOrderId=t.dataset.cryptoHash;renderUser();showStatus('هش ثبت شد و در صف بررسی قرار گرفت')})}if(t.dataset.checkCrypto){await loadAfterAction('check_crypto_payment',{order_id:t.dataset.checkCrypto});currentTab='orders';currentOrderId=t.dataset.checkCrypto;renderUser();showStatus('بررسی پرداخت انجام شد')}
   if(t.id==='openQrHome'||t.id==='openQrWallet'){openQrSheet();return}if(t.id==='openPromoSheetBtn'){openPromoSheet();return}if(t.id==='adminOrderSearchBtn'){adminOrderSearch=$('adminOrderSearchInput')?.value||'';adminOrderStatusFilter=$('adminOrderStatusSelect')?.value||'all';adminSearchOrdersNow();return}if(t.id==='adminOrderResetBtn'){adminOrderSearch='';adminOrderStatusFilter='all';adminSearchOrdersNow();return}if(t.id==='bulkClearBtn'){selectedOrderIds.clear();renderAdmin();return}if(t.dataset.bulkAction){bulkOrderAction(t.dataset.bulkAction);return}if(t.dataset.reorder){const [type,id,dir]=t.dataset.reorder.split(':');reorderItem(type,Number(id),dir);return}if(t.dataset.chatUser){openUserChat(t.dataset.chatUser);return}if(t.dataset.editRole){const r=(adminState.admin_roles||[]).find(x=>Number(x.id)===Number(t.dataset.editRole));if(!r)return;openEdit(`ویرایش نقش ${esc(r.display_name||'')}`,[{title:'سطح دسترسی',fields:[{id:'erl_name',label:'نام نمایشی',value:r.display_name||''},{id:'erl_role',label:'نوع دسترسی',type:'select',options:`<option value="full" ${r.role==='full'?'selected':''}>ادمین کامل</option><option value="orders" ${r.role==='orders'?'selected':''}>فقط سفارش‌ها</option><option value="products" ${r.role==='products'?'selected':''}>فقط محصولات</option><option value="finance" ${r.role==='finance'?'selected':''}>فقط مالی</option>`}]}],async()=>adminAction('admin_set_role',{telegram_id:r.telegram_id,role:val('erl_role'),display_name:val('erl_name')}));return}if(t.dataset.adminRemoveRole&&confirm('نقش این کاربر حذف شود؟')){adminAction('admin_remove_role',{telegram_id:Number(t.dataset.adminRemoveRole)});return}
-if(t.dataset.contactWallet){openDialog('افزایش/کاهش موجودی',`مبلغی که می‌خواهید به موجودی کاربر با ID ${t.dataset.contactWallet} اضافه شود را وارد کنید. برای کاهش، عدد منفی وارد کنید.`,'مثلا 50000 یا -20000',async(txt)=>{const amount=Number(txt);if(isNaN(amount)||!amount)return showStatus('مبلغ نامعتبر است','error');const ok=await adminAction('admin_add_balance',{telegram_id:t.dataset.contactWallet,amount});if(ok){showStatus('موجودی تغییر کرد');closeCustomer360();setTimeout(()=>openCustomer360(t.dataset.contactWallet),500)}});return}if(t.dataset.contactBan){if(confirm('آیا از مسدود کردن این کاربر اطمینان دارید؟')){const ok=await adminAction('admin_ban_user',{telegram_id:t.dataset.contactBan});if(ok)showStatus('کاربر مسدود شد')}return}if(t.dataset.adminTab){setAdminTab(t.dataset.adminTab)}if(t.id==='reloadAdmin')loadAdmin();if(t.id==='openCmdPalette'){openCommandPalette();return}if(t.dataset.editProduct)editProduct(t.dataset.editProduct);if(t.dataset.adminToggleProduct)adminAction('admin_toggle_product',{product_id:t.dataset.adminToggleProduct});if(t.dataset.adminDeleteProduct&&confirm('محصول غیرفعال شود؟'))adminAction('admin_delete_product',{product_id:t.dataset.adminDeleteProduct});if(t.dataset.adminHardDeleteProduct&&confirm('حذف کامل محصول؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_product',{product_id:t.dataset.adminHardDeleteProduct});if(t.dataset.editCategory)editCategory(t.dataset.editCategory);if(t.dataset.adminDeleteCategory&&confirm('دسته غیرفعال شود؟'))adminAction('admin_delete_category',{category_id:t.dataset.adminDeleteCategory});if(t.dataset.adminHardDeleteCategory&&confirm('حذف کامل دسته؟ محصولات بدون دسته می‌شوند.'))adminAction('admin_hard_delete_category',{category_id:t.dataset.adminHardDeleteCategory});if(t.dataset.editVariant)editVariant(t.dataset.editVariant);if(t.dataset.adminDeleteVariant&&confirm('پلن غیرفعال شود؟'))adminAction('admin_delete_variant',{variant_id:t.dataset.adminDeleteVariant});if(t.dataset.adminHardDeleteVariant&&confirm('حذف کامل پلن؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_variant',{variant_id:t.dataset.adminHardDeleteVariant});if(t.dataset.editInventory)editInventory(t.dataset.editInventory);if(t.dataset.adminDeleteInventory&&confirm('حذف امن آیتم؟'))adminAction('admin_delete_inventory',{inventory_id:t.dataset.adminDeleteInventory});if(t.dataset.adminHardDeleteInventory&&confirm('حذف کامل آیتم؟'))adminAction('admin_hard_delete_inventory',{inventory_id:t.dataset.adminHardDeleteInventory});if(t.dataset.adminStatus){const [id,status]=t.dataset.adminStatus.split(':');adminAction('admin_order_status',{order_id:id,status})}if(t.dataset.adminOrderNote){const id=t.dataset.adminOrderNote;const o=(adminState.orders||[]).find(x=>Number(x.id)===Number(id));if(o)openEdit(`یادداشت داخلی #${id}`,[{title:'یادداشت داخلی (مخفی)',fields:[{id:'adm_note',label:'متن یادداشت',type:'textarea',placeholder:'فقط شما می‌بینید...',value:o.admin_note||''}]}],async()=>adminAction('admin_order_note',{order_id:id,note:val('adm_note')}))}if(t.dataset.adminArchiveOrder&&confirm('این سفارش آرشیو شود؟'))adminAction('admin_archive_order',{order_id:t.dataset.adminArchiveOrder});if(t.dataset.adminDeleteOrder&&confirm('حذف کامل سفارش؟ این عملیات قابل برگشت نیست.'))adminAction('admin_delete_order',{order_id:t.dataset.adminDeleteOrder});if(t.dataset.adminCleanup&&confirm('پاکسازی گروهی سفارش‌های لغو/رد شده انجام شود؟'))adminAction('admin_cleanup_orders',{older_days:t.dataset.adminCleanup==='all'?null:t.dataset.adminCleanup});if(t.dataset.adminDeliver){const oid=t.dataset.adminDeliver;openDialog('تحویل سفارش',`متن تحویل سفارش #${oid} را وارد کن.`, 'ایمیل/پسورد، لینک ساب یا کد', async(txt)=>{const ok=await adminAction('admin_deliver_order',{order_id:oid,delivery:txt});if(ok){currentAdminTab='orders';showStatus('تحویل ثبت شد و برای کاربر ارسال شد')}})}if(t.dataset.viewReceipt!==undefined){loadReceiptImage(t.dataset.viewReceipt)}if(t.dataset.adminSaveSettings!==undefined){syncPaymentBuilders();adminAction('admin_save_settings',{brand_name:val('as_brand_name'),theme_color:val('as_theme'),button_colors_enabled:val('as_btn_enabled')?1:0,require_contact_auth:val('as_require_contact')?1:0,notify_new_user:val('as_notify_new')?1:0,button_colors:{primary:val('as_primary'),secondary:val('as_secondary'),success:val('as_success'),warning:val('as_warning'),danger:val('as_danger')},payment_instructions:val('as_payment'),payment_methods_enabled:{wallet:val('as_pay_wallet')?1:0,card:val('as_pay_card')?1:0,stars:val('as_pay_stars')?1:0,crypto:val('as_pay_crypto')?1:0},card_accounts_text:val('as_cards'),stars_rate_toman:val('as_stars_rate'),crypto_wallets_text:val('as_crypto_wallets'),crypto_manual_rates_text:val('as_crypto_rates'),crypto_rate_source:val('as_crypto_source'),crypto_rate_provider_priority:'wallex,ramzinex,nobitex',crypto_rate_markup_percent:val('as_crypto_markup'),crypto_rate_refresh_interval_seconds:val('as_crypto_refresh_interval'),crypto_notify_rate_fail:val('as_crypto_notify')?1:0,spin_referrals_per_chance:val('as_spin_every'),spin_rewards_text:val('as_spin_rewards')})}
+if(t.dataset.contactWallet){openDialog('افزایش/کاهش موجودی',`مبلغی که می‌خواهید به موجودی کاربر با ID ${t.dataset.contactWallet} اضافه شود را وارد کنید. برای کاهش، عدد منفی وارد کنید.`,'مثلا 50000 یا -20000',async(txt)=>{const amount=Number(txt);if(isNaN(amount)||!amount)return showStatus('مبلغ نامعتبر است','error');const ok=await adminAction('admin_add_balance',{telegram_id:t.dataset.contactWallet,amount});if(ok){showStatus('موجودی تغییر کرد');closeCustomer360();setTimeout(()=>openCustomer360(t.dataset.contactWallet),500)}});return}if(t.dataset.contactBan){if(confirm('آیا از مسدود کردن این کاربر اطمینان دارید؟')){const ok=await adminAction('admin_ban_user',{telegram_id:t.dataset.contactBan});if(ok)showStatus('کاربر مسدود شد')}return}if(t.dataset.adminTab){setAdminTab(t.dataset.adminTab)}if(t.id==='reloadAdmin')loadAdmin();if(t.id==='openCmdPalette'){openCommandPalette();return}if(t.dataset.editProduct)editProduct(t.dataset.editProduct);if(t.dataset.adminToggleProduct)adminAction('admin_toggle_product',{product_id:t.dataset.adminToggleProduct});if(t.dataset.adminDeleteProduct&&confirm('محصول غیرفعال شود؟'))adminAction('admin_delete_product',{product_id:t.dataset.adminDeleteProduct});if(t.dataset.adminHardDeleteProduct&&confirm('حذف کامل محصول؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_product',{product_id:t.dataset.adminHardDeleteProduct});if(t.dataset.editCategory)editCategory(t.dataset.editCategory);if(t.dataset.adminDeleteCategory&&confirm('دسته غیرفعال شود؟'))adminAction('admin_delete_category',{category_id:t.dataset.adminDeleteCategory});if(t.dataset.adminHardDeleteCategory&&confirm('حذف کامل دسته؟ محصولات بدون دسته می‌شوند.'))adminAction('admin_hard_delete_category',{category_id:t.dataset.adminHardDeleteCategory});if(t.dataset.editVariant)editVariant(t.dataset.editVariant);if(t.dataset.adminDeleteVariant&&confirm('پلن غیرفعال شود؟'))adminAction('admin_delete_variant',{variant_id:t.dataset.adminDeleteVariant});if(t.dataset.adminHardDeleteVariant&&confirm('حذف کامل پلن؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_variant',{variant_id:t.dataset.adminHardDeleteVariant});if(t.dataset.editInventory)editInventory(t.dataset.editInventory);if(t.dataset.adminDeleteInventory&&confirm('حذف امن آیتم؟'))adminAction('admin_delete_inventory',{inventory_id:t.dataset.adminDeleteInventory});if(t.dataset.adminHardDeleteInventory&&confirm('حذف کامل آیتم؟'))adminAction('admin_hard_delete_inventory',{inventory_id:t.dataset.adminHardDeleteInventory});if(t.dataset.adminStatus){const [id,status]=t.dataset.adminStatus.split(':');adminAction('admin_order_status',{order_id:id,status})}if(t.dataset.adminOrderNote){const id=t.dataset.adminOrderNote;const o=(adminState.orders||[]).find(x=>Number(x.id)===Number(id));if(o)openEdit(`یادداشت داخلی #${id}`,[{title:'یادداشت داخلی (مخفی)',fields:[{id:'adm_note',label:'متن یادداشت',type:'textarea',placeholder:'فقط شما می‌بینید...',value:o.admin_note||''}]}],async()=>adminAction('admin_order_note',{order_id:id,note:val('adm_note')}))}if(t.dataset.adminArchiveOrder&&confirm('این سفارش آرشیو شود؟'))adminAction('admin_archive_order',{order_id:t.dataset.adminArchiveOrder});if(t.dataset.adminDeleteOrder&&confirm('حذف کامل سفارش؟ این عملیات قابل برگشت نیست.'))adminAction('admin_delete_order',{order_id:t.dataset.adminDeleteOrder});if(t.dataset.adminCleanup&&confirm('پاکسازی گروهی سفارش‌های لغو/رد شده انجام شود؟'))adminAction('admin_cleanup_orders',{older_days:t.dataset.adminCleanup==='all'?null:t.dataset.adminCleanup});if(t.dataset.adminDeliver){const oid=t.dataset.adminDeliver;openDialog('تحویل سفارش',`متن تحویل سفارش #${oid} را وارد کن.`, 'ایمیل/پسورد، لینک ساب یا کد', async(txt)=>{const ok=await adminAction('admin_deliver_order',{order_id:oid,delivery:txt});if(ok){currentAdminTab='orders';showStatus('تحویل ثبت شد و برای کاربر ارسال شد')}})}if(t.dataset.viewReceipt!==undefined){loadReceiptImage(t.dataset.viewReceipt)}if(t.dataset.adminSaveSettings!==undefined){syncPaymentBuilders();adminAction('admin_save_settings',{brand_name:val('as_brand_name'),default_base_currency:val('as_default_base_currency'),theme_color:val('as_theme'),button_colors_enabled:val('as_btn_enabled')?1:0,require_contact_auth:val('as_require_contact')?1:0,notify_new_user:val('as_notify_new')?1:0,button_colors:{primary:val('as_primary'),secondary:val('as_secondary'),success:val('as_success'),warning:val('as_warning'),danger:val('as_danger')},payment_instructions:val('as_payment'),payment_methods_enabled:{wallet:val('as_pay_wallet')?1:0,card:val('as_pay_card')?1:0,stars:val('as_pay_stars')?1:0,crypto:val('as_pay_crypto')?1:0},card_accounts_text:val('as_cards'),stars_rate_toman:val('as_stars_rate'),crypto_wallets_text:val('as_crypto_wallets'),crypto_manual_rates_text:val('as_crypto_rates'),crypto_rate_source:val('as_crypto_source'),crypto_rate_provider_priority:'wallex,ramzinex,nobitex',crypto_rate_markup_percent:val('as_crypto_markup'),crypto_rate_refresh_interval_seconds:val('as_crypto_refresh_interval'),crypto_notify_rate_fail:val('as_crypto_notify')?1:0,spin_referrals_per_chance:val('as_spin_every'),spin_rewards_text:val('as_spin_rewards')})}
 if(t.dataset.openUrl){try{Telegram?.WebApp?.openLink?.(t.dataset.openUrl)}catch(_){location.href=t.dataset.openUrl}}if(t.dataset.copy){navigator.clipboard?.writeText(t.dataset.copy);showStatus('کپی شد')}if(t.dataset.receipt){openDialog('ارسال رسید',`عکس رسید یا توضیح سفارش #${t.dataset.receipt} را وارد کن.`, 'مثلاً کد پیگیری', async(txt, b64)=>{await loadAfterAction('submit_receipt',{order_id:t.dataset.receipt,note:txt||'رسید تصویری', receipt_b64: b64});currentTab='orders';renderUser();showStatus('رسید ثبت شد؛ اگر لازم است اطلاعات اکانت را با دکمه یادداشت سفارش بفرست')}, '', true)}if(t.dataset.customerNote){openDialog('یادداشت سفارش',`ایمیل، رمز، یوزرنیم یا توضیح لازم برای سفارش #${t.dataset.customerNote} را وارد کن.`, 'مثلاً email@example.com / Password یا توضیح مورد نیاز', async(txt)=>{await loadAfterAction('customer_order_note',{order_id:t.dataset.customerNote,note:txt});currentTab='orders';renderUser()})}if(t.dataset.coupon){openDialog('کد تخفیف',`کد تخفیف سفارش #${t.dataset.coupon} را وارد کن.`, 'BLUE10', async(txt)=>{await loadAfterAction('apply_coupon',{order_id:t.dataset.coupon,code:txt});currentTab='orders';renderUser()})}if(t.dataset.orderFilter){orderFilter=t.dataset.orderFilter;currentOrderId=null;renderOrders()}if(t.dataset.orderOpen){currentOrderId=t.dataset.orderOpen;renderOrders()}if(t.dataset.orderBack!==undefined){currentOrderId=null;renderOrders()}if(t.dataset.hideOrder&&confirm('این سفارش از لیست شما حذف شود؟')){await loadAfterAction('hide_order',{order_id:t.dataset.hideOrder});currentTab='orders';currentOrderId=null;renderUser()}if(t.dataset.clearCanceled!==undefined&&confirm('همه سفارش‌های لغو/رد شده از لیست شما مخفی شوند؟')){await loadAfterAction('clear_canceled_orders');currentTab='orders';currentOrderId=null;renderUser()}if(t.dataset.cancel){await loadAfterAction('cancel_order',{order_id:t.dataset.cancel});currentTab='orders';currentOrderId=null;renderUser()}if(t.id==='shareInviteNative'){const l=state.user?.referral_link;if(navigator.share&&l){try{await navigator.share({title:document.title,url:l});showStatus('اشتراک‌گذاری انجام شد')}catch(e){}}else if(l){navigator.clipboard?.writeText(l);showStatus('لینک کپی شد')}}if(t.id==='copyLink'||t.id==='copyRefHome'){navigator.clipboard?.writeText(state.user.referral_link);showStatus('لینک دعوت کپی شد')}if(t.id==='claimBtn')await loadAfterAction('claim_missions');if(t.id==='spinBtn')await doSpinWheel();if(t.dataset.refreshCryptoRates!==undefined){const ok=await adminAction('admin_refresh_crypto_rates',{});if(ok){showStatus('نرخ‌ها از Providerها رفرش شد')}}if(t.dataset.adminBackupCreate!==undefined){const ok=await adminAction('admin_backup_create',{});if(ok){showStatus('بکاپ روی سرور ساخته شد')}}if(t.dataset.adminBackupSendbot!==undefined){const ok=await adminAction('admin_backup_send_bot',{});if(ok){showStatus('بکاپ داخل چت بات ارسال شد')}}if(t.dataset.adminBackupDelete&&confirm('این بکاپ از سرور حذف شود؟')){await adminAction('admin_backup_delete',{filename:t.dataset.adminBackupDelete})}if(t.dataset.adminBackupRestoreServer&&confirm('Restore این فایل انجام شود؟ دیتابیس فعلی جایگزین می‌شود.')){await adminAction('admin_backup_restore_server',{filename:t.dataset.adminBackupRestoreServer,confirm:'RESTORE'})}if(t.dataset.adminBackupUpload!==undefined){try{await uploadBackupRestore()}catch(e){showStatus(e.message||'Restore failed','error')}}if(t.dataset.adminLoadMoreOrders!==undefined){adminOrdersLimit+=25;renderAdmin();return}if(t.dataset.accordionToggle!==undefined){toggleVariantProduct(t.dataset.accordionToggle, t);return}if(t.dataset.accordionAddVariant!==undefined){openAddVariant(Number(t.dataset.accordionAddVariant));return}
 if(t.dataset.editCoupon){const cp=(adminState.coupons||[]).find(x=>Number(x.id)===Number(t.dataset.editCoupon));if(!cp)return;openEdit(`ویرایش کد ${esc(cp.code)}`,[{title:'تنظیمات کد تخفیف',fields:[{id:'ecp_code',label:'کد',value:cp.code},{id:'ecp_type',label:'نوع',type:'select',options:`<option value="percent" ${cp.type==='percent'?'selected':''}>درصدی</option><option value="fixed" ${cp.type==='fixed'?'selected':''}>مبلغ ثابت</option>`},{id:'ecp_value',label:'مقدار',type:'number',props:'inputmode="numeric"',value:cp.value||0},{id:'ecp_max',label:'حداکثر استفاده',type:'number',props:'inputmode="numeric"',value:cp.max_uses||0},{id:'ecp_expires',label:'تاریخ انقضا',type:'datetime-local',value:cp.expires_at?String(cp.expires_at).slice(0,16):''},{id:'ecp_active',label:'فعال باشد؟',type:'checkbox',value:Number(cp.is_active)}]}],async()=>adminAction('admin_update_coupon',{coupon_id:cp.id,code:val('ecp_code'),type:val('ecp_type'),value:val('ecp_value'),max_uses:val('ecp_max'),expires_at:val('ecp_expires'),is_active:val('ecp_active')?1:0}));return}if(t.dataset.adminToggleCoupon){const cp=(adminState.coupons||[]).find(x=>Number(x.id)===Number(t.dataset.adminToggleCoupon));if(cp)adminAction('admin_update_coupon',{coupon_id:cp.id,is_active:Number(cp.is_active)?0:1});return}if(t.dataset.adminDeleteCoupon&&confirm('این کد تخفیف حذف شود؟')){adminAction('admin_delete_coupon',{coupon_id:Number(t.dataset.adminDeleteCoupon)});return}});
 
