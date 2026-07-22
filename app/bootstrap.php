@@ -1844,6 +1844,11 @@ function price_runtime_meta(array $row, string $prefix=''): array {
     $currency = normalize_price_currency($row[$prefix.'price_currency'] ?? 'IRT');
     $storedToman = max(0, (int)($row[$prefix.'price'] ?? 0));
     $usd = decimal_price($row[$prefix.'price_usd'] ?? 0);
+    $discount = max(0, min(100, (int)($row[$prefix.'discount_percent'] ?? 0)));
+    
+    if ($discount > 0) {
+        $usd = $usd * (1 - $discount / 100);
+    }
     
     if ($currency === 'FREE') {
         return ['currency'=>'FREE','usd'=>0,'toman'=>0,'rate_toman'=>null,'rate_source'=>null,'rate_updated_at'=>null,'dynamic'=>false,'label'=>'رایگان'];
@@ -1851,7 +1856,7 @@ function price_runtime_meta(array $row, string $prefix=''): array {
     if ($currency === 'STARS') {
         $rate = (float)setting_int('stars_rate_toman', 3200);
         $toman = (int)round($usd * $rate);
-        return ['currency'=>'STARS','usd'=>$usd,'toman'=>$toman,'rate_toman'=>$rate,'rate_source'=>'settings','rate_updated_at'=>date('Y-m-d H:i:s'),'dynamic'=>true,'label'=>number_format($usd).' ⭐️'];
+        return ['currency'=>'STARS','usd'=>$usd,'toman'=>$toman,'rate_toman'=>$rate,'rate_source'=>'settings','rate_updated_at'=>date('Y-m-d H:i:s'),'dynamic'=>true,'label'=>number_format($usd, 2).' ⭐️'];
     }
     
     $rateMeta = usd_toman_rate_meta();
@@ -1859,6 +1864,10 @@ function price_runtime_meta(array $row, string $prefix=''): array {
     if ($currency === 'USD' && $usd > 0 && $rate > 0) {
         $toman = (int)round($usd * $rate);
         return ['currency'=>'USD','usd'=>$usd,'toman'=>$toman,'rate_toman'=>$rate,'rate_source'=>$rateMeta['source'],'rate_updated_at'=>$rateMeta['updated_at'],'dynamic'=>true,'label'=>money($toman)];
+    }
+    
+    if ($discount > 0) {
+        $storedToman = (int)round($storedToman * (1 - $discount / 100));
     }
     return ['currency'=>'IRT','usd'=>null,'toman'=>$storedToman,'rate_toman'=>null,'rate_source'=>null,'rate_updated_at'=>null,'dynamic'=>false,'label'=>money($storedToman)];
 }
