@@ -358,6 +358,11 @@ if ($action === 'set_user_color') {
 }
 
 
+if ($action === 'get_usdt_rate') {
+    $meta = usd_toman_rate_meta();
+    api_out(['ok' => true, 'rate' => (float)$meta['rate'], 'source' => (string)$meta['source'], 'updated_at' => $meta['updated_at'], 'is_live' => !empty($meta['is_live'])]);
+}
+
 if ($action === 'admin_refresh_crypto_rates') {
     require_admin($user);
     try {
