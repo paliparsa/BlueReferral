@@ -692,9 +692,57 @@ function parseSettingsBuilders(){
 function paymentListHtml(items,type){
   if(!items.length) return `<div class="empty-state small">هنوز چیزی اضافه نشده.</div>`;
   return `<div class="builder-list">`+items.map((it,i)=>{
-    if(type==='card') return `<div class="builder-row"><div><b>${esc(it.title||'کارت')}</b><small>${esc(it.owner||'بدون صاحب کارت')}</small><code>${esc(it.card||'بدون شماره کارت')}</code>${it.sheba?`<small class="ltr">${esc(it.sheba)}</small>`:''}</div><div class="builder-actions"><button class="secondary tiny" data-builder-edit="card:${i}">ویرایش</button><button class="danger tiny" data-builder-del="card:${i}">حذف</button></div></div>`;
-    if(type==='wallet') return `<div class="builder-row"><div><b>${esc(it.title||it.asset||'ولت')}</b><small>${esc((it.network||'').toUpperCase())} · ${esc((it.asset||'').toUpperCase())} · ${it.is_active==='0'?'غیرفعال':'فعال'}</small><code>${esc(it.address||'بدون آدرس')}</code><small>نماد نرخ: ${esc((it.rate_symbol||it.asset||'').toUpperCase())} · ترتیب: ${esc(it.sort_order||'99')}</small></div><div class="builder-actions"><button class="secondary tiny" data-builder-edit="wallet:${i}">ویرایش</button><button class="danger tiny" data-builder-del="wallet:${i}">حذف</button></div></div>`;
-    return `<div class="builder-row compact"><div><b>${esc((it.asset||'USDT').toUpperCase())}</b><small>نرخ دستی: ${nf(it.rate_toman||0)} تومان</small></div><div class="builder-actions"><button class="secondary tiny" data-builder-edit="rate:${i}">ویرایش</button><button class="danger tiny" data-builder-del="rate:${i}">حذف</button></div></div>`;
+    if(type==='card') {
+      const cardClean = (it.card || '').replace(/\D/g, '');
+      const cardDisplay = cardClean ? (cardClean.slice(0,4) + '...' + cardClean.slice(-4)) : 'بدون شماره';
+      return `<div class="builder-row compact-row">
+        <div class="builder-row-info">
+          <div class="builder-row-header">
+            <span class="builder-row-title">💳 ${esc(it.title||'کارت بانکی')}</span>
+            <small class="muted">(${esc(it.owner||'بدون صاحب کارت')})</small>
+          </div>
+          <div class="builder-row-sub"><code>${esc(cardDisplay)}</code> ${it.sheba?`· <span class="ltr">${esc(it.sheba.slice(0,8))}...</span>`:''}</div>
+        </div>
+        <div class="builder-actions inline-actions">
+          <button class="icon-action-btn" data-builder-edit="card:${i}" title="ویرایش">✏️</button>
+          <button class="icon-action-btn danger-icon" data-builder-del="card:${i}" title="حذف">🗑️</button>
+        </div>
+      </div>`;
+    }
+    if(type==='wallet') {
+      const net = (it.network||'TRC20').toUpperCase();
+      const asset = (it.asset||'USDT').toUpperCase();
+      const addr = it.address || '';
+      const addrDisplay = addr ? (addr.slice(0,6) + '...' + addr.slice(-4)) : 'بدون آدرس';
+      const isActive = String(it.is_active ?? '1') !== '0';
+      return `<div class="builder-row compact-row">
+        <div class="builder-row-info">
+          <div class="builder-row-header">
+            <span class="builder-row-title">🪙 ${esc(it.title||asset)}</span>
+            <span class="chip-mini ${isActive?'chip-active':'chip-off'}">${isActive?'فعال':'غیرفعال'}</span>
+            <span class="chip-mini chip-featured">${esc(net)}</span>
+          </div>
+          <div class="builder-row-sub"><code>${esc(addrDisplay)}</code> · ${esc(asset)}</div>
+        </div>
+        <div class="builder-actions inline-actions">
+          <button class="icon-action-btn" data-builder-edit="wallet:${i}" title="ویرایش">✏️</button>
+          <button class="icon-action-btn danger-icon" data-builder-del="wallet:${i}" title="حذف">🗑️</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="builder-row compact-row">
+      <div class="builder-row-info">
+        <div class="builder-row-header">
+          <span class="builder-row-title">📈 ${esc((it.asset||'USDT').toUpperCase())}</span>
+          <small class="muted">نرخ دستی</small>
+        </div>
+        <div class="builder-row-sub"><b>${nf(it.rate_toman||0)}</b> تومان</div>
+      </div>
+      <div class="builder-actions inline-actions">
+        <button class="icon-action-btn" data-builder-edit="rate:${i}" title="ویرایش">✏️</button>
+        <button class="icon-action-btn danger-icon" data-builder-del="rate:${i}" title="حذف">🗑️</button>
+      </div>
+    </div>`;
   }).join('')+`</div>`;
 }
 function syncPaymentBuilders(){
@@ -707,8 +755,85 @@ function syncPaymentBuilders(){
 }
 function initSettingsUi(){ parseSettingsBuilders(); syncPaymentBuilders(); if($('as_crypto_source')) $('as_crypto_source').value=(adminState.settings?.crypto_rate_source||'auto'); }
 function field(label,html){return `<label><span>${label}</span>${html}</label>`}
-function openCardBuilder(index=null){const c=index===null?{}:adminUiCards[index]||{};openEdit(index===null?'افزودن کارت جدید':'ویرایش کارت',[field('عنوان کارت',`<input id="bc_title" value="${esc(c.title||'')}" placeholder="کارت اصلی">`),field('شماره کارت',`<input id="bc_card" value="${esc(c.card||'')}" inputmode="numeric" placeholder="6037...">`),field('نام صاحب کارت',`<input id="bc_owner" value="${esc(c.owner||'')}" placeholder="نام و نام خانوادگی">`),field('شبا اختیاری',`<input id="bc_sheba" value="${esc(c.sheba||'')}" placeholder="IR...">`)],async()=>{const obj={title:val('bc_title'),card:val('bc_card'),owner:val('bc_owner'),sheba:val('bc_sheba')}; if(!obj.card&&!obj.owner) throw new Error('شماره کارت یا صاحب کارت را وارد کن'); if(index===null)adminUiCards.push(obj);else adminUiCards[index]=obj; syncPaymentBuilders(); showStatus('کارت ذخیره شد')})}
-function openWalletBuilder(index=null){const w=index===null?{network:'TRC20',asset:'USDT',rate_symbol:'USDT',is_active:'1',sort_order:'99'}:adminUiWallets[index]||{};openEdit(index===null?'افزودن کیف پول رمزارز':'ویرایش کیف پول',[field('عنوان ولت',`<input id="bw_title" value="${esc(w.title||'')}" placeholder="USDT TRC20">`),field('شبکه',`<input id="bw_network" value="${esc((w.network||'TRC20').toUpperCase())}" list="networkSuggestions" placeholder="TRC20 / TON / BEP20"><datalist id="networkSuggestions"><option value="TRC20"><option value="TRON"><option value="TON"><option value="BEP20"><option value="ERC20"></datalist>`),field('ارز',`<input id="bw_asset" value="${esc((w.asset||'USDT').toUpperCase())}" placeholder="USDT">`),field('آدرس ولت',`<textarea id="bw_address" placeholder="آدرس کیف پول">${esc(w.address||'')}</textarea>`),field('نماد نرخ',`<input id="bw_rate" value="${esc((w.rate_symbol||w.asset||'USDT').toUpperCase())}" placeholder="USDT">`),field('ترتیب نمایش',`<input id="bw_sort" value="${esc(w.sort_order||'99')}" inputmode="numeric">`),`<label class="switch-line">فعال باشد؟ <input id="bw_active" type="checkbox" ${String(w.is_active??'1')!=='0'?'checked':''}></label>`],async()=>{const obj={title:val('bw_title'),network:val('bw_network'),asset:val('bw_asset'),address:val('bw_address'),rate_symbol:val('bw_rate'),is_active:val('bw_active')?'1':'0',sort_order:val('bw_sort')}; if(!obj.address) throw new Error('آدرس ولت را وارد کن'); if(index===null)adminUiWallets.push(obj);else adminUiWallets[index]=obj; syncPaymentBuilders(); showStatus('ولت ذخیره شد')})}
+function setupCardValidation(){
+  setTimeout(()=>{
+    const cardInput = $('bc_card');
+    const shebaInput = $('bc_sheba');
+    const updateCardVal = ()=>{
+      const val = (cardInput?.value || '').replace(/\D/g, '');
+      const ind = $('bc_card_val');
+      if(!ind) return;
+      if(!val) { ind.className='valid-indicator warn'; ind.textContent='⚠️ شماره کارت ۱۶ رقمی را وارد کنید'; }
+      else if(val.length===16) { ind.className='valid-indicator ok'; ind.textContent='✅ شماره کارت ۱۶ رقمی معتبر است'; }
+      else { ind.className='valid-indicator warn'; ind.textContent=`⚠️ ${val.length} رقم وارد شده (باید ۱۶ رقم باشد)`; }
+    };
+    const updateShebaVal = ()=>{
+      const val = (shebaInput?.value || '').trim().toUpperCase();
+      const ind = $('bc_sheba_val');
+      if(!ind) return;
+      if(!val) { ind.className='valid-indicator warn'; ind.textContent='ℹ️ شبا اختیاری است'; }
+      else if(val.startsWith('IR') && val.length===26) { ind.className='valid-indicator ok'; ind.textContent='✅ شماره شبا معتبر است (IR + ۲۴ رقم)'; }
+      else if(val.length===24 && !val.startsWith('IR')) { ind.className='valid-indicator ok'; ind.textContent='✅ ۲۴ رقم شبا وارد شد'; }
+      else { ind.className='valid-indicator warn'; ind.textContent=`⚠️ طول شبا ${val.length} کاراکتر است (استاندارد ۲۶ با IR)`; }
+    };
+    if(cardInput) { cardInput.addEventListener('input', updateCardVal); updateCardVal(); }
+    if(shebaInput) { shebaInput.addEventListener('input', updateShebaVal); updateShebaVal(); }
+  }, 50);
+}
+function openCardBuilder(index=null){
+  const c=index===null?{}:adminUiCards[index]||{};
+  openEdit(index===null?'افزودن کارت جدید':'ویرایش کارت',[
+    field('عنوان کارت',`<input id="bc_title" value="${esc(c.title||'')}" placeholder="کارت اصلی">`),
+    field('شماره کارت',`<input id="bc_card" value="${esc(c.card||'')}" inputmode="numeric" placeholder="6037..."><div id="bc_card_val" class="valid-indicator warn"></div>`),
+    field('نام صاحب کارت',`<input id="bc_owner" value="${esc(c.owner||'')}" placeholder="نام و نام خانوادگی">`),
+    field('شبا اختیاری',`<input id="bc_sheba" value="${esc(c.sheba||'')}" placeholder="IR..."><div id="bc_sheba_val" class="valid-indicator warn"></div>`)
+  ],async()=>{
+    const obj={title:val('bc_title'),card:val('bc_card'),owner:val('bc_owner'),sheba:val('bc_sheba')};
+    if(!obj.card&&!obj.owner) throw new Error('شماره کارت یا صاحب کارت را وارد کن');
+    if(index===null)adminUiCards.push(obj);else adminUiCards[index]=obj;
+    syncPaymentBuilders(); showStatus('کارت ذخیره شد');
+  });
+  setupCardValidation();
+}
+function setupWalletValidation(){
+  setTimeout(()=>{
+    const addrInput = $('bw_address');
+    const netInput = $('bw_network');
+    const updateAddrVal = ()=>{
+      const addr = (addrInput?.value || '').trim();
+      const net = (netInput?.value || 'TRC20').trim().toUpperCase();
+      const ind = $('bw_address_val');
+      if(!ind) return;
+      if(!addr) { ind.className='valid-indicator warn'; ind.textContent='⚠️ آدرس کیف پول را وارد کنید'; }
+      else if((net==='TRC20'||net==='TRON') && addr.startsWith('T') && addr.length===34) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس TRC20 معتبر است (۳۴ کاراکتر با T)'; }
+      else if(net==='TON' && (addr.startsWith('EQ')||addr.startsWith('UQ')) && addr.length>=44) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس شبکه TON معتبر است'; }
+      else if((net==='EVM'||net==='BEP20'||net==='ERC20') && addr.startsWith('0x') && addr.length===42) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس EVM معتبر است (0x + ۴۰ کاراکتر)'; }
+      else if(addr.length >= 10) { ind.className='valid-indicator ok'; ind.textContent='✅ آدرس ثبت شد'; }
+      else { ind.className='valid-indicator warn'; ind.textContent='⚠️ آدرس کوتاه یا فرمت نامشخص است'; }
+    };
+    if(addrInput) { addrInput.addEventListener('input', updateAddrVal); }
+    if(netInput) { netInput.addEventListener('input', updateAddrVal); }
+    updateAddrVal();
+  }, 50);
+}
+function openWalletBuilder(index=null){
+  const w=index===null?{network:'TRC20',asset:'USDT',rate_symbol:'USDT',is_active:'1',sort_order:'99'}:adminUiWallets[index]||{};
+  openEdit(index===null?'افزودن کیف پول رمزارز':'ویرایش کیف پول',[
+    field('عنوان ولت',`<input id="bw_title" value="${esc(w.title||'')}" placeholder="USDT TRC20">`),
+    field('شبکه',`<input id="bw_network" value="${esc((w.network||'TRC20').toUpperCase())}" list="networkSuggestions" placeholder="TRC20 / TON / BEP20"><datalist id="networkSuggestions"><option value="TRC20"><option value="TRON"><option value="TON"><option value="BEP20"><option value="ERC20"></datalist>`),
+    field('ارز',`<input id="bw_asset" value="${esc((w.asset||'USDT').toUpperCase())}" placeholder="USDT">`),
+    field('آدرس ولت',`<textarea id="bw_address" placeholder="آدرس کیف پول">${esc(w.address||'')}</textarea><div id="bw_address_val" class="valid-indicator warn"></div>`),
+    field('نماد نرخ',`<input id="bw_rate" value="${esc((w.rate_symbol||w.asset||'USDT').toUpperCase())}" placeholder="USDT">`),
+    field('ترتیب نمایش',`<input id="bw_sort" value="${esc(w.sort_order||'99')}" inputmode="numeric">`),
+    `<label class="switch-line">فعال باشد؟ <input id="bw_active" type="checkbox" ${String(w.is_active??'1')!=='0'?'checked':''}></label>`
+  ],async()=>{
+    const obj={title:val('bw_title'),network:val('bw_network'),asset:val('bw_asset'),address:val('bw_address'),rate_symbol:val('bw_rate'),is_active:val('bw_active')?'1':'0',sort_order:val('bw_sort')};
+    if(!obj.address) throw new Error('آدرس ولت را وارد کن');
+    if(index===null)adminUiWallets.push(obj);else adminUiWallets[index]=obj;
+    syncPaymentBuilders(); showStatus('ولت ذخیره شد');
+  });
+  setupWalletValidation();
+}
 function openRateBuilder(index=null){const r=index===null?{asset:'USDT',rate_toman:'0'}:adminUiRates[index]||{};openEdit(index===null?'افزودن نرخ دستی':'ویرایش نرخ دستی',[field('نماد ارز',`<input id="br_asset" value="${esc((r.asset||'USDT').toUpperCase())}" placeholder="USDT">`),field('قیمت تومان',`<input id="br_rate" value="${esc(r.rate_toman||0)}" inputmode="decimal" placeholder="95000">`)],async()=>{const obj={asset:val('br_asset'),rate_toman:val('br_rate')}; if(!obj.asset) throw new Error('نماد ارز را وارد کن'); if(index===null)adminUiRates.push(obj);else adminUiRates[index]=obj; syncPaymentBuilders(); showStatus('نرخ دستی ذخیره شد')})}
 const adminPaletteColors=['#1d9bf0','#2563eb','#8b5cf6','#22c55e','#14b8a6','#f59e0b','#f97316','#ef4444','#ec4899','#64748b'];
 function colorPicker(id,value){return `<div class="color-picker-row"><input id="${id}" type="color" value="${esc(value)}"><input id="${id}_text" value="${esc(value)}" placeholder="#1d9bf0" data-color-mirror="${id}"></div>`}
