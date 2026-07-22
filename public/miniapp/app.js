@@ -278,48 +278,40 @@ function openWalletConfirmModal(orderId){
   const supportUser = state.support_username || '';
   const dlg = $('inputDialog');
   if(!dlg) return;
-  const card = dlg.querySelector('.dialog-card');
-  if(!card) return;
   
-  const oldHtml = card.innerHTML;
-  card.classList.add('ios-blur-dialog');
-  card.innerHTML = `
-    <div class="ios-blur-modal-body" style="text-align:center;">
-      <div style="font-size:38px;margin-bottom:6px">💰</div>
-      <h3 style="font-size:18px;font-weight:900;margin-bottom:8px;color:var(--text)">کسر از موجودی کیف پول</h3>
-      <p class="muted" style="font-size:13px;line-height:1.6;margin-bottom:14px">
+  openDialog(
+    '💰 کسر از موجودی کیف پول',
+    '',
+    '',
+    async () => {
+      await loadAfterAction('apply_wallet',{order_id:orderId});
+      currentTab='orders';
+      currentOrderId=orderId;
+      renderUser();
+      showStatus('پرداخت از کیف پول اعمال شد');
+    }
+  );
+  
+  dlg.classList.add('ios-blur-dialog');
+  const txtEl = $('dialogText');
+  if(txtEl) {
+    txtEl.innerHTML = `
+      <div style="font-size:14px;line-height:1.7;margin-bottom:12px;color:var(--text);text-align:center;">
         آیا از کسر موجودی کیف پول برای سفارش <b>#${nf(o.id)}</b> اطمینان دارید؟<br>
-        موجودی کیف پول شما: <b>${fmt(bal)}</b>
-      </p>
-      <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);padding:12px;border-radius:16px;font-size:12px;color:#fde68a;line-height:1.6;margin-bottom:16px;text-align:right">
+        موجودی کیف پول شما: <b style="color:#4ade80;font-size:16px">${fmt(bal)}</b>
+      </div>
+      <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);padding:12px;border-radius:16px;font-size:12px;color:#fde68a;line-height:1.6;text-align:right">
         ⚠️ <b>توجه مهم:</b> موجودی کسرشده تنها در صورت لغو سفارش به کیف پول شما بازگردانده می‌شود.
-        ${supportUser ? `<br>💬 قبل از تایید نهایی، حتماً موجودی محصول را با پشتیبانی <a href="https://t.me/${esc(supportUser)}" target="_blank" style="color:#60a5fa;text-decoration:underline">@${esc(supportUser)}</a> چک کنید.` : ''}
+        ${supportUser ? `<br>💬 قبل از تایید، حتماً موجودی محصول را با پشتیبانی <a href="https://t.me/${esc(supportUser)}" target="_blank" style="color:#60a5fa;text-decoration:underline">@${esc(supportUser)}</a> چک کنید.` : ''}
       </div>
-      <div class="dialog-actions" style="display:flex;gap:8px;justify-content:center">
-        <button class="primary" id="confirmWalletPayBtn" style="flex:1">تایید و کسر از موجودی</button>
-        <button class="ghost" id="cancelWalletPayBtn" style="flex:1">انصراف</button>
-      </div>
-    </div>
-  `;
-  dlg.showModal();
+    `;
+  }
   
-  const closeIt = () => {
-    dlg.close();
-    card.classList.remove('ios-blur-dialog');
-    card.innerHTML = oldHtml;
-  };
+  const inp = $('dialogInput');
+  if(inp) inp.style.display = 'none';
   
-  card.querySelector('#confirmWalletPayBtn')?.addEventListener('click', async() => {
-    closeIt();
-    await loadAfterAction('apply_wallet',{order_id:orderId});
-    currentTab='orders';
-    currentOrderId=orderId;
-    renderUser();
-    showStatus('پرداخت از کیف پول اعمال شد');
-  });
-  card.querySelector('#cancelWalletPayBtn')?.addEventListener('click', () => {
-    closeIt();
-  });
+  const subBtn = $('dialogSubmit');
+  if(subBtn) subBtn.textContent = 'تایید و کسر از موجودی';
 }
 
 function paymentMethodsHtml(o){
@@ -346,27 +338,32 @@ function paymentMethodsHtml(o){
   if(methods.crypto?.enabled) html+=`<button class="pay-method crypto" data-show-crypto="${o.id}"><b>🪙 رمزارز</b><span>USDT / TRX / TON با TXID</span></button>`;
   if(!methods.wallet?.enabled && !methods.card?.enabled && !methods.stars?.enabled && !methods.crypto?.enabled) html+=`<p class="muted empty-state">فعلاً هیچ روش پرداختی فعال نیست. لطفاً به پشتیبانی پیام بده.</p>`;
   html+=`</div>`;
-  if(o.payment_method==='card'&&methods.card?.accounts?.length){
-    html+=`<div class="card-pay-list"><p class="muted" style="margin-bottom:6px">کارت بانکی زیر را برای پرداخت کپی کن و پس از واریز رسید را بفرست.</p>`+methods.card.accounts.map(c=>{
-      const rawCard = String(c.card||'').replace(/\D/g,'');
-      const formattedCard = rawCard.length===16 ? rawCard.match(/.{1,4}/g).join(' - ') : esc(c.card||'');
-      const rawSheba = String(c.sheba||'').trim();
-      return `<div class="bank-card-widget">
-        <div class="bank-card-top">
-          <div class="bank-card-chip"></div>
-          <span class="bank-card-title">${esc(c.title||'کارت بانکی')}</span>
-        </div>
-        <div class="bank-card-number-row">
-          <span class="bank-card-number">${formattedCard}</span>
-        </div>
-        <div class="bank-card-owner">صاحب حساب: ${esc(c.owner||'نامشخص')}</div>
-        ${rawSheba ? `<div class="bank-card-sheba">شماره شبا: ${esc(rawSheba)}</div>` : ''}
-        <div class="bank-card-actions">
-          <button class="secondary" data-copy="${esc(c.card||'')}">📋 کپی شماره کارت</button>
-          ${rawSheba ? `<button class="secondary" data-copy="${esc(rawSheba)}">🏦 کپی شبا</button>` : ''}
-        </div>
-      </div>`;
-    }).join('')+`</div>`;
+  if(methods.card?.enabled && (o.payment_method==='card' || (methods.card?.accounts?.length > 0))){
+    const accounts = methods.card?.accounts || [];
+    if(accounts.length > 0){
+      html+=`<div class="card-pay-list" style="margin-top:14px"><p class="muted" style="margin-bottom:6px">کارت بانکی زیر را برای پرداخت کپی کن و پس از واریز رسید را بفرست.</p>`+accounts.map(c=>{
+        const rawCard = String(c.card||'').replace(/\D/g,'');
+        const formattedCard = rawCard.length===16 ? rawCard.match(/.{1,4}/g).join(' - ') : esc(c.card||'');
+        const rawSheba = String(c.sheba||'').trim();
+        return `<div class="bank-card-widget">
+          <div class="bank-card-top">
+            <div class="bank-card-chip"></div>
+            <span class="bank-card-title">${esc(c.title||'کارت بانکی')}</span>
+          </div>
+          <div class="bank-card-number-row">
+            <span class="bank-card-number">${formattedCard}</span>
+          </div>
+          <div class="bank-card-owner">صاحب حساب: ${esc(c.owner||'نامشخص')}</div>
+          ${rawSheba ? `<div class="bank-card-sheba">شماره شبا: ${esc(rawSheba)}</div>` : ''}
+          <div class="bank-card-actions">
+            <button class="secondary" data-copy="${esc(c.card||'')}">📋 کپی شماره کارت</button>
+            ${rawSheba ? `<button class="secondary" data-copy="${esc(rawSheba)}">🏦 کپی شبا</button>` : ''}
+          </div>
+        </div>`;
+      }).join('')+`</div>`;
+    } else if(methods.card?.instructions || state.payment_instructions) {
+      html+=`<div class="card-pay-list" style="margin-top:14px"><div class="note-box"><b>اطلاعات/راهنمای واریز کارت:</b><br>${textBlock(methods.card?.instructions || state.payment_instructions)}</div></div>`;
+    }
   }
   const cryptoWallets=methods.crypto?.wallets||[];
   const cryptoCheck=o.crypto_check||null;
