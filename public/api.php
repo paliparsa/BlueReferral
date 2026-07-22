@@ -358,9 +358,22 @@ if ($action === 'set_user_color') {
 }
 
 
-if ($action === 'get_usdt_rate') {
-    $meta = usd_toman_rate_meta();
-    api_out(['ok' => true, 'rate' => (float)$meta['rate'], 'source' => (string)$meta['source'], 'updated_at' => $meta['updated_at'], 'is_live' => !empty($meta['is_live'])]);
+if ($action === 'get_usdt_rate' || $action === 'get_crypto_rates') {
+    $usdtMeta = crypto_rate_meta('USDT');
+    $trxMeta  = crypto_rate_meta('TRX');
+    $tonMeta  = crypto_rate_meta('TON');
+    api_out([
+        'ok' => true,
+        'rate' => (float)$usdtMeta['rate'],
+        'source' => (string)$usdtMeta['source'],
+        'updated_at' => $usdtMeta['updated_at'],
+        'is_live' => !empty($usdtMeta['is_live']),
+        'rates' => [
+            'USDT' => ['rate' => (float)$usdtMeta['rate'], 'source' => (string)$usdtMeta['source'], 'updated_at' => $usdtMeta['updated_at'], 'is_live' => !empty($usdtMeta['is_live'])],
+            'TRX'  => ['rate' => (float)$trxMeta['rate'], 'source' => (string)$trxMeta['source'], 'updated_at' => $trxMeta['updated_at'], 'is_live' => !empty($trxMeta['is_live'])],
+            'TON'  => ['rate' => (float)$tonMeta['rate'], 'source' => (string)$tonMeta['source'], 'updated_at' => $tonMeta['updated_at'], 'is_live' => !empty($tonMeta['is_live'])],
+        ]
+    ]);
 }
 
 if ($action === 'admin_refresh_crypto_rates') {
