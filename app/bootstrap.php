@@ -1973,9 +1973,9 @@ function create_shop_order(int $userId, int $productId, ?int $variantId=null): a
     return order_by_id($orderId);
 }
 function order_by_id(int $id) {
-    $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type, p.commission_type, p.commission_value, p.short_description, p.full_description, p.image_url, p.duration_days product_duration_days,
+    $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type, p.commission_type, p.commission_value, p.short_description, p.full_description, p.image_url, p.duration_days product_duration_days, p.flash_sale_discount product_flash_sale_discount,
         p.price_currency product_price_currency, p.price_usd product_price_usd, p.price_rate_toman product_price_rate_toman, p.price_rate_source product_price_rate_source, p.price_rate_updated_at product_price_rate_updated_at,
-        v.title variant_title, v.price variant_price, v.price_currency variant_price_currency, v.price_usd variant_price_usd, v.price_rate_toman variant_price_rate_toman, v.price_rate_source variant_price_rate_source, v.price_rate_updated_at variant_price_rate_updated_at, v.duration_days variant_duration_days,
+        v.title variant_title, v.price variant_price, v.price_currency variant_price_currency, v.price_usd variant_price_usd, v.price_rate_toman variant_price_rate_toman, v.price_rate_source variant_price_rate_source, v.price_rate_updated_at variant_price_rate_updated_at, v.duration_days variant_duration_days, v.discount_percent variant_discount_percent,
         u.telegram_id, u.username, u.first_name, u.referrer_id
         FROM orders o
         JOIN products p ON p.id=o.product_id
@@ -1985,14 +1985,14 @@ function order_by_id(int $id) {
     $q->execute([$id]); return $q->fetch();
 }
 function user_orders(int $userId, int $limit=10, bool $includeHidden=false): array {
-    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title
+    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, p.flash_sale_discount product_flash_sale_discount, v.title variant_title, v.discount_percent variant_discount_percent
         FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id
         WHERE o.user_id=?'.($includeHidden?'':' AND o.user_hidden=0').' ORDER BY o.id DESC LIMIT ?';
     $q=db()->prepare($sql);
     $q->bindValue(1,$userId,PDO::PARAM_INT); $q->bindValue(2,$limit,PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
 }
 function admin_orders($status=null, int $limit=20, string $search='', bool $archived=false): array {
-    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title, u.telegram_id, u.username
+    $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, p.flash_sale_discount product_flash_sale_discount, v.title variant_title, v.discount_percent variant_discount_percent, u.telegram_id, u.username
         FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id JOIN users u ON u.id=o.user_id';
     $where=[]; $params=[];
     $where[] = $archived ? 'o.archived_at IS NOT NULL' : 'o.archived_at IS NULL';
@@ -2280,6 +2280,7 @@ function order_public_payload(array $o, bool $is_admin = false): array {
     $payload = [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
+        'product_flash_sale_discount'=>(int)($o['product_flash_sale_discount'] ?? 0), 'variant_discount_percent'=>(int)($o['variant_discount_percent'] ?? 0),
         'wallet_amount'=>(int)($o['wallet_amount'] ?? 0), 'final_amount'=>(int)$o['final_amount'], 'coupon_code'=>$o['coupon_code'],
         'price_currency'=>normalize_price_currency($o['price_currency'] ?? 'IRT'), 'price_usd'=>isset($o['price_usd']) && $o['price_usd'] !== null ? (float)$o['price_usd'] : null, 'usd_rate_toman'=>isset($o['usd_rate_toman']) && $o['usd_rate_toman'] !== null ? (float)$o['usd_rate_toman'] : null, 'usd_rate_source'=>$o['usd_rate_source'] ?? null, 'usd_rate_updated_at'=>$o['usd_rate_updated_at'] ?? null,
         'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
