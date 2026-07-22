@@ -106,7 +106,6 @@ function migrate(): void {
     seed_setting('crypto_rate_refresh_interval_seconds', app_config('CRYPTO_RATE_REFRESH_INTERVAL_SECONDS', 600));
     seed_setting('crypto_rate_provider_priority', app_config('CRYPTO_RATE_PROVIDER_PRIORITY', 'wallex,ramzinex,nobitex'));
     seed_setting('crypto_rate_last_result', []);
-    try { if (strtolower((string)setting('crypto_rate_source','auto')) === 'nobitex') set_setting('crypto_rate_source','auto'); } catch (Throwable $e) {}
     seed_setting('swapwallet_api_key', app_config('SWAPPAY_API_KEY', ''));
     seed_setting('swapwallet_application', app_config('SWAPPAY_APPLICATION', ''));
     seed_setting('swapwallet_username', app_config('SWAPPAY_USERNAME', app_config('SWAPPAY_APPLICATION', '')));
