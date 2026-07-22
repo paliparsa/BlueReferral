@@ -138,6 +138,7 @@ function migrate(): void {
     add_column_if_missing('product_variants', 'price_rate_toman', 'DECIMAL(24,6) NULL AFTER price_usd');
     add_column_if_missing('product_variants', 'price_rate_source', 'VARCHAR(32) NULL AFTER price_rate_toman');
     add_column_if_missing('product_variants', 'price_rate_updated_at', 'DATETIME NULL AFTER price_rate_source');
+    add_column_if_missing('product_variants', 'discount_percent', 'INT NOT NULL DEFAULT 0 AFTER duration_days');
     add_column_if_missing('products', 'is_featured', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active');
     add_column_if_missing('products', 'sort_order', 'INT NOT NULL DEFAULT 0 AFTER is_featured');
     add_column_if_missing('orders', 'variant_id', 'BIGINT UNSIGNED NULL AFTER product_id');
@@ -2569,8 +2570,8 @@ function update_category_field(int $id, string $field, $value): bool {
     $q=db()->prepare("UPDATE product_categories SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 function update_variant_field(int $id, string $field, $value): bool {
-    $allowed=['title','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','duration_days','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
-    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','duration_days','sort_order','is_active'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
+    $allowed=['title','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','duration_days','discount_percent','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
+    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','duration_days','discount_percent','sort_order','is_active'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
     $q=db()->prepare("UPDATE product_variants SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 function update_inventory_field(int $id, string $field, $value): bool {
