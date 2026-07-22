@@ -236,6 +236,149 @@ html,body{
 .valid-indicator.ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
 .valid-indicator.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
 
+/* Realistic Iranian Bank Card Widget Component */
+.bank-card-widget {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 18px 20px;
+  margin: 12px 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+.bank-card-widget:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, rgba(255, 255, 255, 0.25));
+  transform: translateY(-2px);
+}
+.bank-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.bank-card-chip {
+  width: 40px;
+  height: 28px;
+  background: linear-gradient(135deg, #f1f5f9, #94a3b8);
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  position: relative;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+}
+.bank-card-chip::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #64748b;
+}
+.bank-card-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+.bank-card-number-row {
+  margin: 14px 0 12px;
+  direction: ltr;
+  text-align: center;
+}
+.bank-card-number {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  display: inline-block;
+  direction: ltr;
+}
+.bank-card-owner {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-top: 6px;
+}
+.bank-card-sheba {
+  font-size: 11px;
+  color: var(--muted);
+  direction: ltr;
+  text-align: right;
+  font-family: monospace;
+  margin-top: 4px;
+}
+.bank-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.bank-card-actions button {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 12px;
+}
+
+/* Support Confirmation Warning Box */
+.support-warning-box {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(239, 68, 68, 0.08));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.support-warning-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fbbf24;
+}
+.support-warning-text {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.6;
+}
+.support-contact-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fef08a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+.support-contact-btn:hover {
+  background: rgba(245, 158, 11, 0.3);
+  transform: scale(1.02);
+}
+
+/* Heavy iOS Blur Confirmation Dialog */
+.dialog-card.ios-blur-dialog {
+  background: rgba(17, 24, 39, 0.75) !important;
+  backdrop-filter: blur(35px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(35px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 28px !important;
+  padding: 22px !important;
+}
+
 
 
 /* Backup/Restore admin panel */
