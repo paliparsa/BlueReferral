@@ -984,10 +984,15 @@ function renderAdminSettings(){
 
     <!-- PANE 1: GENERAL -->
     <div class="settings-subtab-pane ${isGen?'':'hidden'}" data-pane="general">
-      <div class="settings-group-card">
-        <div class="group-section-title"><span>🏷️</span> مشخصات و ارز پایه فروشگاه</div>
+      <article class="settings-card admin-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>🏷️</span></div><div><h3>نام و هویت فروشگاه</h3><p class="muted">این نام در بالای مینی‌اپ و پیام‌های ربات قرار می‌گیرد.</p></div></div>
         <div class="form-grid settings-form">
           <label class="full"><span>نام فروشگاه</span><input id="as_brand_name" value="${esc(s.brand_name||'BlueReferral')}" placeholder="مثلاً BlueGate Store"></label>
+        </div>
+      </article>
+      <article class="settings-card admin-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>🌐</span></div><div><h3>ارز پایه پیش‌فرض</h3><p class="muted">ارز پیش‌فرض هنگام ساخت محصول یا پلن جدید.</p></div></div>
+        <div class="form-grid settings-form">
           <label class="full"><span>ارز پایه پیش‌فرض جدید برای محصولات و پلن‌ها</span>
             <select id="as_default_base_currency">
               <option value="USDT" ${s.default_base_currency==='USDT'||!s.default_base_currency?'selected':''}>USDT (تتر / دلار)</option>
@@ -996,116 +1001,87 @@ function renderAdminSettings(){
             </select>
           </label>
         </div>
-      </div>
-
-      <div class="settings-group-card">
-        <div class="group-section-title"><span>🔐</span> ثبت‌نام و احراز هویت کاربران</div>
+      </article>
+      <article class="settings-card admin-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>🔐</span></div><div><h3>کاربر و احراز هویت</h3><p class="muted">قوانین ثبت‌نام، شماره تماس و اعلان‌های مدیریت.</p></div></div>
         <div class="settings-toggles two">
-          <div class="ios-toggle-row">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">احراز شماره اجباری</b><small class="ios-toggle-desc">کاربر باید Share Contact بزند</small></div>
-            <label class="pretty-switch"><input id="as_require_contact" type="checkbox" ${s.require_contact_auth?'checked':''}><span></span></label>
-          </div>
-          <div class="ios-toggle-row">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">اعلان عضو جدید</b><small class="ios-toggle-desc">ارسال پیام هنگام اولین استارت</small></div>
-            <label class="pretty-switch"><input id="as_notify_new" type="checkbox" ${s.notify_new_user!==false?'checked':''}><span></span></label>
-          </div>
+          <label class="pretty-switch"><input id="as_require_contact" type="checkbox" ${s.require_contact_auth?'checked':''}><span></span><b>احراز شماره اجباری</b><small>کاربر باید Share Contact بزند</small></label>
+          <label class="pretty-switch"><input id="as_notify_new" type="checkbox" ${s.notify_new_user!==false?'checked':''}><span></span><b>اعلان عضو جدید</b><small>فقط دفعه اول استارت</small></label>
         </div>
-      </div>
+      </article>
     </div>
 
     <!-- PANE 2: PAYMENTS -->
     <div class="settings-subtab-pane ${isPay?'':'hidden'}" data-pane="payments">
-      <div class="settings-group-card">
-        <div class="group-section-title"><span>💳</span> درگاه‌ها و روش‌های فعال پرداخت</div>
+      <article class="settings-card admin-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>💳</span></div><div><h3>روش‌های فعال پرداخت</h3><p class="muted">روش‌هایی که در مرحله نهایی فاکتور به کاربر پیشنهاد می‌شوند.</p></div></div>
         <div class="settings-toggles">
-          <div class="ios-toggle-row">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">کیف پول داخلی</b><small class="ios-toggle-desc">کسر خودکار از موجودی کاربر</small></div>
-            <label class="pretty-switch"><input id="as_pay_wallet" type="checkbox" ${walletActive?'checked':''}><span></span></label>
-          </div>
-          <div class="ios-toggle-row">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">کارت به کارت</b><small class="ios-toggle-desc">پرداخت کارت به کارت دستی با ارسال رسید</small></div>
-            <label class="pretty-switch"><input id="as_pay_card" type="checkbox" ${cardActive?'checked':''}><span></span></label>
-          </div>
-          <div class="ios-toggle-row">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">Telegram Stars</b><small class="ios-toggle-desc">ارسال فاکتور مستقیم تلگرام</small></div>
-            <label class="pretty-switch"><input id="as_pay_stars" type="checkbox" ${starsActive?'checked':''}><span></span></label>
-          </div>
-          <div class="ios-toggle-row">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">پرداخت رمزارز</b><small class="ios-toggle-desc">کیف پول دستی + ثبت و بررسی TXID</small></div>
-            <label class="pretty-switch"><input id="as_pay_crypto" type="checkbox" ${cryptoActive?'checked':''}><span></span></label>
-          </div>
+          <label class="pretty-switch"><input id="as_pay_wallet" type="checkbox" ${walletActive?'checked':''}><span></span><b>کیف پول داخلی</b><small>کم‌کردن مبلغ فاکتور از موجودی</small></label>
+          <label class="pretty-switch"><input id="as_pay_card" type="checkbox" ${cardActive?'checked':''}><span></span><b>کارت به کارت</b><small>پرداخت دستی با رسید</small></label>
+          <label class="pretty-switch"><input id="as_pay_stars" type="checkbox" ${starsActive?'checked':''}><span></span><b>Telegram Stars</b><small>فاکتور مستقیم داخل تلگرام</small></label>
+          <label class="pretty-switch"><input id="as_pay_crypto" type="checkbox" ${cryptoActive?'checked':''}><span></span><b>پرداخت رمزارز</b><small>کیف پول دستی + بررسی TXID</small></label>
         </div>
-        <hr class="settings-row-divider">
-        <div class="form-grid settings-form">
+        <div class="form-grid settings-form" style="margin-top:14px">
           <label><span>ارزش هر Star به تومان</span><input id="as_stars_rate" value="${esc(s.stars_rate_toman||3200)}" inputmode="numeric" placeholder="مثلاً 3200"></label>
           <label class="full"><span>متن راهنمای پرداخت</span><textarea id="as_payment" placeholder="متن راهنمای پرداخت برای کاربر">${esc(s.payment_instructions||'')}</textarea></label>
         </div>
-      </div>
-
-      <div class="settings-group-card builder-card">
-        <div class="group-section-title"><span>💳</span> حساب‌های کارت به کارت (کارت‌ها)</div>
+      </article>
+      <article class="settings-card admin-card builder-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>💳</span></div><div><h3>حساب‌های کارت به کارت</h3><p class="muted">کارت‌های بانکی برای واریز دستی کاربران.</p></div></div>
         <input type="hidden" id="as_cards">
         <div id="cardBuilderList"></div>
         <button class="secondary wide" data-builder-add="card">➕ افزودن کارت جدید</button>
-      </div>
+      </article>
     </div>
 
     <!-- PANE 3: CRYPTO -->
     <div class="settings-subtab-pane ${isCry?'':'hidden'}" data-pane="crypto">
-      <div class="settings-group-card builder-card">
-        <div class="group-section-title"><span>🪙</span> تنظیمات منبع نرخ و کیف‌پول‌های رمزارز</div>
+      <article class="settings-card admin-card builder-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>🪙</span></div><div><h3>تنظیمات نرخ و کیف‌پول‌های رمزارز</h3><p class="muted">منبع نرخ، درصد احتیاط و آدرس‌های دریافت.</p></div></div>
         <div class="form-grid settings-form compact-form">
           <label><span>منبع نرخ</span><select id="as_crypto_source"><option value="auto">خودکار: Wallex → Ramzinex → Nobitex → دستی/cache</option><option value="wallex">اولویت با Wallex + fallback</option><option value="ramzinex">اولویت با Ramzinex + fallback</option><option value="nobitex">اولویت با Nobitex + fallback</option><option value="manual">فقط نرخ دستی</option></select></label>
           <label><span>درصد احتیاط نرخ</span><input id="as_crypto_markup" value="${esc(s.crypto_rate_markup_percent||1)}" inputmode="decimal" placeholder="مثلاً 1"></label><label><span>رفرش نرخ هر چند ثانیه</span><input id="as_crypto_refresh_interval" value="${esc(s.crypto_rate_refresh_interval_seconds||600)}" inputmode="numeric" placeholder="60"></label>
-          <div class="ios-toggle-row" style="grid-column: 1 / -1;">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">اعلان خطای نرخ به ادمین</b><small class="ios-toggle-desc">پیام در چت بات هنگام قطع بودن Providerها</small></div>
-            <label class="pretty-switch"><input id="as_crypto_notify" type="checkbox" ${s.crypto_notify_rate_fail!==false?'checked':''}><span></span></label>
-          </div>
+          <label class="pretty-switch inline" style="grid-column:1/-1"><input id="as_crypto_notify" type="checkbox" ${s.crypto_notify_rate_fail!==false?'checked':''}><span></span><b>اعلان خطای نرخ به ادمین</b></label>
         </div>
-        <hr class="settings-row-divider">
         <input type="hidden" id="as_crypto_wallets">
         <div id="walletBuilderList"></div>
         <button class="secondary wide" data-builder-add="wallet">➕ افزودن ولت جدید</button>
-      </div>
-
-      <div class="settings-group-card builder-card">
-        <div class="group-section-title"><span>📈</span> نرخ دستی Fallback & وضعیت کش</div>
+      </article>
+      <article class="settings-card admin-card builder-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>📈</span></div><div><h3>نرخ دستی fallback و وضعیت کش</h3><p class="muted">اگر Providerها جواب ندادند یا منبع دستی باشد.</p></div></div>
         <input type="hidden" id="as_crypto_rates">
         <div class="rate-live-box"><b>نرخ‌های فعلی Providerها/cache</b><pre id="cryptoRateCacheView">${esc(cryptoRateCacheText())}</pre><button class="secondary wide" data-refresh-crypto-rates>🔄 رفرش نرخ از Wallex/Ramzinex/Nobitex</button></div>
         <div id="rateBuilderList"></div>
         <button class="secondary wide" data-builder-add="rate">➕ افزودن نرخ دستی</button>
-      </div>
+      </article>
     </div>
 
     <!-- PANE 4: APPEARANCE -->
     <div class="settings-subtab-pane ${isApp?'':'hidden'}" data-pane="appearance">
-      <div class="settings-group-card">
-        <div class="group-section-title"><span>🎨</span> پالت رنگ و تم Mini App</div>
+      <article class="settings-card admin-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>🎨</span></div><div><h3>پالت رنگ و تم Mini App</h3><p class="muted">رنگ اصلی و دکمه‌ها را با color picker یا پالت سریع تنظیم کن.</p></div></div>
         <div class="settings-color-grid">
           <label><span>رنگ اصلی</span>${colorPicker('as_theme',s.theme_color||'#1d9bf0')}${settingsPalette('as_theme')}</label>
-          <div class="ios-toggle-row" style="grid-column: 1 / -1;">
-            <div class="ios-toggle-info"><b class="ios-toggle-title">رنگی بودن دکمه‌های Mini App</b><small class="ios-toggle-desc">استفاده از رنگ‌های اختصاصی برای دکمه‌ها</small></div>
-            <label class="pretty-switch"><input id="as_btn_enabled" type="checkbox" ${s.button_colors_enabled?'checked':''}><span></span></label>
-          </div>
+          <label class="pretty-switch inline"><input id="as_btn_enabled" type="checkbox" ${s.button_colors_enabled?'checked':''}><span></span><b>رنگی بودن دکمه‌های Mini App</b></label>
           <label><span>دکمه اصلی</span>${colorPicker('as_primary',bc.primary||'#1d9bf0')}${settingsPalette('as_primary')}</label>
           <label><span>دکمه دوم</span>${colorPicker('as_secondary',bc.secondary||'#2563eb')}${settingsPalette('as_secondary')}</label>
           <label><span>موفق</span>${colorPicker('as_success',bc.success||'#22c55e')}${settingsPalette('as_success')}</label>
           <label><span>هشدار</span>${colorPicker('as_warning',bc.warning||'#f59e0b')}${settingsPalette('as_warning')}</label>
           <label><span>حذف/خطر</span>${colorPicker('as_danger',bc.danger||'#ef4444')}${settingsPalette('as_danger')}</label>
         </div>
-      </div>
+      </article>
     </div>
 
     <!-- PANE 5: GAMIFICATION -->
     <div class="settings-subtab-pane ${isGam?'':'hidden'}" data-pane="gamification">
-      <div class="settings-group-card">
-        <div class="group-section-title"><span>🎡</span> گردونه شانس و سیستم پاداش</div>
+      <article class="settings-card admin-card">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>🎡</span></div><div><h3>گردونه شانس و مأموریت‌ها</h3><p class="muted">شانس گردونه و جایزه‌های قابل تنظیم.</p></div></div>
         <div class="form-grid settings-form">
           <label><span>هر چند دعوت = ۱ شانس</span><input id="as_spin_every" value="${esc(s.spin_referrals_per_chance||5)}" inputmode="numeric"></label>
           <label class="full"><span>جایزه‌های گردونه</span><textarea id="as_spin_rewards" placeholder="هر خط: عنوان|مبلغ|وزن|اعلان ادمین">${esc(s.spin_rewards_text||'')}</textarea></label>
         </div>
         <div class="hint-box">فرمت جایزه: <code>عنوان|مبلغ کیف پول|وزن احتمال|اعلان ادمین ۰/۱</code></div>
-      </div>
+      </article>
     </div>
 
     <button class="primary save-floating" data-admin-save-settings>ذخیره همه تنظیمات</button>
