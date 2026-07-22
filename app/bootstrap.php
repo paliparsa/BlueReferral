@@ -837,15 +837,16 @@ function set_payment_methods_enabled(array $input): void {
 }
 function order_set_payment_method(int $orderId, int $userId, string $method, array $details=[]): array {
     $method = preg_replace('/[^a-z0-9_]/i','', $method);
-    if (!in_array($method, ['wallet','card','stars','crypto'], true)) throw new RuntimeException('PAYMENT_METHOD_INVALID');
-    if (!payment_enabled($method)) throw new RuntimeException('PAYMENT_METHOD_DISABLED');
+    if ($method !== '' && $method !== 'none' && !in_array($method, ['wallet','card','stars','crypto'], true)) throw new RuntimeException('PAYMENT_METHOD_INVALID');
+    if ($method !== '' && $method !== 'none' && !payment_enabled($method)) throw new RuntimeException('PAYMENT_METHOD_DISABLED');
     $order=order_by_id($orderId);
     if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
     if (!in_array(normalize_order_status($order['status']), ['pending_payment','rejected'], true)) throw new RuntimeException('ORDER_LOCKED');
     $stars=0;
     if ($method==='stars') $stars = max(1, (int)ceil((int)$order['final_amount'] / max(1, setting_int('stars_rate_toman', 3200))));
-    db()->prepare('UPDATE orders SET payment_method=?, payment_details=?, stars_amount=? WHERE id=?')->execute([$method, json_encode($details, JSON_UNESCAPED_UNICODE), $stars, $orderId]);
-    add_order_event($orderId, normalize_order_status($order['status']), 'روش پرداخت انتخاب شد', payment_method_fa($method), true);
+    $cleanMethod = ($method === 'none' ? '' : $method);
+    db()->prepare('UPDATE orders SET payment_method=?, payment_details=?, stars_amount=? WHERE id=?')->execute([$cleanMethod, json_encode($details, JSON_UNESCAPED_UNICODE), $stars, $orderId]);
+    add_order_event($orderId, normalize_order_status($order['status']), 'روش پرداخت تغییر کرد', payment_method_fa($cleanMethod), true);
     return order_by_id($orderId);
 }
 function payment_method_fa(?string $m): string {
