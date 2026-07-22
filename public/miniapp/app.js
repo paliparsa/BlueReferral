@@ -20,6 +20,40 @@ let state = null, adminState = null, currentTab = 'home', currentAdminTab = 'das
 // Product card display mode: 'compact' (grid) or 'detailed' (list)
 let productCardMode = localStorage.getItem('blue_ref_card_mode') || 'compact';
 
+function saveAppLastState(){
+  try {
+    localStorage.setItem('blue_ref_last_user_tab', JSON.stringify({
+      currentTab: currentTab || 'home',
+      currentOrderId: currentOrderId || null,
+      currentProductId: currentProductId || null,
+      walletTab: walletTab || 'overview'
+    }));
+    localStorage.setItem('blue_ref_last_admin_tab', JSON.stringify({
+      currentAdminTab: currentAdminTab || 'dashboard',
+      settingsSubTab: settingsSubTab || 'general',
+      adminOrderViewMode: adminOrderViewMode || 'board'
+    }));
+  } catch(e) {}
+}
+
+function restoreAppLastState(){
+  try {
+    const savedUser = JSON.parse(localStorage.getItem('blue_ref_last_user_tab') || '{}');
+    if (savedUser.currentTab) currentTab = savedUser.currentTab;
+    if (savedUser.currentOrderId) currentOrderId = savedUser.currentOrderId;
+    if (savedUser.currentProductId) currentProductId = savedUser.currentProductId;
+    if (savedUser.walletTab) walletTab = savedUser.walletTab;
+  } catch(e) {}
+
+  try {
+    const savedAdmin = JSON.parse(localStorage.getItem('blue_ref_last_admin_tab') || '{}');
+    if (savedAdmin.currentAdminTab) currentAdminTab = savedAdmin.currentAdminTab;
+    if (savedAdmin.settingsSubTab) settingsSubTab = savedAdmin.settingsSubTab;
+    if (savedAdmin.adminOrderViewMode) adminOrderViewMode = savedAdmin.adminOrderViewMode;
+  } catch(e) {}
+}
+restoreAppLastState();
+
 function setProductCardMode(mode){productCardMode=mode;localStorage.setItem('blue_ref_card_mode',mode);renderShop();}
 let adminUiCards = [], adminUiWallets = [], adminUiRates = [];
 
@@ -480,8 +514,8 @@ function orderDetailHtml(o){
   }
   return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
 }
-function setTab(tab){currentTab=tab;renderUser()}
-function setAdminTab(tab){currentAdminTab=tab;renderAdmin()}
+function setTab(tab){currentTab=tab;saveAppLastState();renderUser()}
+function setAdminTab(tab){currentAdminTab=tab;saveAppLastState();renderAdmin()}
 function render(data){
   hideSkeleton();
   state=data;applyTheme(data);
@@ -511,7 +545,7 @@ function handleDeepLink(){
   }
 }
 function hidePages(){['homePage','shopPage','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.bottom-nav [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===currentTab));const topbar=document.querySelector('#userApp .topbar');if(topbar)topbar.style.display=(currentTab==='product')?'none':'flex'}
-function renderUser(){hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
+function renderUser(){saveAppLastState();hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
 function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);$('homePage').innerHTML=`<section class="hero hero-pro wallet-hero"><div class="hero-glow"></div><div class="row profile-row"><div class="profile-head">${userProfileAvatar(u)}<div><small>داشبورد حساب</small><h2>${esc(u.first_name||u.username||'کاربر BlueReferral')}</h2><p class="muted user-line">${u.username?'@'+esc(u.username):'بدون یوزرنیم'} · ${u.phone_number?'📱 '+esc(u.phone_number):'شماره ثبت نشده'}</p></div></div><div class="avatar floating-avatar">${u.vip?.emoji||'💙'}</div></div><div class="wallet-balance"><span>موجودی قابل خرج</span><b data-count-anim="${u.balance}">${fmt(u.balance)}</b></div><p class="muted">موجودی کیف پولت می‌تواند از مبلغ فاکتور فروشگاه کم شود. سطح همکاری ${u.vip?.emoji||''} ${esc(u.vip?.fa||'')} · سطح مشتری ${c.emoji||''} ${esc(c.fa||'')}</p></section><div class="stats-grid vivid"><div class="mini-stat"><b data-count-anim="${u.referrals_count}">${nf(u.referrals_count)}</b><span>زیرمجموعه</span></div><div class="mini-stat"><b data-count-anim="${u.total_earned}">${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div class="mini-stat"><b data-count-anim="${u.spin_balance}">${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div>${vipProgressHtml()}${achievementsHtml()}<article class="mission-preview"> <div><small>ماموریت امروز</small><h3>پیشرفت دعوت‌ها</h3><p class="muted">امروز ${nf(today)} دعوت ثبت شده است.</p></div><button class="secondary" data-tab-jump="wallet">مشاهده</button></article><div class="quick-grid"><button class="quick-card gradient-card" data-tab-jump="orders"><b>🧾 سفارش‌های من</b><span>پیگیری وضعیت و تحویل‌ها</span></button><button class="quick-card gradient-card" data-tab-jump="wallet"><b>💰 کیف پول</b><span>ماموریت، تراکنش و پرداخت</span></button><button class="quick-card gradient-card" data-tab-jump="shop"><b>🛒 فروشگاه</b><span>محصولات دیجیتال و VPN</span></button><button class="quick-card gradient-card" id="paletteQuick"><b>🎨 تغییر رنگ</b><span>ظاهر Mini App را شخصی کن</span></button></div>`;triggerBalanceAnims()}
 function openPalettePopup(){const colors=['#1d9bf0','#8b5cf6','#22c55e','#ef4444','#f97316','#ec4899','#06b6d4','#f59e0b','#14b8a6','#64748b'];const p=$('palettePopup');if(!p)return;p.innerHTML=`<div class="palette-popup-backdrop" data-close-palette></div><div class="palette-popup-inner"><button class="palette-popup-close" data-close-palette>✕</button><h3>🎨 رنگ دلخواه Mini App</h3><p class="muted">یکی از رنگ‌ها را بزن یا رنگ اختصاصی خودت را انتخاب کن. این رنگ فقط روی همین دستگاه ذخیره می‌شود.</p><div class="palette">${colors.map(c=>`<button class="swatch" data-color="${c}" style="background:${c}"></button>`).join('')}<label class="custom-color"><span>رنگ دلخواه</span><input id="userCustomColor" type="color" value="${esc(localStorage.getItem('blue_ref_color')||state?.theme_color||'#1d9bf0')}"></label><button class="secondary wide" id="applyCustomColor">اعمال رنگ</button><button class="ghost wide" id="resetColor">پیش‌فرض</button></div></div>`;p.classList.add('open');p.querySelectorAll('[data-close-palette]').forEach(el=>el.addEventListener('click',closePalettePopup))}
 function closePalettePopup(){const p=$('palettePopup');if(p){p.classList.remove('open');p.innerHTML=''}}
@@ -714,7 +748,7 @@ function showFatalPanel(message){
 }
 
 async function loadAdmin(){try{adminState=await api('admin_summary');applyTheme(adminState.settings||{});renderAdmin()}catch(e){showFatalPanel(e.message);showStatus(e.message,'error')}}
-function renderAdmin(){const r=adminState.report||{};$('adminStats').innerHTML=`<div class="mini-stat admin-stat-card"><b>${nf(r.today?.c||0)}</b><span>سفارش امروز<br>${fmt(r.today?.s||0)}</span></div><div class="mini-stat admin-stat-card"><b>${nf(r.month?.c||0)}</b><span>سفارش ماه<br>${fmt(r.month?.s||0)}</span></div><div class="mini-stat admin-stat-card"><b>${nf(r.pending||0)}</b><span>نیازمند اقدام</span></div>`;document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===currentAdminTab));const fn={dashboard:renderAdminDashboard,products:renderAdminProducts,categories:renderAdminCategories,variants:renderAdminVariants,inventory:renderAdminInventory,orders:renderAdminOrders,withdrawals:renderAdminWithdrawals,coupons:renderAdminCoupons,activity:renderAdminActivity,roles:renderAdminRoles,settings:renderAdminSettings,backups:renderAdminBackups}[currentAdminTab];const content=$('adminContent');content.classList.remove('admin-content-enter');void content.offsetWidth;content.innerHTML=fn?fn():'';content.classList.add('admin-content-enter');requestAnimationFrame(()=>{content.querySelectorAll('.admin-card, .admin-item, .accordion-card, .no-variant-row').forEach((el,i)=>{el.style.setProperty('--stagger-i',Math.min(i,8));el.classList.add('stagger-in')})});setTimeout(()=>{if(currentAdminTab==='settings')initSettingsUi();attachLongPress()},0)}
+function renderAdmin(){saveAppLastState();const r=adminState.report||{};$('adminStats').innerHTML=`<div class="mini-stat admin-stat-card"><b>${nf(r.today?.c||0)}</b><span>سفارش امروز<br>${fmt(r.today?.s||0)}</span></div><div class="mini-stat admin-stat-card"><b>${nf(r.month?.c||0)}</b><span>سفارش ماه<br>${fmt(r.month?.s||0)}</span></div><div class="mini-stat admin-stat-card"><b>${nf(r.pending||0)}</b><span>نیازمند اقدام</span></div>`;document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===currentAdminTab));const fn={dashboard:renderAdminDashboard,products:renderAdminProducts,categories:renderAdminCategories,variants:renderAdminVariants,inventory:renderAdminInventory,orders:renderAdminOrders,withdrawals:renderAdminWithdrawals,coupons:renderAdminCoupons,activity:renderAdminActivity,roles:renderAdminRoles,settings:renderAdminSettings,backups:renderAdminBackups}[currentAdminTab];const content=$('adminContent');content.classList.remove('admin-content-enter');void content.offsetWidth;content.innerHTML=fn?fn():'';content.classList.add('admin-content-enter');requestAnimationFrame(()=>{content.querySelectorAll('.admin-card, .admin-item, .accordion-card, .no-variant-row').forEach((el,i)=>{el.style.setProperty('--stagger-i',Math.min(i,8));el.classList.add('stagger-in')})});setTimeout(()=>{if(currentAdminTab==='settings')initSettingsUi();attachLongPress()},0)}
 function catOptions(selected=''){return `<option value="">بدون دسته</option>`+(adminState.categories||[]).map(c=>`<option value="${c.id}" ${Number(selected)===Number(c.id)?'selected':''}>${esc(c.emoji||'🛒')} ${esc(c.title)}</option>`).join('')}
 function productOptions(selected=''){return (adminState.products||[]).map(p=>`<option value="${p.id}" ${Number(selected)===Number(p.id)?'selected':''}>#${p.id} ${esc(p.name)}</option>`).join('')}
 function variantOptions(selected='', productId=null){return `<option value="">بدون پلن</option>`+(adminState.variants||[]).filter(v=>!productId||Number(v.product_id)===Number(productId)).map(v=>`<option value="${v.id}" ${Number(selected)===Number(v.id)?'selected':''}>#${v.id} ${esc(v.product_name)} - ${esc(v.title)}</option>`).join('')}
