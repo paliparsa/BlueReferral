@@ -500,14 +500,29 @@ function crypto_collect_market_rows(array $data): array {
     $walk($data);
     return $rows;
 }
+function crypto_asset_aliases(string $asset): array {
+    $asset = strtoupper(trim($asset));
+    if ($asset === 'TON' || $asset === 'TONCOIN' || $asset === 'GRAM') {
+        return ['TON', 'GRAM', 'TONCOIN'];
+    }
+    if ($asset === 'USDT' || $asset === 'TETHER') {
+        return ['USDT', 'TETHER'];
+    }
+    if ($asset === 'TRX' || $asset === 'TRON') {
+        return ['TRX', 'TRON'];
+    }
+    return [$asset];
+}
 function crypto_price_from_rows(array $rows, string $base, array $quotes=['TMN','IRT','IRR','RLS','USDT']): ?array {
-    $base = strtoupper($base);
+    $bases = crypto_asset_aliases($base);
     foreach ($quotes as $quote) {
-        foreach ($rows as $r) {
-            if (($r['base'] ?? '') === $base && ($r['quote'] ?? '') === $quote) {
-                $price = (float)$r['price'];
-                if (in_array($quote, ['RLS','IRR'], true)) $price /= 10;
-                return ['price'=>$price, 'quote'=>$quote, 'symbol'=>$r['symbol'] ?? ($base.$quote)];
+        foreach ($bases as $b) {
+            foreach ($rows as $r) {
+                if (($r['base'] ?? '') === $b && ($r['quote'] ?? '') === $quote) {
+                    $price = (float)$r['price'];
+                    if (in_array($quote, ['RLS','IRR'], true)) $price /= 10;
+                    return ['price'=>$price, 'quote'=>$quote, 'symbol'=>$r['symbol'] ?? ($b.$quote)];
+                }
             }
         }
     }
@@ -527,8 +542,16 @@ function crypto_asset_rate_from_rows(array $rows, string $asset): float {
 function wallex_rate_toman_live(string $asset): float {
     static $rows = null;
     if ($rows === null) {
-        $j = http_json_get('https://api.wallex.ir/v1/markets');
-        $rows = crypto_collect_market_rows($j);
+        try {
+            $j = http_json_get('https://api.wallex.ir/v1/markets');
+            $rows = crypto_collect_market_rows($j);
+        } catch (Throwable $e) {}
+        if (!$rows) {
+            try {
+                $j = http_json_get('https://api.wallex.ir/v1/currencies/stats');
+                $rows = crypto_collect_market_rows($j);
+            } catch (Throwable $e) {}
+        }
         if (!$rows) throw new RuntimeException('WALLEX_NO_MARKETS');
     }
     try { return crypto_asset_rate_from_rows($rows, $asset); }
@@ -583,7 +606,7 @@ function crypto_rate_provider_order(): array {
     $source = strtolower(trim((string)setting('crypto_rate_source','auto')));
     $all = ['wallex','ramzinex','nobitex'];
     if ($source === 'manual') return [];
-    if (in_array($source, $all, true)) return [$source];
+    if (in_array($source, $all, true)) return array_values(array_unique(array_merge([$source], array_values(array_diff($all, [$source])))));
     $priority = strtolower((string)setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'));
     $out=[];
     foreach (preg_split('/[,\s]+/', $priority) as $p) if(in_array($p,$all,true)) $out[]=$p;
