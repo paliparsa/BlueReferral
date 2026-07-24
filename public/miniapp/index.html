@@ -20,7 +20,10 @@
         <small id="helloText">سلام 👋</small>
         <h1 id="brandTitle">BlueReferral</h1>
       </div>
-      <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ Mini App">🎨</button>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <button class="icon-btn auth-top-btn" id="openAuthModalBtn" title="ورود / ثبت نام">ورود / ثبت‌نام</button>
+        <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ Mini App">🎨</button>
+      </div>
     </header>
 
     <section id="homePage" class="page"></section>
@@ -97,6 +100,60 @@
         <button id="editSubmit" value="ok" class="primary">ذخیره</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="authModal" class="dialog-card auth-modal bottom-sheet">
+    <div class="auth-modal-content">
+      <div class="auth-header">
+        <h3 id="authTitle">ورود / ثبت‌نام</h3>
+        <button type="button" class="close-btn" id="closeAuthModal" aria-label="بستن">✕</button>
+      </div>
+
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth-tab="login">ورود</button>
+        <button type="button" class="auth-tab" data-auth-tab="register">ثبت‌نام</button>
+        <button type="button" class="auth-tab" data-auth-tab="telegram">تلگرام ⚡</button>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <div class="field">
+          <label for="loginUsername">نام کاربری</label>
+          <input type="text" id="loginUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">رمز عبور</label>
+          <input type="password" id="loginPassword" placeholder="******" required autocomplete="current-password" />
+        </div>
+        <div id="loginError" class="auth-error hidden"></div>
+        <button type="submit" class="primary block-btn">ورود به حساب</button>
+      </form>
+
+      <form id="registerForm" class="auth-form hidden">
+        <div class="field">
+          <label for="regUsername">نام کاربری (انگلیسی)</label>
+          <input type="text" id="regUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="regFirstName">نام شما</label>
+          <input type="text" id="regFirstName" placeholder="مثلاً: علی" />
+        </div>
+        <div class="field">
+          <label for="regPassword">رمز عبور (حداقل ۶ کاراکتر)</label>
+          <input type="password" id="regPassword" placeholder="******" required autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="regRefCode">کد معرف (اختیاری)</label>
+          <input type="text" id="regRefCode" placeholder="کد معرف" />
+        </div>
+        <div id="regError" class="auth-error hidden"></div>
+        <button type="submit" class="primary block-btn">ایجاد حساب کاربری</button>
+      </form>
+
+      <div id="telegramTab" class="auth-form hidden text-center">
+        <p class="muted" style="margin-bottom: 12px; font-size: 13px;">ورود سریع بدون نیاز به رمز عبور با اکانت تلگرام:</p>
+        <div id="tgWidgetContainer"></div>
+      </div>
+    </div>
   </dialog>
 
   <div id="ptrIndicator" class="ptr-indicator">

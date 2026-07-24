@@ -147,7 +147,18 @@ function showStatus(text,type='success'){
   clearTimeout(_statusTimer);
   _statusTimer=setTimeout(()=>el.classList.add('hidden'),3500);
 }
-async function api(action,payload={}){const res=await fetch('/api.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,initData,...payload})});const data=await res.json().catch(()=>({}));if(!res.ok||data.ok===false)throw new Error(data.message||data.error||'خطا در ارتباط');return data}
+async function api(action,payload={}){
+  const authToken = localStorage.getItem('web_token') || '';
+  const res=await fetch('/api.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,initData,authToken,...payload})});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||data.ok===false){
+    if(data.error === 'AUTH_REQUIRED'){
+      openAuthModal();
+    }
+    throw new Error(data.message||data.error||'خطا در ارتباط');
+  }
+  return data
+}
 /* ===== Batch 1 utilities: haptic, chime, confetti, pull-to-refresh, charts, lightbox, stepper ===== */
 function haptic(t='light'){try{tg?.HapticFeedback?.impactOccurred?.(t)}catch(e){}}
 function hapticNotify(t='success'){try{tg?.HapticFeedback?.notificationOccurred?.(t)}catch(e){}}
@@ -546,7 +557,18 @@ function handleDeepLink(){
 }
 function hidePages(){['homePage','shopPage','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.bottom-nav [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===currentTab));const topbar=document.querySelector('#userApp .topbar');if(topbar)topbar.style.display=(currentTab==='product')?'none':'flex'}
 function renderUser(){saveAppLastState();hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
-function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);$('homePage').innerHTML=`<section class="hero hero-pro wallet-hero"><div class="hero-glow"></div><div class="row profile-row"><div class="profile-head">${userProfileAvatar(u)}<div><small>داشبورد حساب</small><h2>${esc(u.first_name||u.username||'کاربر BlueReferral')}</h2><p class="muted user-line">${u.username?'@'+esc(u.username):'بدون یوزرنیم'} · ${u.phone_number?'📱 '+esc(u.phone_number):'شماره ثبت نشده'}</p></div></div><div class="avatar floating-avatar">${u.vip?.emoji||'💙'}</div></div><div class="wallet-balance"><span>موجودی قابل خرج</span><b data-count-anim="${u.balance}">${fmt(u.balance)}</b></div><p class="muted">موجودی کیف پولت می‌تواند از مبلغ فاکتور فروشگاه کم شود. سطح همکاری ${u.vip?.emoji||''} ${esc(u.vip?.fa||'')} · سطح مشتری ${c.emoji||''} ${esc(c.fa||'')}</p></section><div class="stats-grid vivid"><div class="mini-stat"><b data-count-anim="${u.referrals_count}">${nf(u.referrals_count)}</b><span>زیرمجموعه</span></div><div class="mini-stat"><b data-count-anim="${u.total_earned}">${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div class="mini-stat"><b data-count-anim="${u.spin_balance}">${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div>${vipProgressHtml()}${achievementsHtml()}<article class="mission-preview"> <div><small>ماموریت امروز</small><h3>پیشرفت دعوت‌ها</h3><p class="muted">امروز ${nf(today)} دعوت ثبت شده است.</p></div><button class="secondary" data-tab-jump="wallet">مشاهده</button></article><div class="quick-grid"><button class="quick-card gradient-card" data-tab-jump="orders"><b>🧾 سفارش‌های من</b><span>پیگیری وضعیت و تحویل‌ها</span></button><button class="quick-card gradient-card" data-tab-jump="wallet"><b>💰 کیف پول</b><span>ماموریت، تراکنش و پرداخت</span></button><button class="quick-card gradient-card" data-tab-jump="shop"><b>🛒 فروشگاه</b><span>محصولات دیجیتال و VPN</span></button><button class="quick-card gradient-card" id="paletteQuick"><b>🎨 تغییر رنگ</b><span>ظاهر Mini App را شخصی کن</span></button></div>`;triggerBalanceAnims()}
+function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);
+const isGuest = state?.is_guest || u?.is_guest;
+const guestBanner = isGuest ? `
+  <div class="guest-banner">
+    <div class="guest-banner-text">
+      <strong>👋 حالت میهمان</strong>
+      <span>برای ثبت سفارش، گردونه شانس و پیگیری خریدها وارد شوید.</span>
+    </div>
+    <button class="primary" onclick="openAuthModal()" style="font-size:12px; padding:8px 14px; border-radius:14px; white-space:nowrap;">ورود / ثبت‌نام</button>
+  </div>
+` : '';
+$('homePage').innerHTML=`${guestBanner}<section class="hero hero-pro wallet-hero"><div class="hero-glow"></div><div class="row profile-row"><div class="profile-head">${userProfileAvatar(u)}<div><small>داشبورد حساب</small><h2>${esc(u.first_name||u.username||'کاربر BlueReferral')}</h2><p class="muted user-line">${u.username?'@'+esc(u.username):'بدون یوزرنیم'} · ${u.phone_number?'📱 '+esc(u.phone_number):'شماره ثبت نشده'}</p></div></div><div class="avatar floating-avatar">${u.vip?.emoji||'💙'}</div></div><div class="wallet-balance"><span>موجودی قابل خرج</span><b data-count-anim="${u.balance}">${fmt(u.balance)}</b></div><p class="muted">موجودی کیف پولت می‌تواند از مبلغ فاکتور فروشگاه کم شود. سطح همکاری ${u.vip?.emoji||''} ${esc(u.vip?.fa||'')} · سطح مشتری ${c.emoji||''} ${esc(c.fa||'')}</p></section><div class="stats-grid vivid"><div class="mini-stat"><b data-count-anim="${u.referrals_count}">${nf(u.referrals_count)}</b><span>زیرمجموعه</span></div><div class="mini-stat"><b data-count-anim="${u.total_earned}">${fmt(u.total_earned)}</b><span>کل درآمد</span></div><div class="mini-stat"><b data-count-anim="${u.spin_balance}">${nf(u.spin_balance)}</b><span>شانس گردونه</span></div></div>${vipProgressHtml()}${achievementsHtml()}<article class="mission-preview"> <div><small>ماموریت امروز</small><h3>پیشرفت دعوت‌ها</h3><p class="muted">امروز ${nf(today)} دعوت ثبت شده است.</p></div><button class="secondary" data-tab-jump="wallet">مشاهده</button></article><div class="quick-grid"><button class="quick-card gradient-card" data-tab-jump="orders"><b>🧾 سفارش‌های من</b><span>پیگیری وضعیت و تحویل‌ها</span></button><button class="quick-card gradient-card" data-tab-jump="wallet"><b>💰 کیف پول</b><span>ماموریت، تراکنش و پرداخت</span></button><button class="quick-card gradient-card" data-tab-jump="shop"><b>🛒 فروشگاه</b><span>محصولات دیجیتال و VPN</span></button><button class="quick-card gradient-card" id="paletteQuick"><b>🎨 تغییر رنگ</b><span>ظاهر Mini App را شخصی کن</span></button></div>`;triggerBalanceAnims()}
 function openPalettePopup(){const colors=['#1d9bf0','#8b5cf6','#22c55e','#ef4444','#f97316','#ec4899','#06b6d4','#f59e0b','#14b8a6','#64748b'];const p=$('palettePopup');if(!p)return;p.innerHTML=`<div class="palette-popup-backdrop" data-close-palette></div><div class="palette-popup-inner"><button class="palette-popup-close" data-close-palette>✕</button><h3>🎨 رنگ دلخواه Mini App</h3><p class="muted">یکی از رنگ‌ها را بزن یا رنگ اختصاصی خودت را انتخاب کن. این رنگ فقط روی همین دستگاه ذخیره می‌شود.</p><div class="palette">${colors.map(c=>`<button class="swatch" data-color="${c}" style="background:${c}"></button>`).join('')}<label class="custom-color"><span>رنگ دلخواه</span><input id="userCustomColor" type="color" value="${esc(localStorage.getItem('blue_ref_color')||state?.theme_color||'#1d9bf0')}"></label><button class="secondary wide" id="applyCustomColor">اعمال رنگ</button><button class="ghost wide" id="resetColor">پیش‌فرض</button></div></div>`;p.classList.add('open');p.querySelectorAll('[data-close-palette]').forEach(el=>el.addEventListener('click',closePalettePopup))}
 function closePalettePopup(){const p=$('palettePopup');if(p){p.classList.remove('open');p.innerHTML=''}}
 function missionCard(m){const today=Number(state.user?.today_referrals||0);const target=Math.max(1,Number(m.target||1));const pct=Math.max(0,Math.min(100,Math.round(today/target*100)));const done=m.claimed?'claimed':(m.done?'done':'todo');return `<article class="mission-card ${done}"><div class="mission-top"><div><small>${nf(Math.min(today,target))} از ${nf(target)}</small><h3>${nf(target)} دعوت امروز</h3><p class="muted">پاداش: <b>${fmt(m.reward)}</b></p></div><div class="mission-icon">${m.claimed?'✅':(m.done?'🎁':'✌️')}</div></div><div class="progress-track"><span style="width:${pct}%"></span></div><div class="mission-foot"><span>${pct}% تکمیل شده</span><b>${m.claimed?'دریافت شد':(m.done?'آماده دریافت':'در حال انجام')}</b></div></article>`}
@@ -1757,24 +1779,155 @@ document.addEventListener('click',e=>{
   if(t) haptic('light');
 },{passive:true,capture:false});
 
+function updateAuthUI(st) {
+  const btn = $('openAuthModalBtn');
+  if (!btn) return;
+  const isGuest = st?.is_guest || st?.user?.is_guest;
+  if (isGuest) {
+    btn.innerHTML = '🔑 ورود / ثبت‌نام';
+    btn.onclick = () => openAuthModal();
+  } else {
+    const name = st?.user?.first_name || st?.user?.username || 'حساب من';
+    btn.innerHTML = `👤 ${esc(name)} (خروج)`;
+    btn.onclick = async () => {
+      if (confirm('آیا می‌خواهید از حساب کاربری خارج شوید؟')) {
+        try { await api('logout'); } catch(e) {}
+        localStorage.removeItem('web_token');
+        location.reload();
+      }
+    };
+  }
+}
+
+function openAuthModal(tab = 'login') {
+  const modal = $('authModal');
+  if (!modal) return;
+  switchAuthTab(tab);
+  if (typeof modal.showModal === 'function') {
+    try { modal.showModal(); } catch (e) { modal.classList.add('open'); }
+  } else {
+    modal.classList.add('open');
+  }
+}
+
+function closeAuthModal() {
+  const modal = $('authModal');
+  if (!modal) return;
+  if (typeof modal.close === 'function') {
+    try { modal.close(); } catch (e) { modal.classList.remove('open'); }
+  } else {
+    modal.classList.remove('open');
+  }
+}
+
+function switchAuthTab(tabName) {
+  document.querySelectorAll('.auth-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.authTab === tabName);
+  });
+  $('loginForm')?.classList.toggle('hidden', tabName !== 'login');
+  $('registerForm')?.classList.toggle('hidden', tabName !== 'register');
+  $('telegramTab')?.classList.toggle('hidden', tabName !== 'telegram');
+  
+  if (tabName === 'telegram') {
+    renderTelegramWidget();
+  }
+}
+
+function renderTelegramWidget() {
+  const container = $('tgWidgetContainer');
+  if (!container || container.dataset.loaded === 'true') return;
+  container.dataset.loaded = 'true';
+  container.innerHTML = '';
+  
+  const botUsername = state?.bot_username || 'BlueGateBot';
+  const script = document.createElement('script');
+  script.src = 'https://telegram.org/js/telegram-widget.js?22';
+  script.setAttribute('data-telegram-login', botUsername);
+  script.setAttribute('data-size', 'large');
+  script.setAttribute('data-radius', '12');
+  script.setAttribute('data-onauth', 'onTelegramWidgetAuth(user)');
+  script.setAttribute('data-request-access', 'write');
+  script.async = true;
+  container.appendChild(script);
+}
+
+window.onTelegramWidgetAuth = async function(user) {
+  try {
+    const res = await api('telegram_login', { auth_data: user });
+    if (res.auth_token) {
+      localStorage.setItem('web_token', res.auth_token);
+      showStatus('ورود با تلگرام موفقیت‌آمیز بود! 🎉');
+      closeAuthModal();
+      location.reload();
+    }
+  } catch (err) {
+    showStatus(err.message || 'خطا در ورود با تلگرام', 'error');
+  }
+};
+
+let _authHandlersInited = false;
+function initAuthHandlers() {
+  if (_authHandlersInited) return;
+  _authHandlersInited = true;
+  $('openAuthModalBtn')?.addEventListener('click', () => openAuthModal());
+  $('closeAuthModal')?.addEventListener('click', () => closeAuthModal());
+
+  document.querySelectorAll('.auth-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
+  });
+
+  $('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = $('loginUsername').value;
+    const password = $('loginPassword').value;
+    const errEl = $('loginError');
+    if (errEl) errEl.classList.add('hidden');
+
+    try {
+      const res = await api('login', { username, password });
+      if (res.auth_token) {
+        localStorage.setItem('web_token', res.auth_token);
+        showStatus('ورود موفقیت‌آمیز بود!');
+        closeAuthModal();
+        location.reload();
+      }
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message || 'خطا در ورود';
+        errEl.classList.remove('hidden');
+      }
+    }
+  });
+
+  $('registerForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = $('regUsername').value;
+    const first_name = $('regFirstName').value;
+    const password = $('regPassword').value;
+    const ref_code = $('regRefCode').value;
+    const errEl = $('regError');
+    if (errEl) errEl.classList.add('hidden');
+
+    try {
+      const res = await api('register', { username, first_name, password, ref_code });
+      if (res.auth_token) {
+        localStorage.setItem('web_token', res.auth_token);
+        showStatus('حساب کاربری با موفقیت ساخته شد 🎉');
+        closeAuthModal();
+        location.reload();
+      }
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message || 'خطا در ثبت‌نام';
+        errEl.classList.remove('hidden');
+      }
+    }
+  });
+}
+
 async function load(){
   showSkeleton();
-  if(!initData){
-    // Try to auto-inject dev shim for local testing if available
-    try{
-      if(!location.search.includes('dev=1')){
-        const s=document.createElement('script');s.src='dev.init.js';s.async=false;document.head.appendChild(s);
-        // wait briefly for dev.init to run
-        await new Promise(r=>setTimeout(r,120));
-      }
-    }catch(e){}
-    if(!tg?.initData && !tg?.initDataUnsafe){
-      hideSkeleton();
-      showFatalPanel('Mini App باید داخل تلگرام باز شود.');
-      showStatus('Mini App باید داخل تلگرام باز شود.','error');
-      return;
-    }
-  }
+  initAuthHandlers();
   try{
     if(isAdminMode){
       adminState=await api('admin_summary');
@@ -1784,6 +1937,7 @@ async function load(){
       loadAdmin();
     } else {
       state=await api('me');
+      updateAuthUI(state);
       render(state);
     }
   }catch(e){
