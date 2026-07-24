@@ -73,6 +73,10 @@ function migrate(): void {
     add_column_if_missing('users', 'phone_number', 'VARCHAR(64) NULL AFTER theme_color');
     add_column_if_missing('users', 'phone_verified_at', 'DATETIME NULL AFTER phone_number');
     add_column_if_missing('users', 'start_notified', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER phone_verified_at');
+    add_column_if_missing('users', 'password_hash', 'VARCHAR(255) NULL AFTER start_notified');
+    add_column_if_missing('users', 'auth_token', 'VARCHAR(128) NULL AFTER password_hash');
+    add_column_if_missing('users', 'web_username', 'VARCHAR(128) NULL AFTER auth_token');
+    try { db()->exec('ALTER TABLE users MODIFY COLUMN telegram_id BIGINT NULL'); } catch (Throwable $e) {}
     try { db()->exec('ALTER TABLE transactions MODIFY COLUMN type VARCHAR(64) NOT NULL'); } catch (Throwable $e) {}
     try { db()->exec("UPDATE users u SET ref_rewarded=1 WHERE referrer_id IS NOT NULL AND EXISTS (SELECT 1 FROM transactions t WHERE t.type='ref_start' AND t.related_user_id=u.id)"); } catch (Throwable $e) {}
     try { db()->exec('INSERT IGNORE INTO referrals (referrer_id, referred_id, reward_amount, created_at) SELECT referrer_id, id, 0, created_at FROM users WHERE referrer_id IS NOT NULL'); } catch (Throwable $e) {}
@@ -1271,6 +1275,70 @@ function get_user_by_ref($code) {
     $q->execute([$code]);
     return $q->fetch();
 }
+function generate_auth_token(): string {
+    return bin2hex(random_bytes(32));
+}
+function get_user_by_token(?string $token): array|false {
+    if (empty($token) || strlen($token) < 16) return false;
+    $q = db()->prepare('SELECT * FROM users WHERE auth_token=? AND auth_token IS NOT NULL AND auth_token != ""');
+    $q->execute([$token]);
+    return $q->fetch() ?: false;
+}
+function get_user_by_web_username(string $username): array|false {
+    $username = strtolower(trim($username));
+    if ($username === '') return false;
+    $q = db()->prepare('SELECT * FROM users WHERE LOWER(web_username)=? OR (username IS NOT NULL AND LOWER(username)=?)');
+    $q->execute([$username, $username]);
+    return $q->fetch() ?: false;
+}
+function issue_user_auth_token(int $userId): string {
+    $token = generate_auth_token();
+    db()->prepare('UPDATE users SET auth_token=? WHERE id=?')->execute([$token, $userId]);
+    return $token;
+}
+function verify_telegram_login_widget(array $authData): array|false {
+    $token = app_config('BOT_TOKEN');
+    if (empty($authData['hash']) || empty($authData['id']) || empty($authData['auth_date'])) return false;
+    if (time() - (int)$authData['auth_date'] > 86400) return false;
+    $hash = $authData['hash'];
+    unset($authData['hash']);
+    ksort($authData);
+    $dataCheckArr = [];
+    foreach ($authData as $key => $val) {
+        $dataCheckArr[] = $key . '=' . $val;
+    }
+    $dataCheckString = implode("\n", $dataCheckArr);
+    $secretKey = hash('sha256', $token, true);
+    $calculatedHash = hash_hmac('sha256', $dataCheckString, $secretKey);
+    if (!hash_equals($calculatedHash, $hash)) return false;
+    return $authData;
+}
+function create_web_user(string $username, string $password, ?string $firstName = null, ?string $refCode = null): array {
+    $cleanUsername = strtolower(trim($username));
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $token = generate_auth_token();
+    $firstName = trim($firstName ?: $cleanUsername);
+    
+    $referrerId = null;
+    if ($refCode) {
+        $referrer = get_user_by_ref($refCode);
+        if ($referrer) $referrerId = (int)$referrer['id'];
+    }
+    
+    $newRefCode = random_ref();
+    $stmt = db()->prepare('INSERT INTO users (telegram_id, web_username, username, password_hash, auth_token, first_name, ref_code, referrer_id) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$cleanUsername, $cleanUsername, $hash, $token, $firstName, $newRefCode, $referrerId]);
+    $userId = (int)db()->lastInsertId();
+    
+    $syntheticTid = 9000000000 + $userId;
+    db()->prepare('UPDATE users SET telegram_id=? WHERE id=?')->execute([$syntheticTid, $userId]);
+    
+    $user = get_user_by_id($userId);
+    if ($referrerId) {
+        try_reward_referrer($user);
+    }
+    return $user;
+}
 function create_or_update_user(array $from, ?string $ref = null) {
     $tid = (int)$from['id'];
     $user = get_user_by_tid($tid);
@@ -1370,6 +1438,7 @@ function weighted_spin_reward(): array {
     return $rewards[0];
 }
 function is_joined_channel(int $telegram_id): bool {
+    if ($telegram_id <= 0 || $telegram_id > 8000000000) return true;
     $channel = app_config('FORCE_JOIN_CHANNEL', '');
     if (empty($channel)) return true;
     $res = tg('getChatMember', ['chat_id'=>$channel, 'user_id'=>$telegram_id]);
