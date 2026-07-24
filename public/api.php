@@ -17,14 +17,83 @@ register_shutdown_function(function(){
     }
 });
 function request_json(): array { $raw = file_get_contents('php://input'); $data = json_decode($raw ?: '{}', true); return is_array($data) ? $data : []; }
+function get_authenticated_user(string $initData, ?string $authToken = null): array|false {
+    if (!empty($initData)) {
+        $validated = verify_webapp_init_data($initData);
+        if ($validated && !empty($validated['user'])) {
+            $tgUser = json_decode($validated['user'], true);
+            if ($tgUser && !empty($tgUser['id'])) {
+                $user = create_or_update_user($tgUser, null);
+                if (is_joined_channel((int)$tgUser['id'])) try_reward_referrer($user);
+                $fullUser = get_user_by_tid((int)$tgUser['id']);
+                if ($fullUser) {
+                    if (empty($fullUser['auth_token'])) {
+                        $token = issue_user_auth_token((int)$fullUser['id']);
+                        $fullUser['auth_token'] = $token;
+                    }
+                    return $fullUser;
+                }
+            }
+        }
+    }
+    if (!empty($authToken)) {
+        $user = get_user_by_token($authToken);
+        if ($user) return $user;
+    }
+    return false;
+}
 function webapp_auth_user(string $initData): array {
-    $validated = verify_webapp_init_data($initData);
-    if (!$validated || empty($validated['user'])) api_out(['ok'=>false, 'error'=>'INVALID_TELEGRAM_WEBAPP_DATA', 'message'=>'Mini App باید داخل تلگرام باز شود.'], 401);
-    $tgUser = json_decode($validated['user'], true);
-    if (!$tgUser || empty($tgUser['id'])) api_out(['ok'=>false, 'error'=>'INVALID_TELEGRAM_USER'], 401);
-    $user = create_or_update_user($tgUser, null);
-    if (is_joined_channel((int)$tgUser['id'])) try_reward_referrer($user);
-    return get_user_by_tid((int)$tgUser['id']);
+    $u = get_authenticated_user($initData, null);
+    if (!$u) api_out(['ok'=>false, 'error'=>'INVALID_TELEGRAM_WEBAPP_DATA', 'message'=>'Mini App باید داخل تلگرام باز شود.'], 401);
+    return $u;
+}
+function guest_dashboard_payload(): array {
+    $products = array_map(fn($p)=>product_payload($p, true), shop_products(null, true));
+    return [
+        'ok' => true,
+        'is_guest' => true,
+        'bot_username' => app_config('BOT_USERNAME',''),
+        'brand' => setting('brand_name', app_config('BRAND_NAME', 'BlueGate')),
+        'theme_color' => setting('theme_color', app_config('DEFAULT_THEME_COLOR', '#1d9bf0')),
+        'button_colors_enabled' => setting_bool('button_colors_enabled', true),
+        'button_colors' => button_colors(),
+        'require_contact_auth' => false,
+        'notify_new_user' => false,
+        'start_reward' => setting_int('start_reward', 2000),
+        'min_withdraw' => setting_int('min_withdraw', 50000),
+        'spin_every' => setting_int('spin_referrals_per_chance', 5),
+        'spin_rewards' => spin_rewards_public(),
+        'support_username' => app_config('SUPPORT_USERNAME', 'BlueGateSupport'),
+        'custom_code_min' => setting_int('custom_code_min_referrals', 3),
+        'is_admin' => false,
+        'user' => [
+            'telegram_id' => 0,
+            'username' => 'guest',
+            'first_name' => 'کاربر میهمان',
+            'last_name' => null,
+            'phone_number' => null,
+            'ref_code' => '',
+            'referral_link' => '',
+            'balance' => 0,
+            'total_earned' => 0,
+            'total_withdrawn' => 0,
+            'referrals_count' => 0,
+            'today_referrals' => 0,
+            'spin_balance' => 0,
+            'is_guest' => true,
+            'vip' => vip_info(0)
+        ],
+        'missions' => [],
+        'leaderboard' => array_map(function($r){ return ['name'=>strip_tags(display_name($r)), 'referrals'=>(int)$r['referrals_count'], 'earned'=>(int)$r['total_earned']]; }, top_users(10)),
+        'transactions' => [],
+        'withdrawals' => [],
+        'shop_categories' => array_map('category_payload', shop_categories(true)),
+        'shop_products' => $products,
+        'orders' => [],
+        'payment_methods' => payment_methods_public(null),
+        'payment_instructions' => setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'),
+        'achievements' => []
+    ];
 }
 function product_payload(array $p, bool $activeVariants=true): array {
     $variants = array_map(function($v){ $pm=price_meta_public($v); return ['id'=>(int)$v['id'], 'product_id'=>(int)$v['product_id'], 'title'=>$v['title'], 'price'=>(int)$pm['toman'], 'price_label'=>$pm['label'], 'price_currency'=>$pm['currency'], 'price_usd'=>$pm['usd'], 'price_meta'=>$pm, 'duration_days'=>(int)$v['duration_days'], 'discount_percent'=>(int)($v['discount_percent'] ?? 0), 'sort_order'=>(int)($v['sort_order'] ?? 0), 'is_active'=>(int)($v['is_active'] ?? 1)]; }, product_variants((int)$p['id'], $activeVariants));
@@ -110,9 +179,81 @@ function admin_payload(): array {
 }
 function bool_input($v): int { return in_array(strtolower((string)$v), ['1','true','yes','on'], true) ? 1 : 0; }
 
-$input = request_json(); $action = $input['action'] ?? ($_GET['action'] ?? 'me'); $initData = $input['initData'] ?? ($_GET['initData'] ?? ''); $user = webapp_auth_user((string)$initData);
+$input = request_json();
+$action = $input['action'] ?? ($_GET['action'] ?? 'me');
+$initData = $input['initData'] ?? ($_GET['initData'] ?? '');
+$authToken = $input['authToken'] ?? ($_GET['authToken'] ?? ($_SERVER['HTTP_X_WEB_TOKEN'] ?? ''));
 
-if ($action === 'me') api_out(dashboard_payload($user));
+if ($action === 'register') {
+    $username = trim((string)($input['username'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $firstName = trim((string)($input['first_name'] ?? ''));
+    $refCode = trim((string)($input['ref_code'] ?? ''));
+
+    if (mb_strlen($username) < 3 || mb_strlen($username) > 30 || !preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
+        api_out(['ok'=>false, 'error'=>'INVALID_USERNAME', 'message'=>'نام کاربری باید ۳ تا ۳۰ کاراکتر انگلیسی باشد.'], 400);
+    }
+    if (mb_strlen($password) < 6) {
+        api_out(['ok'=>false, 'error'=>'INVALID_PASSWORD', 'message'=>'رمز عبور باید حداقل ۶ کاراکتر باشد.'], 400);
+    }
+    if (get_user_by_web_username($username)) {
+        api_out(['ok'=>false, 'error'=>'USERNAME_TAKEN', 'message'=>'این نام کاربری قبلاً ثبت شده است.'], 400);
+    }
+    $user = create_web_user($username, $password, $firstName, $refCode);
+    api_out(dashboard_payload($user) + ['auth_token' => $user['auth_token']]);
+}
+
+if ($action === 'login') {
+    $username = trim((string)($input['username'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+
+    $user = get_user_by_web_username($username);
+    if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
+        api_out(['ok'=>false, 'error'=>'INVALID_CREDENTIALS', 'message'=>'نام کاربری یا رمز عبور اشتباه است.'], 400);
+    }
+    $token = issue_user_auth_token((int)$user['id']);
+    $user['auth_token'] = $token;
+    api_out(dashboard_payload($user) + ['auth_token' => $token]);
+}
+
+if ($action === 'telegram_login') {
+    $authData = is_array($input['auth_data'] ?? null) ? $input['auth_data'] : [];
+    $verified = verify_telegram_login_widget($authData);
+    if (!$verified) {
+        api_out(['ok'=>false, 'error'=>'INVALID_TELEGRAM_WIDGET_DATA', 'message'=>'تایید هویت تلگرام ناموفق بود.'], 400);
+    }
+    $user = create_or_update_user([
+        'id' => (int)$verified['id'],
+        'username' => $verified['username'] ?? null,
+        'first_name' => $verified['first_name'] ?? null,
+        'last_name' => $verified['last_name'] ?? null,
+    ], null);
+    $token = issue_user_auth_token((int)$user['id']);
+    $user['auth_token'] = $token;
+    api_out(dashboard_payload($user) + ['auth_token' => $token]);
+}
+
+$user = get_authenticated_user((string)$initData, (string)$authToken);
+
+if ($action === 'me') {
+    if (!$user) {
+        api_out(guest_dashboard_payload());
+    } else {
+        $token = $user['auth_token'] ?? issue_user_auth_token((int)$user['id']);
+        api_out(dashboard_payload($user) + ['auth_token' => $token]);
+    }
+}
+
+if (!$user) {
+    api_out(['ok'=>false, 'error'=>'AUTH_REQUIRED', 'message'=>'برای انجام این عملیات باید وارد حساب کاربری خود شوید.'], 401);
+}
+
+if ($action === 'logout') {
+    if (!empty($user['id'])) {
+        db()->prepare('UPDATE users SET auth_token=NULL WHERE id=?')->execute([(int)$user['id']]);
+    }
+    api_out(['ok'=>true]);
+}
 if ($action === 'claim_missions') { [$count, $claimed] = claim_available_missions($user); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['claimed'=>$claimed, 'today_count'=>$count]); }
 if ($action === 'spin') { $user=get_user_by_tid((int)$user['telegram_id']); if ((int)$user['spin_balance']<=0) api_out(['ok'=>false,'error'=>'NO_SPIN_BALANCE','message'=>'فعلاً شانس گردونه نداری.'],400); $rewards=spin_rewards_public(); $reward=weighted_spin_reward(); $title=$reward['title']??'جایزه گردونه'; $amount=(int)($reward['amount']??0); $idx=0; foreach($rewards as $i=>$r){ if(($r['title']??'')===$title && (int)($r['amount']??0)===$amount){ $idx=$i; break; } } db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]); db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'],$title,$amount]); if($amount>0)add_balance($user['id'],$amount,'spin_reward',$title,null); if(!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>{$user['telegram_id']}</code>\nجایزه: <b>".h($title)."</b>"); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['prize'=>['title'=>$title,'amount'=>$amount,'index'=>$idx]]); }
 if ($action === 'withdraw') { $user=get_user_by_tid((int)$user['telegram_id']); $card=trim((string)($input['card_info']??'')); if(mb_strlen($card)<8) api_out(['ok'=>false,'error'=>'INVALID_CARD_INFO','message'=>'اطلاعات کارت/شبا کامل نیست.'],400); $min=setting_int('min_withdraw',50000); if((int)$user['balance']<$min) api_out(['ok'=>false,'error'=>'LOW_BALANCE','message'=>'موجودی به حداقل برداشت نمی‌رسد.'],400); $pending=db()->prepare('SELECT COUNT(*) c FROM withdrawals WHERE user_id=? AND status="pending"'); $pending->execute([$user['id']]); if((int)$pending->fetch()['c']>0) api_out(['ok'=>false,'error'=>'PENDING_WITHDRAWAL','message'=>'یک برداشت در انتظار دارید.'],400); $amount=(int)$user['balance']; db()->prepare('INSERT INTO withdrawals (user_id, amount, card_info) VALUES (?,?,?)')->execute([$user['id'],$amount,$card]); db()->prepare('UPDATE users SET balance=0 WHERE id=?')->execute([$user['id']]); notify_admins("🏧 برداشت جدید از Mini App\nکاربر: <code>{$user['telegram_id']}</code>\nمبلغ: <b>".money($amount)."</b>\nاطلاعات:\n".h($card)); api_out(dashboard_payload(get_user_by_tid((int)$user['telegram_id'])) + ['withdraw_amount'=>$amount]); }
