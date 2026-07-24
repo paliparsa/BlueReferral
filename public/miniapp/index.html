@@ -16,12 +16,20 @@
 
   <main id="userApp" class="app-shell" role="main">
     <header class="topbar glass">
-      <div>
+      <div class="brand-box">
         <small id="helloText">سلام 👋</small>
         <h1 id="brandTitle">BlueReferral</h1>
       </div>
-      <div style="display: flex; gap: 6px; align-items: center;">
-        <button class="icon-btn auth-top-btn" id="openAuthModalBtn" title="ورود / ثبت نام">ورود / ثبت‌نام</button>
+
+      <nav class="topbar-desktop-nav">
+        <button data-tab="home" class="active"><span>👤</span> پروفایل</button>
+        <button data-tab="shop"><span>🛒</span> فروشگاه</button>
+        <button data-tab="orders"><span>🧾</span> سفارش‌ها</button>
+        <button data-tab="wallet"><span>💰</span> کیف پول</button>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="auth-top-btn" id="openAuthModalBtn" title="ورود / ثبت نام">🔑 ورود / ثبت‌نام</button>
         <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ Mini App">🎨</button>
       </div>
     </header>

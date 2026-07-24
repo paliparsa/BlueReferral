@@ -2074,3 +2074,137 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ===== Responsive Desktop Web Optimization ===== */
+.topbar-desktop-nav {
+  display: none;
+  gap: 8px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.topbar-desktop-nav button {
+  padding: 8px 16px;
+  border-radius: 16px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s var(--ease-ios);
+}
+.topbar-desktop-nav button.active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, #ffffff15), #ffffff10);
+  color: #fff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.auth-top-btn {
+  width: auto !important;
+  height: auto !important;
+  min-height: 38px !important;
+  padding: 8px 18px !important;
+  border-radius: 20px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+/* Centered Dialogs & Auth Modal for Desktop screens */
+@media (min-width: 640px) {
+  dialog.bottom-sheet,
+  .dialog-card,
+  .auth-modal,
+  #authModal {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    width: 480px !important;
+    max-width: 92vw !important;
+    height: auto !important;
+    max-height: 88vh !important;
+    border-radius: 28px !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.85) !important;
+  }
+}
+
+/* Full Desktop Responsive Layout */
+@media (min-width: 768px) {
+  .app-shell {
+    max-width: 1280px !important;
+    padding: 24px 28px !important;
+  }
+
+  .topbar {
+    padding: 14px 24px !important;
+    border-radius: 28px !important;
+    margin-bottom: 24px !important;
+  }
+
+  .topbar-desktop-nav {
+    display: flex !important;
+  }
+
+  .bottom-nav {
+    display: none !important;
+  }
+
+  body {
+    padding-bottom: 40px !important;
+  }
+
+  /* Expand Product Grids on Desktop */
+  .h-scroll,
+  .product-grid-wrap,
+  #shopSections {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+    gap: 20px !important;
+    overflow: visible !important;
+  }
+
+  .product-tile {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 26px !important;
+  }
+
+  .tile-img {
+    height: 150px !important;
+  }
+
+  .quick-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .wallet-dashboard {
+    grid-template-columns: 1.4fr 1fr !important;
+  }
+
+  .missions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  }
+}
