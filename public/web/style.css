@@ -435,8 +435,13 @@ body {
   border-radius: var(--radius-lg) !important;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.85) !important;
   padding: 0 !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
   color: var(--text);
+}
+.modal-dialog[open], .modal-dialog.open {
+  display: block !important;
+  z-index: 99999 !important;
+  visibility: visible !important;
 }
 .modal-dialog::backdrop {
   background: rgba(0, 0, 0, 0.7);

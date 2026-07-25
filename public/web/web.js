@@ -36,6 +36,26 @@
     return data;
   }
 
+  function showModal(id) {
+    const m = typeof id === 'string' ? $(id) : id;
+    if (!m) return;
+    try {
+      if (typeof m.showModal === 'function') m.showModal();
+      else { m.setAttribute('open', ''); m.classList.add('open'); }
+    } catch (e) {
+      m.setAttribute('open', '');
+      m.classList.add('open');
+    }
+  }
+
+  function hideModal(id) {
+    const m = typeof id === 'string' ? $(id) : id;
+    if (!m) return;
+    try { m.close?.(); } catch (e) {}
+    m.removeAttribute('open');
+    m.classList.remove('open');
+  }
+
   // Number Formatter
   function nf(n) {
     return Number(n || 0).toLocaleString('fa-IR');
@@ -161,9 +181,7 @@
     }
 
     $('checkoutError').classList.add('hidden');
-    const modal = $('checkoutModal');
-    if (typeof modal.showModal === 'function') modal.showModal();
-    else modal.classList.add('open');
+    showModal('checkoutModal');
   }
 
   let activePayOrder = null;
@@ -244,9 +262,7 @@
     $('receiptError').classList.add('hidden');
     $('cryptoError').classList.add('hidden');
 
-    const modal = $('paymentModal');
-    if (typeof modal.showModal === 'function') modal.showModal();
-    else modal.classList.add('open');
+    showModal('paymentModal');
   }
 
   // Confirm Purchase Action
@@ -269,14 +285,13 @@
       });
 
       if (res.ok) {
-        $('checkoutModal').close?.();
+        hideModal('checkoutModal');
 
         if (useWallet) {
           showToast('سفارش با موفقیت از کیف پول پرداخت شد 🎉');
           openTracker(res.order?.id);
           loadData();
         } else {
-          // Select payment method & Open Payment Details Modal
           if (payMethod === 'card' && res.order?.id) {
             await api('select_payment_method', { order_id: res.order.id, method: 'card', details: {} });
           } else if (payMethod === 'crypto' && res.order?.id) {
@@ -308,6 +323,7 @@
     $('otpEmailTarget').textContent = email || '';
     $('otpError').classList.add('hidden');
     $('otpForm').classList.remove('hidden');
+    showModal('authModal');
     showToast(message || 'کد تایید ۶ رقمی به ایمیل شما ارسال شد 📩');
   }
 
@@ -315,15 +331,14 @@
   function openTracker(orderId = '') {
     if (orderId) $('trackOrderId').value = orderId;
     $('trackResult').classList.add('hidden');
-    const modal = $('trackerModal');
-    if (typeof modal.showModal === 'function') modal.showModal();
+    showModal('trackerModal');
   }
 
   function openAccountModal(initialTab = 'subs') {
     const u = state?.user;
     if (!u || u.is_guest) {
       switchAuthTab('login');
-      $('authModal').showModal?.();
+      showModal('authModal');
       return;
     }
 
@@ -397,9 +412,7 @@
     $('refLinkInput').value = refLink;
 
     switchAccTab(initialTab);
-    const modal = $('accountModal');
-    if (typeof modal.showModal === 'function') modal.showModal();
-    else modal.classList.add('open');
+    showModal('accountModal');
   }
 
   function switchAccTab(tab) {
@@ -433,18 +446,18 @@
         openAccountModal('subs');
       } else {
         switchAuthTab('login');
-        $('authModal').showModal?.();
+        showModal('authModal');
       }
     }
-    if (t.id === 'closeAuthModal') $('authModal').close?.();
+    if (t.id === 'closeAuthModal') hideModal('authModal');
     if (t.dataset?.tab && t.classList.contains('auth-tab')) switchAuthTab(t.dataset.tab);
 
     // Account Modal Sub-tabs & actions
-    if (t.id === 'closeAccountModal') $('accountModal').close?.();
+    if (t.id === 'closeAccountModal') hideModal('accountModal');
     if (t.dataset?.accTab) switchAccTab(t.dataset.accTab);
     if (t.id === 'accDepositBtn') {
-      $('accountModal').close?.();
-      $('depositModal').showModal?.();
+      hideModal('accountModal');
+      showModal('depositModal');
     }
     if (t.id === 'copyRefLinkBtn') {
       const link = $('refLinkInput').value;
@@ -458,11 +471,11 @@
     }
 
     // Checkout Modal
-    if (t.id === 'closeCheckoutModal') $('checkoutModal').close?.();
+    if (t.id === 'closeCheckoutModal') hideModal('checkoutModal');
     if (t.id === 'confirmBuyBtn') confirmPurchase();
 
     // Payment Modal
-    if (t.id === 'closePaymentModal') $('paymentModal').close?.();
+    if (t.id === 'closePaymentModal') hideModal('paymentModal');
     if (t.dataset?.payTab) {
       document.querySelectorAll('.pay-tab').forEach(b => b.classList.toggle('active', b === t));
       $('cardPaySection').classList.toggle('hidden', t.dataset.payTab !== 'card');
@@ -475,7 +488,7 @@
 
     // Order Tracking Modal
     if (t.id === 'trackOrderBtn' || t.id === 'footerTrackBtn') openTracker();
-    if (t.id === 'closeTrackerModal') $('trackerModal').close?.();
+    if (t.id === 'closeTrackerModal') hideModal('trackerModal');
     if (t.id === 'searchOrderBtn') {
       const oid = $('trackOrderId').value;
       if (!oid) return showToast('شناسه سفارش را وارد کنید', 'error');
@@ -512,7 +525,7 @@
   });
 
   // Deposit Modal Handlers
-  $('closeDepositModal')?.addEventListener('click', () => $('depositModal').close?.());
+  $('closeDepositModal')?.addEventListener('click', () => hideModal('depositModal'));
   $('confirmDepositBtn')?.addEventListener('click', async () => {
     const amount = Number($('depositAmount').value);
     const payMethod = document.querySelector('input[name="depositPayMethod"]:checked')?.value || 'card';
@@ -527,7 +540,7 @@
 
     try {
       const res = await api('deposit', { amount, method: payMethod });
-      $('depositModal').close?.();
+      hideModal('depositModal');
       if (res.order) openPaymentModal(res.order);
       else showToast('درخواست شارژ حساب ثبت شد');
     } catch (err) {
@@ -547,7 +560,7 @@
     try {
       await api('submit_receipt', { order_id: activePayOrder.id, note });
       showToast('رسید پرداخت با موفقیت ثبت شد 🎉');
-      $('paymentModal').close?.();
+      hideModal('paymentModal');
       openTracker(activePayOrder.id);
       loadData();
     } catch (err) {
@@ -567,7 +580,7 @@
     try {
       await api('submit_crypto_hash', { order_id: activePayOrder.id, tx_hash: txHash });
       showToast('کد هش تراکنش با موفقیت ثبت شد 🎉');
-      $('paymentModal').close?.();
+      hideModal('paymentModal');
       openTracker(activePayOrder.id);
       loadData();
     } catch (err) {
