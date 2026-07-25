@@ -1172,4 +1172,148 @@ body {
   transform: translateY(-1px);
 }
 
+/* ── Auto Responsive Device Detection & Mobile Navigation ── */
+
+/* Mobile Bottom Navigation Bar */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: rgba(13, 21, 39, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 9999;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 8px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+}
+.mobile-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  gap: 3px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+.mobile-nav-btn.active {
+  color: var(--cyan);
+  font-weight: 800;
+}
+.mobile-nav-btn.active .mnav-icon {
+  transform: scale(1.15);
+}
+.mnav-icon {
+  font-size: 20px;
+  transition: transform 0.2s ease;
+  position: relative;
+}
+.mobile-cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -10px;
+  background: var(--cyan);
+  color: #000;
+  font-size: 10px;
+  font-weight: 900;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile Layout Overrides (Viewport <= 768px or .is-mobile-view) */
+@media (max-width: 768px), body.is-mobile-view {
+  .web-header .header-nav {
+    display: none !important;
+  }
+  .web-app-shell {
+    padding-bottom: 84px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  .web-hero-banner {
+    padding: 20px 16px !important;
+    border-radius: 18px !important;
+  }
+  .hero-title {
+    font-size: 22px !important;
+  }
+  .hero-subtitle {
+    font-size: 13px !important;
+  }
+  .hero-trust-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .trust-chip {
+    flex: 1 1 45% !important;
+    font-size: 11px !important;
+    padding: 8px 10px !important;
+  }
+  .shop-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .category-sidebar {
+    position: static !important;
+    width: 100% !important;
+  }
+  .sidebar-cat-list {
+    display: flex !important;
+    overflow-x: auto !important;
+    padding-bottom: 8px !important;
+    gap: 8px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar-cat-btn {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  .product-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+  .product-card {
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+  .product-title {
+    font-size: 13px !important;
+  }
+  .modal-card {
+    max-width: 100% !important;
+    width: 96% !important;
+    margin: 10px auto !important;
+    padding: 20px !important;
+    border-radius: 20px !important;
+  }
+  .bank-number-display {
+    font-size: 16px !important;
+    letter-spacing: 1px !important;
+  }
+}
+
+/* Desktop View Overrides (Viewport > 768px or .is-desktop-view) */
+@media (min-width: 769px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
 

@@ -110,8 +110,78 @@
     bindGlobalEvents();
   }
 
+  /* ── Auto Responsive Device Detection ── */
+  function detectDevice() {
+    const w = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const isMobile = w <= 768 || (isTouch && w <= 900) || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    return { w, isMobile, isDesktop: !isMobile };
+  }
+
+  function applyResponsiveLayout() {
+    const d = detectDevice();
+    document.body.classList.toggle('is-mobile-view', d.isMobile);
+    document.body.classList.toggle('is-desktop-view', d.isDesktop);
+    renderMobileBottomNav(d.isMobile);
+  }
+
+  function renderMobileBottomNav(isMobile) {
+    let container = $('mobile-bottom-nav');
+    if (!isMobile) {
+      if (container) container.style.display = 'none';
+      return;
+    }
+
+    if (!container) {
+      container = document.createElement('nav');
+      container.id = 'mobile-bottom-nav';
+      container.className = 'mobile-bottom-nav';
+      document.body.appendChild(container);
+    }
+
+    container.style.display = 'flex';
+    const totalCart = state.cart.reduce((sum, item) => sum + (item.qty || 1), 0);
+
+    container.innerHTML = `
+      <button class="mobile-nav-btn ${state.currentTab === 'shop' ? 'active' : ''}" data-tab="shop">
+        <span class="mnav-icon">🛍️</span>
+        <span class="mnav-label">فروشگاه</span>
+      </button>
+      <button class="mobile-nav-btn ${state.currentTab === 'orders' ? 'active' : ''}" data-tab="orders">
+        <span class="mnav-icon">📜</span>
+        <span class="mnav-label">سفارش‌ها</span>
+      </button>
+      <button class="mobile-nav-btn ${state.currentTab === 'wallet' ? 'active' : ''}" data-tab="wallet">
+        <span class="mnav-icon">💰</span>
+        <span class="mnav-label">کیف پول</span>
+      </button>
+      <button class="mobile-nav-btn" id="mobile-cart-trigger">
+        <span class="mnav-icon">🛒 ${totalCart > 0 ? `<b class="mobile-cart-badge">${totalCart}</b>` : ''}</span>
+        <span class="mnav-label">سبد خرید</span>
+      </button>
+      <button class="mobile-nav-btn ${state.currentTab === 'profile' ? 'active' : ''}" id="mobile-user-trigger">
+        <span class="mnav-icon">👤</span>
+        <span class="mnav-label">${state.user && !state.user.is_guest ? 'حساب' : 'ورود'}</span>
+      </button>
+    `;
+
+    $('mobile-cart-trigger')?.addEventListener('click', () => openCartDrawer(true));
+    $('mobile-user-trigger')?.addEventListener('click', () => {
+      if (state.user && !state.user.is_guest) {
+        state.currentTab = 'profile';
+        renderApp();
+      } else {
+        openAuthModal();
+      }
+    });
+  }
+
+  window.addEventListener('resize', applyResponsiveLayout, { passive: true });
+  window.addEventListener('orientationchange', () => setTimeout(applyResponsiveLayout, 150), { passive: true });
+
   /* ── Main App Renderer ── */
   function renderApp() {
+    applyResponsiveLayout();
     updateHeaderNav();
     updateCartCount();
 
