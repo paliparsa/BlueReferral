@@ -2038,6 +2038,14 @@ async function load(){
     }
   }catch(e){
     hideSkeleton();
+    if (e.error === 'AUTH_REQUIRED') {
+      try {
+        state = await api('me');
+        render(state);
+      } catch(err){}
+      if (typeof openAuthModal === 'function') openAuthModal();
+      return;
+    }
     const app=$('userApp');
     if(app) app.innerHTML=`<div class="error-state"><p>⚠️ ${esc(e.message||'خطا در بارگذاری')}</p><button class="primary" onclick="location.reload()">تلاش مجدد</button></div>`;
     app?.classList.remove('hidden');
