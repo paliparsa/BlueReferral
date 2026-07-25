@@ -84,6 +84,10 @@
     if (res && res.ok) {
       state.categories = res.shop_categories || [];
       state.products = res.shop_products || [];
+      state.bot_username = res.bot_username || '';
+      state.payment_methods = res.payment_methods || null;
+      state.support_username = res.support_username || '';
+      state.brand = res.brand || '';
       if (res.user) {
         state.user = res.user;
         state.is_admin = !!res.is_admin;
@@ -1172,7 +1176,7 @@
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
 
-    const botName = state.bot_username || 'BlueGateBot';
+    const botName = String(state.bot_username || 'BlueGateBot').replace(/^@/, '').trim();
 
     modalContainer.innerHTML = `
       <div class="modal-card">
