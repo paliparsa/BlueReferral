@@ -2398,13 +2398,9 @@
       fd.append('confirm', 'RESTORE');
       fd.append('backup', file);
 
-      if (state.user && state.user.token) {
-        fd.append('token', state.user.token);
-      }
-
       showToast('در حال آپلود و ریستور...', 'info');
       try {
-        const res = await fetch('/backup_upload.php', { method: 'POST', body: fd, headers: { 'Authorization': state.user?.token ? 'Bearer ' + state.user.token : '' }});
+        const res = await fetch('/backup_upload.php', { method: 'POST', body: fd });
         const data = await res.json();
         if (data && data.ok) {
           showToast('دیتابیس با موفقیت ریستور شد! ریلود در 2 ثانیه...', 'success');
