@@ -76,6 +76,7 @@ function migrate(): void {
     add_column_if_missing('users', 'password_hash', 'VARCHAR(255) NULL AFTER start_notified');
     add_column_if_missing('users', 'auth_token', 'VARCHAR(128) NULL AFTER password_hash');
     add_column_if_missing('users', 'web_username', 'VARCHAR(128) NULL AFTER auth_token');
+    add_column_if_missing('users', 'email', 'VARCHAR(255) NULL AFTER web_username');
     try { db()->exec('ALTER TABLE users MODIFY COLUMN telegram_id BIGINT NULL'); } catch (Throwable $e) {}
     try { db()->exec('ALTER TABLE transactions MODIFY COLUMN type VARCHAR(64) NOT NULL'); } catch (Throwable $e) {}
     try { db()->exec("UPDATE users u SET ref_rewarded=1 WHERE referrer_id IS NOT NULL AND EXISTS (SELECT 1 FROM transactions t WHERE t.type='ref_start' AND t.related_user_id=u.id)"); } catch (Throwable $e) {}
@@ -1291,6 +1292,20 @@ function get_user_by_web_username(string $username): array|false {
     $q->execute([$username, $username]);
     return $q->fetch() ?: false;
 }
+function get_user_by_email(string $email): array|false {
+    $clean = strtolower(trim($email));
+    if ($clean === '') return false;
+    $q = db()->prepare('SELECT * FROM users WHERE LOWER(email)=?');
+    $q->execute([$clean]);
+    return $q->fetch() ?: false;
+}
+function get_user_by_email_or_username(string $identifier): array|false {
+    $clean = strtolower(trim($identifier));
+    if ($clean === '') return false;
+    $q = db()->prepare('SELECT * FROM users WHERE (email IS NOT NULL AND LOWER(email)=?) OR (web_username IS NOT NULL AND LOWER(web_username)=?) OR (username IS NOT NULL AND LOWER(username)=?)');
+    $q->execute([$clean, $clean, $clean]);
+    return $q->fetch() ?: false;
+}
 function issue_user_auth_token(int $userId): string {
     $token = generate_auth_token();
     db()->prepare('UPDATE users SET auth_token=? WHERE id=?')->execute([$token, $userId]);
@@ -1313,8 +1328,9 @@ function verify_telegram_login_widget(array $authData): array|false {
     if (!hash_equals($calculatedHash, $hash)) return false;
     return $authData;
 }
-function create_web_user(string $username, string $password, ?string $firstName = null, ?string $refCode = null): array {
+function create_web_user(string $username, string $password, ?string $firstName = null, ?string $refCode = null, ?string $email = null): array {
     $cleanUsername = strtolower(trim($username));
+    $cleanEmail = !empty($email) ? strtolower(trim($email)) : null;
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $token = generate_auth_token();
     $firstName = trim($firstName ?: $cleanUsername);
@@ -1326,8 +1342,8 @@ function create_web_user(string $username, string $password, ?string $firstName 
     }
     
     $newRefCode = random_ref();
-    $stmt = db()->prepare('INSERT INTO users (telegram_id, web_username, username, password_hash, auth_token, first_name, ref_code, referrer_id) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$cleanUsername, $cleanUsername, $hash, $token, $firstName, $newRefCode, $referrerId]);
+    $stmt = db()->prepare('INSERT INTO users (telegram_id, web_username, username, email, password_hash, auth_token, first_name, ref_code, referrer_id) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$cleanUsername, $cleanUsername, $cleanEmail, $hash, $token, $firstName, $newRefCode, $referrerId]);
     $userId = (int)db()->lastInsertId();
     
     $syntheticTid = 9000000000 + $userId;
