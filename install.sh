@@ -321,7 +321,9 @@ step_nginx() {
   local php_sock
   php_sock="$(find_php_sock)"
   [[ -n "$php_sock" ]] || { fail "Could not find php-fpm socket in /run/php"; return 1; }
-  cat > "/etc/nginx/sites-available/${APP_NAME}" <<NGINX
+  
+  local nginx_conf="/etc/nginx/sites-available/${APP_NAME}"
+  cat > "$nginx_conf" <<NGINX
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -344,7 +346,36 @@ server {
     }
 }
 NGINX
-  ln -sf "/etc/nginx/sites-available/${APP_NAME}" "/etc/nginx/sites-enabled/${APP_NAME}" || return 1
+
+  if [[ -n "${WEB_DOMAIN:-}" && "${WEB_DOMAIN}" != "${DOMAIN}" ]]; then
+    cat >> "$nginx_conf" <<NGINX
+
+server {
+    listen 80;
+    server_name ${WEB_DOMAIN};
+    root ${APP_DIR}/public/web;
+    index index.html index.php;
+
+    client_max_body_size 20M;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location ~ \.php$ {
+        root ${APP_DIR}/public;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:${php_sock};
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}
+NGINX
+  fi
+
+  ln -sf "$nginx_conf" "/etc/nginx/sites-enabled/${APP_NAME}" || return 1
   nginx -t || return 1
   timeout 60 systemctl reload nginx || return 1
 }
@@ -356,7 +387,9 @@ step_ssl() {
     return 0
   fi
   [[ -n "$DOMAIN" ]] || { fail "DOMAIN is empty"; return 1; }
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@${DOMAIN}" --redirect
+  local cert_domains="-d $DOMAIN"
+  [[ -n "${WEB_DOMAIN:-}" && "${WEB_DOMAIN}" != "${DOMAIN}" ]] && cert_domains="$cert_domains -d $WEB_DOMAIN"
+  certbot --nginx $cert_domains --non-interactive --agree-tos -m "admin@${DOMAIN}" --redirect
 }
 
 step_migrate() {
