@@ -1843,23 +1843,33 @@ body.modal-open .bottom-nav {
 
 /* ── Live Search Popover ── */
 .header-search-box {
-  position: relative;
+  position: relative !important;
+  overflow: visible !important;
+}
+.web-header, .header-container {
+  overflow: visible !important;
 }
 .live-search-popover {
   position: absolute;
-  top: calc(100% + 8px);
-  right: 0; left: 0;
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid var(--border-cyan);
+  top: calc(100% + 10px);
+  right: 0;
+  left: 0;
+  width: 100%;
+  min-width: 340px;
+  background: #0f172a !important;
+  border: 1px solid rgba(29, 155, 240, 0.6);
   border-radius: 16px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(29, 155, 240, 0.2);
-  z-index: 9999;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(29, 155, 240, 0.25);
+  z-index: 999999;
   overflow: hidden;
-  backdrop-filter: blur(16px);
   display: none;
 }
+.search-match-item {
+  background: #0f172a;
+  transition: background 0.15s ease;
+}
 .search-match-item:hover {
-  background: rgba(29, 155, 240, 0.15) !important;
+  background: rgba(29, 155, 240, 0.2) !important;
 }
 
 

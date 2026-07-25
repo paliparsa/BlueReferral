@@ -3671,15 +3671,17 @@
     }
 
     popover.innerHTML = matches.map(p => `
-      <div class="search-match-item" data-pid="${p.id}" style="padding:10px 14px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;">
-        <div style="width:36px; height:36px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-          ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:100%; height:100%; object-fit:cover;">` : `⚡`}
+      <div class="search-match-item" data-pid="${p.id}" style="padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid rgba(255,255,255,0.06); cursor:pointer;">
+        <div style="display:flex; align-items:center; gap:12px; flex:1; overflow:hidden;">
+          <div style="width:40px; height:40px; border-radius:10px; overflow:hidden; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid rgba(255,255,255,0.1);">
+            ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='⚡';">` : `⚡`}
+          </div>
+          <div style="flex:1; overflow:hidden; text-align:right;">
+            <b style="font-size:13.5px; color:#fff; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px;">${esc(p.title || p.name)}</b>
+            <span style="font-size:11.5px; color:var(--cyan); font-weight:800;">${priceLabel(p.price)}</span>
+          </div>
         </div>
-        <div style="flex:1; overflow:hidden;">
-          <b style="font-size:13px; color:#fff; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(p.title || p.name)}</b>
-          <small style="font-size:11px; color:var(--cyan); font-weight:800;">${priceLabel(p.price)}</small>
-        </div>
-        <span style="font-size:12px; opacity:0.6;">➔</span>
+        <span style="font-size:14px; color:var(--cyan); opacity:0.8; font-weight:bold;">←</span>
       </div>
     `).join('');
 
