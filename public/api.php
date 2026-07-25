@@ -3,6 +3,12 @@ require_once __DIR__ . '/../app/bootstrap.php';
 // Auto-migrate: ensure schema is current on every API request (idempotent, fast).
 if (!setting('schema_migrated_v3')) { migrate(); set_setting('schema_migrated_v3', '1'); }
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Web-Token');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
 
 function api_out(array $data, int $code = 200): void { http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
 set_exception_handler(function(Throwable $e){
