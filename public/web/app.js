@@ -722,12 +722,6 @@
         </div>
       `;
     }
-              <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">⚡ ثبت TXID جهت استعلام آنی</button>
-            </form>
-          `}
-        </div>
-      `;
-    }
 
     html += `</div>`;
     return html;
