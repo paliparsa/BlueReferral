@@ -1742,7 +1742,102 @@
     });
   }
 
-  /* ── Admin View Renderer (Native Web Admin Dashboard) ── */
+  /* ── Admin Dashboard & Management System (Phase 5 Admin Parity) ── */
+  let adminActiveTab = 'dashboard';
+  let adminOrderSearch = '';
+  let adminOrderStatusFilter = 'all';
+  let selectedAdminOrderIds = new Set();
+
+  /* ── Admin SVG Charts Helpers ── */
+  function sparklineHtml(days = []) {
+    if (!days || !days.length) return '';
+    const vals = days.map(d => Number(d.revenue || 0));
+    const max = Math.max(1, ...vals);
+    const min = Math.min(...vals);
+    const range = Math.max(1, max - min);
+    const w = 300, h = 60;
+    const pts = vals.map((v, i) => {
+      const x = (i / Math.max(1, vals.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 12) - 6;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    return `
+      <div class="admin-chart-card" style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <small style="color:var(--text-muted); font-weight:800; font-size:12px;">📈 روند فروش ۷ روز اخیر</small>
+          <b style="color:#22c55e; font-size:13px;">${priceLabel(vals.reduce((a, b) => a + b, 0))} کل</b>
+        </div>
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:60px; overflow:visible;">
+          <defs>
+            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="#00f2fe" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon points="0,${h} ${pts} ${w},${h}" fill="url(#sparkGrad)"/>
+          <polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    `;
+  }
+
+  function barChartHtml(topProducts = []) {
+    if (!topProducts || !topProducts.length) return '';
+    const max = Math.max(1, ...topProducts.map(p => Number(p.total_amount || p.revenue || 0)));
+
+    return `
+      <div class="admin-chart-card" style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:18px;">
+        <small style="color:var(--text-muted); font-weight:800; font-size:12px; display:block; margin-bottom:12px;">📊 پرفروش‌ترین محصولات</small>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${topProducts.slice(0, 5).map(p => {
+            const rev = Number(p.total_amount || p.revenue || 0);
+            const pct = Math.min(100, Math.round((rev / max) * 100));
+            return `
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                  <span style="color:#fff; font-weight:700;">${esc(p.name || p.title || 'محصول')}</span>
+                  <b style="color:var(--cyan);">${priceLabel(rev)}</b>
+                </div>
+                <div style="width:100%; height:6px; background:rgba(255,255,255,0.05); border-radius:10px; overflow:hidden;">
+                  <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #00f2fe, #4facfe); border-radius:10px;"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function pieChartHtml(payMethods = {}) {
+    const entries = Object.entries(payMethods || {}).map(([k, v]) => ({ name: k, count: Number(typeof v === 'object' ? v.count : v) }));
+    if (!entries.length) return '';
+    const total = entries.reduce((s, e) => s + e.count, 0) || 1;
+    const colors = ['#00f2fe', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6'];
+
+    return `
+      <div class="admin-chart-card" style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:18px;">
+        <small style="color:var(--text-muted); font-weight:800; font-size:12px; display:block; margin-bottom:12px;">💳 روش‌های پرداخت</small>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${entries.map((e, idx) => {
+            const pct = Math.round((e.count / total) * 100);
+            const color = colors[idx % colors.length];
+            return `
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="width:10px; height:10px; border-radius:50%; background:${color}; display:inline-block;"></span>
+                  <span style="color:#fff;">${esc(e.name)}</span>
+                </div>
+                <b style="color:${color};">${nf(e.count)} (${pct}٪)</b>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   async function renderAdminView(container) {
     if (!state.user || state.user.is_guest) {
       openAuthModal();
@@ -1767,18 +1862,113 @@
     const orders = res.orders || [];
     const products = res.products || [];
     const categories = res.categories || [];
+    const inventory = res.inventory || [];
+    const coupons = res.coupons || [];
+    const activityLog = res.activity_log || [];
+    const adminRoles = res.admin_roles || [];
 
+    const lowStockProds = products.filter(p => Number(p.inventory_available || 0) < 3);
+
+    container.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+        <h2 style="font-size:24px; font-weight:900; color:#f59e0b; margin:0;">👑 پنل مدیریت BlueGate</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="user-account-btn" id="btn-admin-broadcast" style="background:#8b5cf6; font-size:12px; padding:8px 14px;">📢 پیام همگانی</button>
+          <button class="user-account-btn" id="btn-admin-reward" style="background:#22c55e; color:#000; font-size:12px; padding:8px 14px;">🎁 اهدا پاداش/اعتبار</button>
+          <button class="user-account-btn" id="btn-refresh-rates" style="background:rgba(255,255,255,0.08); font-size:12px; padding:8px 14px;">⚡ رفرش نرخ ارز</button>
+          <button class="user-account-btn" id="btn-refresh-admin" style="font-size:12px; padding:8px 14px;">🔄 رفرش</button>
+        </div>
+      </div>
+
+      ${lowStockProds.length > 0 ? `
+        <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.4); border-radius:18px; padding:14px 18px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; gap:12px; color:#fde68a;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:24px;">⚠️</span>
+            <div>
+              <b style="font-size:14px; display:block;">هشدار کسر موجودی انبار (${nf(lowStockProds.length)} محصول)</b>
+              <small style="opacity:0.8; font-size:12px;">برخی محصولات به کمتر از ۳ عدد موجودی رسیده‌اند.</small>
+            </div>
+          </div>
+          <button class="user-account-btn" id="btn-alert-add-inventory" style="background:#f59e0b; color:#000; font-size:11px; padding:6px 12px;">📦 شارژ انبار</button>
+        </div>
+      ` : ''}
+
+      <!-- Admin Sub Tabs Header -->
+      <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:20px; border-bottom:1px solid var(--border-color); scrollbar-width:none;">
+        <button class="nav-link ${adminActiveTab === 'dashboard' ? 'active' : ''}" data-admin-subtab="dashboard">📊 داشبورد &amp; نمودارها</button>
+        <button class="nav-link ${adminActiveTab === 'orders' ? 'active' : ''}" data-admin-subtab="orders">📜 سفارش‌ها (${orders.length})</button>
+        <button class="nav-link ${adminActiveTab === 'products' ? 'active' : ''}" data-admin-subtab="products">🛒 محصولات (${products.length})</button>
+        <button class="nav-link ${adminActiveTab === 'inventory' ? 'active' : ''}" data-admin-subtab="inventory">📦 انبار (${inventory.length})</button>
+        <button class="nav-link ${adminActiveTab === 'coupons' ? 'active' : ''}" data-admin-subtab="coupons">🎟 کدهای تخفیف (${coupons.length})</button>
+        <button class="nav-link ${adminActiveTab === 'activity' ? 'active' : ''}" data-admin-subtab="activity">📜 لاگ فعالیت (${activityLog.length})</button>
+        <button class="nav-link ${adminActiveTab === 'roles' ? 'active' : ''}" data-admin-subtab="roles">👥 نقش‌های ادمین</button>
+      </div>
+
+      <!-- Sub Content Area -->
+      <div id="admin-sub-content"></div>
+    `;
+
+    function renderActiveTab() {
+      const subContent = $('admin-sub-content');
+      if (!subContent) return;
+
+      document.querySelectorAll('[data-admin-subtab]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.adminSubtab === adminActiveTab);
+      });
+
+      if (adminActiveTab === 'dashboard') {
+        subContent.innerHTML = renderAdminDashboardTab(report, products, categories);
+      } else if (adminActiveTab === 'orders') {
+        subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
+        bindAdminOrdersTabEvents(orders);
+      } else if (adminActiveTab === 'products') {
+        subContent.innerHTML = renderAdminProductsTabMarkup(products, categories);
+        bindAdminProductsTabEvents(products);
+      } else if (adminActiveTab === 'inventory') {
+        subContent.innerHTML = renderAdminInventoryTabMarkup(inventory, products);
+        bindAdminInventoryTabEvents(inventory);
+      } else if (adminActiveTab === 'coupons') {
+        subContent.innerHTML = renderAdminCouponsTabMarkup(coupons);
+        bindAdminCouponsTabEvents(coupons);
+      } else if (adminActiveTab === 'activity') {
+        subContent.innerHTML = renderAdminActivityTabMarkup(activityLog);
+      } else if (adminActiveTab === 'roles') {
+        subContent.innerHTML = renderAdminRolesTabMarkup(adminRoles);
+      }
+    }
+
+    renderActiveTab();
+
+    document.querySelectorAll('[data-admin-subtab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        adminActiveTab = btn.dataset.adminSubtab;
+        renderActiveTab();
+      });
+    });
+
+    $('btn-refresh-admin')?.addEventListener('click', () => renderAdminView(container));
+    $('btn-admin-broadcast')?.addEventListener('click', openBroadcastModal);
+    $('btn-admin-reward')?.addEventListener('click', openPurchaseRewardModal);
+    $('btn-alert-add-inventory')?.addEventListener('click', () => openAddInventoryModal(products));
+    $('btn-refresh-rates')?.addEventListener('click', async () => {
+      showToast('در حال دریافت آخرین نرخ‌های کریپتو...', 'info');
+      const rateRes = await api('admin_refresh_crypto_rates');
+      if (rateRes && rateRes.ok) {
+        showToast('نرخ‌ها رفرش شدند! ⚡', 'success');
+        renderAdminView(container);
+      } else {
+        showToast(rateRes ? rateRes.message : 'خطا در رفرش نرخ‌ها.', 'error');
+      }
+    });
+  }
+
+  function renderAdminDashboardTab(report, products, categories) {
     const todayRev = report.today?.revenue || 0;
     const todayOrdersCount = report.today?.c || 0;
 
-    container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-        <h2 style="font-size:24px; font-weight:900; color:#f59e0b;">👑 پنل مدیریت BlueGate</h2>
-        <button class="user-account-btn" id="btn-refresh-admin">🔄 رفرش اطلاعات</button>
-      </div>
-
-      <!-- Stats Cards Row -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:28px;">
+    return `
+      <!-- Stats Summary Grid -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
         <div style="background:var(--card-dark); border:1px solid rgba(245,158,11,0.3); border-radius:20px; padding:20px;">
           <small style="color:var(--text-muted); font-size:12px;">فروش امروز</small>
           <h3 style="font-size:22px; font-weight:900; color:#f59e0b; margin-top:4px;">${priceLabel(todayRev)}</h3>
@@ -1788,102 +1978,127 @@
           <h3 style="font-size:22px; font-weight:900; color:#fff; margin-top:4px;">${nf(todayOrdersCount)} سفارش</h3>
         </div>
         <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px;">
-          <small style="color:var(--text-muted); font-size:12px;">کل محصولات active</small>
-          <h3 style="font-size:22px; font-weight:900; color:var(--cyan); margin-top:4px;">${nf(products.length)} محصول</h3>
+          <small style="color:var(--text-muted); font-size:12px;">کل فروش سیستم</small>
+          <h3 style="font-size:22px; font-weight:900; color:#22c55e; margin-top:4px;">${priceLabel(report.total_revenue || 0)}</h3>
         </div>
         <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px;">
-          <small style="color:var(--text-muted); font-size:12px;">دسته‌بندی‌های فعال</small>
-          <h3 style="font-size:22px; font-weight:900; color:#fff; margin-top:4px;">${nf(categories.length)} دسته</h3>
+          <small style="color:var(--text-muted); font-size:12px;">محصولات active</small>
+          <h3 style="font-size:22px; font-weight:900; color:var(--cyan); margin-top:4px;">${nf(products.length)} محصول</h3>
         </div>
       </div>
 
-      <!-- Admin Sub Tabs -->
-      <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
-        <button id="admin-tab-orders" class="nav-link active">📜 سفارش‌های اخیر (${orders.length})</button>
-        <button id="admin-tab-products" class="nav-link">🛒 مدیریت محصولات (${products.length})</button>
-      </div>
-
-      <!-- Sub Content Container -->
-      <div id="admin-sub-content">
-        ${renderAdminOrdersList(orders)}
+      <!-- Analytics Charts Grid -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+        ${sparklineHtml(report.days || [])}
+        ${barChartHtml(report.top_products || [])}
+        ${pieChartHtml(report.payment_methods || {})}
       </div>
     `;
-
-    $('btn-refresh-admin')?.addEventListener('click', () => renderAdminView(container));
-
-    const ordersTabBtn = $('admin-tab-orders');
-    const prodsTabBtn = $('admin-tab-products');
-    const subContent = $('admin-sub-content');
-
-    ordersTabBtn?.addEventListener('click', () => {
-      ordersTabBtn.classList.add('active');
-      prodsTabBtn?.classList.remove('active');
-      if (subContent) subContent.innerHTML = renderAdminOrdersList(orders);
-      bindAdminOrderEvents(orders);
-    });
-
-    prodsTabBtn?.addEventListener('click', () => {
-      prodsTabBtn.classList.add('active');
-      ordersTabBtn?.classList.remove('active');
-      if (subContent) subContent.innerHTML = renderAdminProductsList(products);
-      bindAdminProductEvents(products);
-    });
-
-    bindAdminOrderEvents(orders);
   }
 
-  /* ── Admin Orders List Markup ── */
-  function renderAdminOrdersList(orders) {
-    if (!orders.length) {
-      return `<p style="color:var(--text-muted); text-align:center; padding:30px;">سفارشی یافت نشد.</p>`;
+  function renderAdminOrdersTabMarkup(orders) {
+    const statuses = [
+      { id: 'all', label: 'همه' },
+      { id: 'pending_payment', label: 'در انتظار پرداخت' },
+      { id: 'reviewing', label: 'در حال بررسی' },
+      { id: 'preparing', label: 'آماده‌سازی' },
+      { id: 'delivered', label: 'تحویل‌شده' },
+      { id: 'rejected', label: 'رد شده' }
+    ];
+
+    let filtered = orders;
+    if (adminOrderStatusFilter !== 'all') {
+      filtered = filtered.filter(o => o.status === adminOrderStatusFilter);
+    }
+    if (adminOrderSearch.trim() !== '') {
+      const q = adminOrderSearch.trim().toLowerCase();
+      filtered = filtered.filter(o => {
+        const idStr = String(o.id || '');
+        const userIdStr = String(o.user_id || '');
+        const name = (o.display_name || o.product_title || '').toLowerCase();
+        const note = (o.payment_note || '').toLowerCase();
+        return idStr.includes(q) || userIdStr.includes(q) || name.includes(q) || note.includes(q);
+      });
     }
 
     return `
-      <div style="display:flex; flex-direction:column; gap:14px;">
-        ${orders.map(o => `
-          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:12px;">
-              <div>
-                <b>سفارش #${o.id}</b>
-                <span style="color:var(--text-muted); font-size:12px; margin-right:8px;">کاربر ID: #${o.user_id || '---'}</span>
-              </div>
-              <span style="background:rgba(245,158,11,0.15); color:#f59e0b; font-weight:800; font-size:12px; padding:4px 12px; border-radius:12px;">
-                ${esc(o.status_fa || o.status)}
-              </span>
-            </div>
+      <!-- Search & Filters Row -->
+      <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:20px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center;">
+          <input type="text" id="admin-order-search-input" value="${esc(adminOrderSearch)}" placeholder="🔍 جستجو بر اساس کد سفارش، ID کاربر، نام محصول..." style="flex:1; min-width:240px; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px 14px; border-radius:14px; font-family:inherit; outline:none; font-size:13px;">
+          
+          <!-- Bulk Action Bar -->
+          <div id="admin-bulk-actions-bar" style="display:${selectedAdminOrderIds.size > 0 ? 'flex' : 'none'}; align-items:center; gap:8px; background:rgba(0,242,254,0.1); border:1px solid var(--cyan); padding:6px 12px; border-radius:14px;">
+            <b style="font-size:12px; color:var(--cyan);">${nf(selectedAdminOrderIds.size)} انتخاب‌شده:</b>
+            <button class="user-account-btn" id="bulk-confirm-btn" style="background:#22c55e; color:#000; font-size:11px; padding:4px 10px;">🟢 تایید تجمعی</button>
+            <button class="user-account-btn" id="bulk-prepare-btn" style="background:#3b82f6; color:#fff; font-size:11px; padding:4px 10px;">📦 آماده‌سازی</button>
+            <button class="user-account-btn" id="bulk-reject-btn" style="background:#ef4444; color:#fff; font-size:11px; padding:4px 10px;">❌ رد تجمعی</button>
+          </div>
+        </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <div>
-                <h4 style="font-size:15px; font-weight:800; margin-bottom:4px;">${esc(o.display_name || o.product_title || 'محصول')}</h4>
-                <div style="font-size:12px; color:var(--text-muted);">
-                  روش: ${esc(o.payment_method_fa || o.payment_method || 'تعیین نشده')} · تاریخ: ${esc(o.created_at || '')}
+        <!-- Filter Chips -->
+        <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none;">
+          ${statuses.map(s => `
+            <button class="sort-pill-btn ${adminOrderStatusFilter === s.id ? 'active' : ''}" data-admin-filter="${s.id}" style="font-size:12px; white-space:nowrap;">${s.label}</button>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Orders List Cards -->
+      ${!filtered.length ? `
+        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
+          سفارشی با این فیلترها یافت نشد.
+        </div>
+      ` : `
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          ${filtered.map(o => {
+            const isChecked = selectedAdminOrderIds.has(Number(o.id));
+            return `
+              <div style="background:var(--card-dark); border:1px solid ${isChecked ? 'var(--cyan)' : 'var(--border-color)'}; border-radius:18px; padding:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:12px;">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" class="admin-order-chk" data-order-id="${o.id}" ${isChecked ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; accent-color:var(--cyan);">
+                    <b>سفارش #${o.id}</b>
+                    <span style="color:var(--text-muted); font-size:12px; margin-right:4px;">کاربر: #${o.user_id || '---'}</span>
+                  </div>
+                  <span style="background:rgba(245,158,11,0.15); color:#f59e0b; font-weight:800; font-size:12px; padding:4px 12px; border-radius:12px;">
+                    ${esc(o.status_fa || o.status)}
+                  </span>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <div>
+                    <h4 style="font-size:15px; font-weight:800; margin-bottom:4px;">${esc(o.display_name || o.product_title || 'محصول')}</h4>
+                    <div style="font-size:12px; color:var(--text-muted);">
+                      روش: ${esc(o.payment_method_fa || o.payment_method || 'تعیین نشده')} · تاریخ: ${esc(o.created_at || '')}
+                    </div>
+                  </div>
+                  <b style="font-size:16px; color:var(--cyan);">${priceLabel(o.final_amount || o.price)}</b>
+                </div>
+
+                ${o.payment_note ? `
+                  <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:10px; font-size:12px; margin-bottom:12px; color:var(--text-muted);">
+                    💬 توضیحات کاربر: <span style="color:#fff;">${esc(o.payment_note)}</span>
+                  </div>
+                ` : ''}
+
+                <!-- Status Action Buttons -->
+                <div style="display:flex; flex-wrap:wrap; gap:8px; border-top:1px solid var(--border-color); padding-top:12px;">
+                  <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="payment_confirmed" style="background:#22c55e; color:#000; font-size:11px; padding:6px 12px;">🟢 تایید پرداخت</button>
+                  <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="preparing" style="background:#3b82f6; color:#fff; font-size:11px; padding:6px 12px;">📦 آماده‌سازی</button>
+                  <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="delivered" style="background:var(--cyan); color:#000; font-size:11px; padding:6px 12px;">✅ ثبت تحویل</button>
+                  <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="rejected" style="background:#ef4444; color:#fff; font-size:11px; padding:6px 12px;">❌ رد سفارش</button>
+                  ${o.user_id ? `<button class="nav-link" data-admin-cust-id="${o.user_id}" style="font-size:11px; padding:6px 12px; background:rgba(255,255,255,0.06);">👤 پروفایل 360 کاربر</button>` : ''}
                 </div>
               </div>
-              <b style="font-size:16px; color:var(--cyan);">${priceLabel(o.final_amount || o.price)}</b>
-            </div>
-
-            ${o.payment_note ? `
-              <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:10px; font-size:12px; margin-bottom:12px; color:var(--text-muted);">
-                💬 توضیحات/رسید کاربر: <span style="color:#fff;">${esc(o.payment_note)}</span>
-              </div>
-            ` : ''}
-
-            <!-- Status Action Buttons -->
-            <div style="display:flex; flex-wrap:wrap; gap:8px; border-top:1px solid var(--border-color); padding-top:12px;">
-              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="payment_confirmed" style="background:#22c55e; color:#000; font-size:11px; padding:6px 12px;">🟢 تایید پرداخت</button>
-              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="preparing" style="background:#3b82f6; color:#fff; font-size:11px; padding:6px 12px;">📦 آماده‌سازی</button>
-              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="delivered" style="background:var(--cyan); color:#000; font-size:11px; padding:6px 12px;">✅ ثبت تحویل</button>
-              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="rejected" style="background:#ef4444; color:#fff; font-size:11px; padding:6px 12px;">❌ رد سفارش</button>
-              ${o.user_id ? `<button class="nav-link" data-admin-cust-id="${o.user_id}" style="font-size:11px; padding:6px 12px; background:rgba(255,255,255,0.06);">👤 پروفایل 360 کاربر</button>` : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
+            `;
+          }).join('')}
+        </div>
+      `}
     `;
   }
 
-  /* ── Admin Products List Markup ── */
-  function renderAdminProductsList(products) {
+  function renderAdminProductsTabMarkup(products, categories) {
     if (!products.length) {
       return `<p style="color:var(--text-muted); text-align:center; padding:30px;">محصولی ثبت نشده است.</p>`;
     }
@@ -1911,8 +2126,157 @@
     `;
   }
 
-  /* ── Admin Order Event Handlers ── */
-  function bindAdminOrderEvents(orders) {
+  function renderAdminInventoryTabMarkup(inventory, products) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="font-size:18px; font-weight:800; margin:0;">📦 انبار موجودی اکانت‌ها/کدها (${inventory.length})</h3>
+        <button class="user-account-btn" id="btn-add-inventory" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">📦 افزودن موجودی جدید</button>
+      </div>
+
+      ${!inventory.length ? `
+        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
+          موجودی در انبار ثبت نشده است.
+        </div>
+      ` : `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${inventory.map(item => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b style="font-size:14px; color:#fff; display:block;">محصول ID: #${item.product_id}</b>
+                <code style="font-size:12px; color:var(--cyan); background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px; display:inline-block; margin-top:4px;">${esc(item.content)}</code>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:${item.status === 'available' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${item.status === 'available' ? '#22c55e' : '#ef4444'};">
+                  ${item.status === 'available' ? 'آماده تحویل' : 'تحویل داده‌شده'}
+                </span>
+                <button class="nav-link" data-delete-inv-id="${item.id}" style="background:rgba(239,68,68,0.15); color:#ef4444; font-size:11px; padding:6px 10px;">🗑️ حذف</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminCouponsTabMarkup(coupons) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="font-size:18px; font-weight:800; margin:0;">🎟 کدهای تخفیف (${coupons.length})</h3>
+        <button class="user-account-btn" id="btn-add-coupon" style="background:#22c55e; color:#000; font-size:12px; padding:8px 14px;">🎟 افزودن کد تخفیف جدید</button>
+      </div>
+
+      ${!coupons.length ? `
+        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
+          کد تخفیفی تعریف نشده است.
+        </div>
+      ` : `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px;">
+          ${coupons.map(c => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:16px; padding:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <b style="font-size:16px; color:var(--cyan); letter-spacing:1px;">${esc(c.code)}</b>
+                <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:rgba(255,255,255,0.06); color:var(--text-muted);">
+                  ${c.discount_type === 'percent' ? 'درصدی' : 'مبلغ ثابت'}
+                </span>
+              </div>
+              <div style="font-size:14px; font-weight:800; margin-bottom:8px;">
+                مقدار: ${c.discount_type === 'percent' ? `${c.discount_value}٪` : priceLabel(c.discount_value)}
+              </div>
+              <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:12px;">
+                استفاده: ${nf(c.used_count || 0)} از ${c.max_uses ? nf(c.max_uses) : 'نامحدود'}
+              </small>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminActivityTabMarkup(log) {
+    if (!log || !log.length) return `<p style="color:var(--text-muted); text-align:center; padding:30px;">لاگ فعالیتی ثبت نشده است.</p>`;
+    return `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        ${log.map(a => `
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; font-size:13px;">
+            <div>
+              <b style="color:#fff;">${esc(a.title || a.action || 'فعالیت')}</b>
+              <small style="display:block; color:var(--text-muted); margin-top:2px;">${esc(a.description || a.details || '')}</small>
+            </div>
+            <small style="color:var(--text-muted);">${esc(a.created_at || '')}</small>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderAdminRolesTabMarkup(roles) {
+    if (!roles || !roles.length) return `<p style="color:var(--text-muted); text-align:center; padding:30px;">نقش جدیدی تعریف نشده است.</p>`;
+    return `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        ${roles.map(r => `
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <b style="color:#fff; font-size:14px;">${esc(r.role_name || r.name || 'نقش ادمین')}</b>
+              <small style="display:block; color:var(--text-muted); margin-top:2px;">سطح دسترسی: ${esc(r.permissions || 'کامل')}</small>
+            </div>
+            <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:rgba(0,242,254,0.15); color:var(--cyan);">فعال</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function bindAdminOrdersTabEvents(orders) {
+    document.querySelectorAll('[data-admin-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        adminOrderStatusFilter = btn.dataset.adminFilter;
+        const subContent = $('admin-sub-content');
+        if (subContent) {
+          subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
+          bindAdminOrdersTabEvents(orders);
+        }
+      });
+    });
+
+    const searchInput = $('admin-order-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        adminOrderSearch = e.target.value;
+        const subContent = $('admin-sub-content');
+        if (subContent) {
+          subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
+          bindAdminOrdersTabEvents(orders);
+        }
+      });
+    }
+
+    document.querySelectorAll('.admin-order-chk').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const oid = Number(chk.dataset.orderId);
+        if (chk.checked) selectedAdminOrderIds.add(oid);
+        else selectedAdminOrderIds.delete(oid);
+
+        const bar = $('admin-bulk-actions-bar');
+        if (bar) bar.style.display = selectedAdminOrderIds.size > 0 ? 'flex' : 'none';
+      });
+    });
+
+    $('bulk-confirm-btn')?.addEventListener('click', () => executeBulkOrders('payment_confirmed'));
+    $('bulk-prepare-btn')?.addEventListener('click', () => executeBulkOrders('preparing'));
+    $('bulk-reject-btn')?.addEventListener('click', () => executeBulkOrders('rejected'));
+
+    async function executeBulkOrders(status) {
+      if (!selectedAdminOrderIds.size) return;
+      const count = selectedAdminOrderIds.size;
+      showToast(`در حال انجام ${count} تغییر وضعیت...`, 'info');
+      for (const oid of selectedAdminOrderIds) {
+        await api('admin_order_status', {}, 'POST', { order_id: oid, status });
+      }
+      selectedAdminOrderIds.clear();
+      showToast(`✅ ${count} سفارش تغییر وضعیت داده شدند!`, 'success');
+      renderAdminView($('app'));
+    }
+
     document.querySelectorAll('[data-admin-status-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const order_id = btn.dataset.adminStatusId;
@@ -1922,21 +2286,19 @@
           showToast('وضعیت سفارش بروزرسانی شد! ⚡', 'success');
           renderAdminView($('app'));
         } else {
-          showToast(res.message || 'خطا در تغییر وضعیت.', 'error');
+          showToast(res ? res.message : 'خطا در تغییر وضعیت.', 'error');
         }
       });
     });
 
     document.querySelectorAll('[data-admin-cust-id]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const user_id = btn.dataset.adminCustId;
-        openCustomer360Modal(user_id);
+      btn.addEventListener('click', () => {
+        openCustomer360Modal(btn.dataset.adminCustId);
       });
     });
   }
 
-  /* ── Admin Product Event Handlers ── */
-  function bindAdminProductEvents(products) {
+  function bindAdminProductsTabEvents(products) {
     document.querySelectorAll('[data-admin-toggle-pid]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const pid = btn.dataset.adminTogglePid;
@@ -1945,11 +2307,225 @@
           showToast('وضعیت محصول بروزرسانی شد', 'success');
           renderAdminView($('app'));
         } else {
-          showToast(res.message || 'خطا در تغییر وضعیت محصول.', 'error');
+          showToast(res ? res.message : 'خطا در تغییر وضعیت محصول.', 'error');
         }
       });
     });
   }
+
+  function bindAdminInventoryTabEvents(inventory) {
+    $('btn-add-inventory')?.addEventListener('click', () => openAddInventoryModal(state.products));
+    document.querySelectorAll('[data-delete-inv-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.deleteInvId;
+        const res = await api('admin_delete_inventory', {}, 'POST', { inventory_id: id });
+        if (res && res.ok) {
+          showToast('آیتم از انبار حذف شد', 'info');
+          renderAdminView($('app'));
+        }
+      });
+    });
+  }
+
+  function bindAdminCouponsTabEvents(coupons) {
+    $('btn-add-coupon')?.addEventListener('click', openAddCouponModal);
+  }
+
+  /* ── Modals for Admin Actions ── */
+  function openBroadcastModal() {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:520px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">📢 ارسال پیام همگانی (Broadcast)</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">
+          این متن برای تمام کاربران ربات/سایت ارسال می‌شود:
+        </p>
+        <textarea id="broadcast-text-input" rows="5" placeholder="متن پیام همگانی به همراه کدهای HTML..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; margin-bottom:16px; direction:rtl; text-align:right; font-size:14px;"></textarea>
+        <button id="btn-send-broadcast" class="user-account-btn" style="width:100%; justify-content:center; background:#8b5cf6;">🚀 ارسال همگانی به همه کاربران</button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-send-broadcast')?.addEventListener('click', async () => {
+      const text = $('broadcast-text-input').value.trim();
+      if (!text) {
+        showToast('لطفاً متن پیام را وارد کنید.', 'error');
+        return;
+      }
+      const res = await api('admin_broadcast', {}, 'POST', { text });
+      if (res && res.ok) {
+        showToast('📢 پیام همگانی به کاربران ارسال شد!', 'success');
+        closeModal();
+      } else {
+        showToast(res ? res.message : 'خطا در ارسال پیام.', 'error');
+      }
+    });
+  }
+
+  function openPurchaseRewardModal() {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">🎁 اهدا پاداش/شارژ کیف پول کاربر</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">آیدی عددی تلگرام (Telegram ID):</label>
+          <input type="number" id="reward-user-tid" placeholder="مثلاً 123456789" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px 14px; border-radius:12px; font-family:inherit; outline:none;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">مبلغ پاداش (تومان):</label>
+          <input type="number" id="reward-amount" placeholder="مثلاً 50000" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px 14px; border-radius:12px; font-family:inherit; outline:none;">
+        </div>
+        <button id="btn-submit-reward" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000;">💰 واریز مستقیم به کیف پول کاربر</button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-submit-reward')?.addEventListener('click', async () => {
+      const tid = Number($('reward-user-tid').value);
+      const amount = Number($('reward-amount').value);
+      if (!tid || !amount) {
+        showToast('لطفاً آیدی کاربر و مبلغ را به درستی وارد کنید.', 'error');
+        return;
+      }
+      const res = await api('admin_add_balance', {}, 'POST', { telegram_id: tid, amount });
+      if (res && res.ok) {
+        showToast('🎁 پاداش با موفقیت به کیف پول کاربر واریز شد!', 'success');
+        closeModal();
+      } else {
+        showToast(res ? res.message : 'خطا در واریز پاداش.', 'error');
+      }
+    });
+  }
+
+  function openAddCouponModal() {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">🎟 ساخت کد تخفیف جدید</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">کد تخفیف (مثلاً BLUE10)</label>
+          <input type="text" id="coupon-code-input" placeholder="BLUE10" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px 14px; border-radius:12px; font-family:inherit; outline:none;">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نوع تخفیف</label>
+            <select id="coupon-type-select" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+              <option value="percent">درصدی (%)</option>
+              <option value="fixed">مبلغ ثابت (تومان)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">مقدار تخفیف</label>
+            <input type="number" id="coupon-val-input" placeholder="10" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px 14px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">حداکثر استفاده (۰ = نامحدود)</label>
+          <input type="number" id="coupon-max-input" value="0" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px 14px; border-radius:12px; font-family:inherit; outline:none;">
+        </div>
+        <button id="btn-submit-coupon" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000;">🎟 ذخیره کد تخفیف جدید</button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-submit-coupon')?.addEventListener('click', async () => {
+      const code = $('coupon-code-input').value.trim();
+      const type = $('coupon-type-select').value;
+      const value = Number($('coupon-val-input').value);
+      const max_uses = Number($('coupon-max-input').value || 0);
+      if (!code || !value) {
+        showToast('لطفاً کد تخفیف و مقدار آن را وارد کنید.', 'error');
+        return;
+      }
+      const res = await api('admin_add_coupon', {}, 'POST', { code, type, value, max_uses });
+      if (res && res.ok) {
+        showToast('🎟 کد تخفیف جدید ساخته شد!', 'success');
+        closeModal();
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ثبت کد تخفیف.', 'error');
+      }
+    });
+  }
+
+  function openAddInventoryModal(products = []) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:500px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">📦 شارژ انبار و افزودن کدها/اکانت‌ها</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">انتخاب محصول:</label>
+          <select id="inv-product-select" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+            ${(products || []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">کدها / اطلاعات لایسنس (هر کد در یک خط):</label>
+          <textarea id="inv-content-input" rows="5" placeholder="user1:pass1&#10;user2:pass2&#10;license_key_3" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; font-size:13px; direction:ltr; text-align:left;"></textarea>
+        </div>
+        <button id="btn-submit-inventory" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000;">📦 ذخیره و افزوده شدن به انبار</button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-submit-inventory')?.addEventListener('click', async () => {
+      const pid = Number($('inv-product-select').value);
+      const content = $('inv-content-input').value.trim();
+      if (!pid || !content) {
+        showToast('لطفاً محصول و حداقل یک کد را وارد کنید.', 'error');
+        return;
+      }
+      const res = await api('admin_add_inventory', {}, 'POST', { product_id: pid, content });
+      if (res && res.ok) {
+        showToast('📦 انبار با موفقیت شارژ شد!', 'success');
+        closeModal();
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ثبت انبار.', 'error');
+      }
+    });
+  }
+
 
   /* ── Customer 360 View Modal ── */
   async function openCustomer360Modal(userId) {
