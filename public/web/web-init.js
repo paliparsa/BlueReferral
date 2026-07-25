@@ -493,7 +493,7 @@
     syncAllWebNavs();
   };
 
-  /* ── Ground-Up Web Shop Layout Engine ── */
+  /* ── Amazon/Shopify Style Storefront Layout Engine ── */
   window.renderShop = function () {
     const shopPage = document.getElementById('shopPage');
     if (!shopPage) return;
@@ -501,15 +501,17 @@
     const cats = window.state?.shop_categories || [];
     const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const mode = window.productCardMode || localStorage.getItem('blue_ref_card_mode') || 'compact';
+    const activeCat = window.activeCategory || 'all';
+    const sort = window.shopSort || 'newest';
 
     const heroHtml = `
-      <section class="web-desktop-hero" id="webDesktopHero">
+      <section class="web-store-hero" id="webDesktopHero">
         <div class="web-hero-content">
           <div class="web-hero-badge">⚡ مرجع تخصصی اشتراک‌های دیجیتال &amp; هوش مصنوعی</div>
           <h1 class="web-hero-title">دسترسی فوری به <span class="hero-highlight">بهترین سرویس‌های دنیا</span></h1>
           <p class="web-hero-subtitle">خرید مستقیم و بدون واسطه اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و سرویس‌های پرکاربرد با تحویل خودکار ۲۴ ساعته.</p>
           <div class="web-hero-trust">
-            <div class="trust-item"><span>⚡</span><b>تحویل خودکار و آنی</b></div>
+            <div class="trust-item"><span>⚡</span><b>تحویل خودکار ۲۴/۷</b></div>
             <div class="trust-item"><span>🛡️</span><b>ضمانت ۱۰۰٪ کارکرد</b></div>
             <div class="trust-item"><span>💬</span><b>پشتیبانی زنده تلگرام</b></div>
           </div>
@@ -517,35 +519,59 @@
       </section>
     `;
 
-    const viewModeToggleHtml = `
-      <div class="web-view-mode-toggle">
-        <button class="view-btn ${mode !== 'detailed' ? 'active' : ''}" data-card-mode="compact" title="نمایش شبکه‌ای">🔲 <b>گرید</b></button>
-        <button class="view-btn ${mode === 'detailed' ? 'active' : ''}" data-card-mode="detailed" title="نمایش لیستی">≡ <b>لیست</b></button>
-      </div>
-    `;
+    const sidebarHtml = `
+      <aside class="store-filter-sidebar">
+        <div class="filter-sidebar-card">
+          <h3 class="filter-title">📁 دسته‌بندی محصولات</h3>
+          <div class="category-filter-list">
+            <button class="cat-sidebar-item ${activeCat === 'all' ? 'active' : ''}" data-cat="all">
+              <span>✨</span><b>همه محصولات</b>
+            </button>
+            <button class="cat-sidebar-item ${activeCat === 'featured' ? 'active' : ''}" data-cat="featured">
+              <span>⭐</span><b>سرویس‌های ویژه</b>
+            </button>
+            ${cats.map(c => `
+              <button class="cat-sidebar-item ${Number(activeCat) === Number(c.id) ? 'active' : ''}" data-cat="${c.id}">
+                ${c.image_url ? `<img src="${esc(c.image_url)}">` : `<span>${esc(c.emoji || '🛒')}</span>`}
+                <b>${esc(c.title)}</b>
+              </button>
+            `).join('')}
+          </div>
+        </div>
 
-    const activeCat = window.activeCategory || 'all';
-    const sort = window.shopSort || 'newest';
+        <div class="filter-sidebar-card">
+          <h3 class="filter-title">⚙️ فیلترهای سریع</h3>
+          <div class="quick-toggle-list">
+            <button class="filter-toggle-btn ${window.shopFilterInStock ? 'active' : ''}" data-shop-toggle="instock">
+              <span>${window.shopFilterInStock ? '✅' : '📦'}</span> <b>فقط موجودی آنی</b>
+            </button>
+            <button class="filter-toggle-btn ${window.shopFilterWishlist ? 'active' : ''}" data-shop-toggle="wishlist">
+              <span>${window.shopFilterWishlist ? '❤️' : '🤍'}</span> <b>نشان‌شده‌ها</b>
+            </button>
+          </div>
+        </div>
+      </aside>
+    `;
 
     shopPage.innerHTML = `
       ${heroHtml}
-      <div class="shop-header-sticky web-shop-controls">
-        <div class="shop-controls-row">
-          <div class="segmented-control">
-            <button class="${sort === 'newest' ? 'active' : ''}" data-shop-sort="newest">جدیدترین</button>
-            <button class="${sort === 'price_low' ? 'active' : ''}" data-shop-sort="price_low">ارزان‌ترین</button>
-            <button class="${sort === 'price_high' ? 'active' : ''}" data-shop-sort="price_high">گران‌ترین</button>
+      <div class="storefront-main-layout">
+        ${sidebarHtml}
+        <section class="storefront-catalog-area">
+          <div class="catalog-toolbar">
+            <div class="segmented-control">
+              <button class="${sort === 'newest' ? 'active' : ''}" data-shop-sort="newest">جدیدترین</button>
+              <button class="${sort === 'price_low' ? 'active' : ''}" data-shop-sort="price_low">ارزان‌ترین</button>
+              <button class="${sort === 'price_high' ? 'active' : ''}" data-shop-sort="price_high">گران‌ترین</button>
+            </div>
+            <div class="web-view-mode-toggle">
+              <button class="view-btn ${mode !== 'detailed' ? 'active' : ''}" data-card-mode="compact" title="نمایش شبکه‌ای">🔲 <b>گرید</b></button>
+              <button class="view-btn ${mode === 'detailed' ? 'active' : ''}" data-card-mode="detailed" title="نمایش لیستی">≡ <b>لیست</b></button>
+            </div>
           </div>
-          ${viewModeToggleHtml}
-        </div>
-
-        <div class="category-strip modern-cats">
-          <button class="cat-pill ${activeCat === 'all' ? 'active' : ''}" data-cat="all"><span>✨</span><b>همه</b></button>
-          <button class="cat-pill ${activeCat === 'featured' ? 'active' : ''}" data-cat="featured"><span>⭐</span><b>ویژه</b></button>
-          ${cats.map(c => `<button class="cat-pill ${Number(activeCat) === Number(c.id) ? 'active' : ''}" data-cat="${c.id}">${c.image_url ? `<img src="${esc(c.image_url)}">` : `<span>${esc(c.emoji || '🛒')}</span>`}<b>${esc(c.title)}</b></button>`).join('')}
-        </div>
+          <div id="shopSections">${typeof window.shopSectionsHtml === 'function' ? window.shopSectionsHtml() : ''}</div>
+        </section>
       </div>
-      <div id="shopSections">${typeof window.shopSectionsHtml === 'function' ? window.shopSectionsHtml() : ''}</div>
     `;
   };
 
