@@ -2705,12 +2705,13 @@
   }
 
   function renderAdminWithdrawalsTabMarkup(withdrawals) {
-    const pending = withdrawals.filter(w => w.status === 'pending');
-    const processed = withdrawals.filter(w => w.status !== 'pending');
+    const list = Array.isArray(withdrawals) ? withdrawals : [];
+    const pending = list.filter(w => w && w.status === 'pending');
+    const processed = list.filter(w => w && w.status !== 'pending');
 
     return `
       <div style="margin-bottom:20px;">
-        <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0;">🏧 مدیریت درخواست‌های برداشت (${withdrawals.length})</h3>
+        <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0;">🏧 مدیریت درخواست‌های برداشت (${list.length})</h3>
         
         ${pending.length > 0 ? `
           <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:18px; padding:16px; margin-bottom:24px;">
@@ -2939,7 +2940,17 @@
     });
   }
 
-  function bindAdminProductsTabEvents(products) {
+  function bindAdminProductsTabEvents(products, categories) {
+    $('btn-add-product')?.addEventListener('click', () => openAddProductModal(categories));
+
+    document.querySelectorAll('[data-admin-edit-pid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = Number(btn.dataset.adminEditPid);
+        const p = (products || []).find(x => Number(x.id) === pid);
+        if (p) openAddProductModal(categories, p);
+      });
+    });
+
     document.querySelectorAll('[data-admin-toggle-pid]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const pid = btn.dataset.adminTogglePid;
@@ -2952,25 +2963,22 @@
         }
       });
     });
-  }
 
-  function bindAdminInventoryTabEvents(inventory) {
-    $('btn-add-inventory')?.addEventListener('click', () => openAddInventoryModal(state.products));
-    document.querySelectorAll('[data-delete-inv-id]').forEach(btn => {
+    document.querySelectorAll('[data-admin-delete-pid]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.dataset.deleteInvId;
-        const res = await api('admin_delete_inventory', {}, 'POST', { inventory_id: id });
+        if (!confirm('آیا از غیرفعال‌سازی این محصول اطمینان دارید؟')) return;
+        const pid = btn.dataset.adminDeletePid;
+        const res = await api('admin_delete_product', {}, 'POST', { product_id: pid });
         if (res && res.ok) {
-          showToast('آیتم از انبار حذف شد', 'info');
+          showToast('محصول غیرفعال شد', 'info');
           renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در حذف محصول.', 'error');
         }
       });
     });
   }
 
-  function bindAdminCouponsTabEvents(coupons) {
-    $('btn-add-coupon')?.addEventListener('click', openAddCouponModal);
-  }
 
   function bindAdminCategoriesTabEvents(categories) {
     $('btn-add-category')?.addEventListener('click', () => openAddCategoryModal());
@@ -3048,10 +3056,10 @@
   function parseWebCardAccounts(raw) {
     if (Array.isArray(raw) && raw.length) return raw;
     const str = String(raw || '').trim();
-    if (!str) return [];
+    if (!str || str.startsWith('[object')) return [];
     try {
       const j = JSON.parse(str);
-      if (Array.isArray(j) && j.length) return j;
+      if (Array.isArray(j)) return j;
     } catch (e) {}
     return str.split(/\r?\n/).map(line => {
       const parts = line.split('|').map(s => s.trim());
@@ -3062,10 +3070,10 @@
   function parseWebCryptoWallets(raw) {
     if (Array.isArray(raw) && raw.length) return raw;
     const str = String(raw || '').trim();
-    if (!str) return [];
+    if (!str || str.startsWith('[object')) return [];
     try {
       const j = JSON.parse(str);
-      if (Array.isArray(j) && j.length) return j;
+      if (Array.isArray(j)) return j;
     } catch (e) {}
     return str.split(/\r?\n/).map(line => {
       const parts = line.split('|').map(s => s.trim());
@@ -3076,10 +3084,10 @@
   function parseWebCryptoRates(raw) {
     if (Array.isArray(raw) && raw.length) return raw;
     const str = String(raw || '').trim();
-    if (!str) return [];
+    if (!str || str.startsWith('[object')) return [];
     try {
       const j = JSON.parse(str);
-      if (Array.isArray(j) && j.length) return j;
+      if (Array.isArray(j)) return j;
     } catch (e) {}
     return str.split(/\r?\n/).map(line => {
       const parts = line.split('|').map(s => s.trim());
@@ -3090,10 +3098,10 @@
   function parseWebSpinRewards(raw) {
     if (Array.isArray(raw) && raw.length) return raw;
     const str = String(raw || '').trim();
-    if (!str) return [];
+    if (!str || str.startsWith('[object')) return [];
     try {
       const j = JSON.parse(str);
-      if (Array.isArray(j) && j.length) return j;
+      if (Array.isArray(j)) return j;
     } catch (e) {}
     return str.split(/\r?\n/).map(line => {
       const parts = line.split('|').map(s => s.trim());
@@ -3469,7 +3477,7 @@
       if (index === null) webAdminCards.push(obj);
       else webAdminCards[index] = obj;
       closeModal();
-      renderAdminView($('app'));
+      refreshSettingsPane(settings);
     });
   }
 
@@ -3543,7 +3551,7 @@
       if (index === null) webAdminWallets.push(obj);
       else webAdminWallets[index] = obj;
       closeModal();
-      renderAdminView($('app'));
+      refreshSettingsPane(settings);
     });
   }
 
@@ -3594,7 +3602,7 @@
       };
       webAdminRates.push(obj);
       closeModal();
-      renderAdminView($('app'));
+      refreshSettingsPane(settings);
     });
   }
 
@@ -3661,16 +3669,28 @@
       if (index === null) webAdminSpinRewards.push(obj);
       else webAdminSpinRewards[index] = obj;
       closeModal();
-      renderAdminView($('app'));
+      refreshSettingsPane(settings);
     });
   }
 
+  function refreshSettingsPane(settings) {
+    const subContent = $('admin-sub-content');
+    if (subContent) {
+      subContent.innerHTML = renderAdminSettingsTabMarkup(settings || window.currentAdminSettings || {});
+      bindAdminSettingsTabEvents(settings || window.currentAdminSettings || {});
+    } else {
+      renderAdminView($('app'));
+    }
+  }
+
   function bindAdminSettingsTabEvents(settings) {
+    window.currentAdminSettings = settings;
+
     // Sub-tab switching
     document.querySelectorAll('[data-set-subtab]').forEach(btn => {
       btn.addEventListener('click', () => {
         webSettingsSubTab = btn.dataset.setSubtab;
-        renderAdminView($('app'));
+        refreshSettingsPane(settings);
       });
     });
 
@@ -3682,7 +3702,7 @@
     document.querySelectorAll('[data-del-card-idx]').forEach(btn => {
       btn.addEventListener('click', () => {
         webAdminCards.splice(Number(btn.dataset.delCardIdx), 1);
-        renderAdminView($('app'));
+        refreshSettingsPane(settings);
       });
     });
 
@@ -3694,7 +3714,7 @@
     document.querySelectorAll('[data-del-wallet-idx]').forEach(btn => {
       btn.addEventListener('click', () => {
         webAdminWallets.splice(Number(btn.dataset.delWalletIdx), 1);
-        renderAdminView($('app'));
+        refreshSettingsPane(settings);
       });
     });
 
@@ -3703,7 +3723,7 @@
     document.querySelectorAll('[data-del-rate-idx]').forEach(btn => {
       btn.addEventListener('click', () => {
         webAdminRates.splice(Number(btn.dataset.delRateIdx), 1);
-        renderAdminView($('app'));
+        refreshSettingsPane(settings);
       });
     });
 
@@ -3726,7 +3746,7 @@
     document.querySelectorAll('[data-del-spin-idx]').forEach(btn => {
       btn.addEventListener('click', () => {
         webAdminSpinRewards.splice(Number(btn.dataset.delSpinIdx), 1);
-        renderAdminView($('app'));
+        refreshSettingsPane(settings);
       });
     });
 
