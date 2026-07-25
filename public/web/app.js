@@ -369,10 +369,10 @@
   /* ── Order Stepper Helper ── */
   function orderStepperHtml(o) {
     const steps = [
-      {label: 'ثبت', icon: '📝'},
+      {label: 'ثبت سفارش', icon: '📝'},
       {label: 'پرداخت', icon: '💳'},
       {label: 'آماده‌سازی', icon: '📦'},
-      {label: 'تحویل', icon: '✅'}
+      {label: 'تحویل نهایی', icon: '✅'}
     ];
     const canceled = ['rejected', 'canceled', 'refunded'].includes(o.status);
     if (canceled) {
@@ -388,17 +388,23 @@
     else if (o.status === 'reviewing' || o.status === 'payment_confirmed' || o.status === 'preparing') cur = 2;
     else if (o.status === 'delivered') cur = 3;
 
-    return `<div class="order-stepper">
-      ${steps.map((s, i) => {
-        const done = i <= cur;
-        const active = i === cur;
-        return `<div class="step ${done ? 'done' : ''} ${active ? 'active' : ''}">
-          <div class="step-circle">${done ? '✓' : s.icon}</div>
-          <span class="step-label">${s.label}</span>
-          ${i < steps.length - 1 ? `<div class="step-line ${i < cur ? 'done' : ''}"></div>` : ''}
-        </div>`;
-      }).join('')}
-    </div>`;
+    const progressPct = cur === 0 ? 0 : cur === 1 ? 33 : cur === 2 ? 66 : 100;
+
+    return `
+      <div class="order-stepper-container">
+        <div class="stepper-bar-bg">
+          <div class="stepper-bar-fill" style="width:${progressPct}%;"></div>
+        </div>
+        <div class="stepper-nodes-row">
+          ${steps.map((s, i) => `
+            <div class="step-node ${i <= cur ? 'done' : ''} ${i === cur ? 'active' : ''}">
+              <div class="node-circle">${i < cur ? '✓' : (i === cur ? '⚡' : s.icon)}</div>
+              <span class="node-title">${s.label}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   }
 
   /* ── Order Detail Modal ── */
@@ -474,14 +480,22 @@
           ` : ''}
 
           <!-- Action Buttons Bar -->
-          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
-            <button class="user-account-btn" id="btn-order-note-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(255,255,255,0.06);">📝 یادداشت اکانت</button>
+          <div class="order-action-pills-bar">
+            <button class="order-pill-btn info" id="btn-order-note-${o.id}">
+              <span>📝</span> <b>یادداشت اکانت</b>
+            </button>
             ${o.status === 'pending_payment' ? `
-              <button class="user-account-btn" id="btn-order-coupon-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(0,242,254,0.1); color:var(--cyan);">🎟 کد تخفیف</button>
-              <button class="user-account-btn" id="btn-order-cancel-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(239,68,68,0.15); color:#ef4444;">❌ لغو سفارش</button>
+              <button class="order-pill-btn primary" id="btn-order-coupon-${o.id}">
+                <span>🎟</span> <b>کد تخفیف</b>
+              </button>
+              <button class="order-pill-btn danger" id="btn-order-cancel-${o.id}">
+                <span>❌</span> <b>لغو سفارش</b>
+              </button>
             ` : ''}
             ${['rejected', 'canceled', 'refunded'].includes(o.status) ? `
-              <button class="user-account-btn" id="btn-order-hide-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(239,68,68,0.15); color:#ef4444;">🗑️ حذف از لیست من</button>
+              <button class="order-pill-btn danger" id="btn-order-hide-${o.id}">
+                <span>🗑️</span> <b>حذف از لیست</b>
+              </button>
             ` : ''}
           </div>
 

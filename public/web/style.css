@@ -788,73 +788,88 @@ body {
   border-radius: 12px;
 }
 
-/* ── Phase 3: Order Stepper, Timeline & Note Box Styling ── */
-.order-stepper {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 20px 0;
+/* ── Phase 3: Order Stepper v2, Timeline & Payment Card Styling ── */
+.order-stepper-container {
   position: relative;
+  margin: 24px 0 28px;
+  padding: 0 10px;
 }
-.order-stepper .step {
+.stepper-bar-bg {
+  position: absolute;
+  top: 20px;
+  left: 35px;
+  right: 35px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  z-index: 1;
+}
+.stepper-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, var(--cyan));
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.stepper-nodes-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+.step-node {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  position: relative;
-  flex: 1;
-  z-index: 2;
+  gap: 8px;
 }
-.order-stepper .step-circle {
-  width: 36px; height: 36px;
+.node-circle {
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
+  background: #0d1527;
+  border: 2px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-muted);
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.order-stepper .step.done .step-circle {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: #22c55e;
-  color: #4ade80;
+.step-node.done .node-circle {
+  background: #10b981;
+  border-color: #34d399;
+  color: #fff;
   font-weight: bold;
 }
-.order-stepper .step.active .step-circle {
-  background: rgba(0, 242, 254, 0.25);
-  border-color: var(--cyan);
-  color: #fff;
-  box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+.step-node.active .node-circle {
+  background: var(--cyan);
+  border-color: #67e8f9;
+  color: #000;
+  font-weight: bold;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.5);
+  transform: scale(1.1);
 }
-.step-label {
-  font-size: 11px;
-  color: var(--text-muted);
+.node-title {
+  font-size: 12px;
   font-weight: 500;
+  color: var(--text-muted);
+  transition: color 0.3s;
 }
-.step.active .step-label {
+.step-node.active .node-title {
   color: var(--cyan);
-  font-weight: 700;
+  font-weight: 800;
 }
-.step-line {
-  position: absolute;
-  top: 18px;
-  right: 50%;
-  left: -50%;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.08);
-  z-index: -1;
+.step-node.done .node-title {
+  color: #fff;
 }
-.step-line.done {
-  background: #22c55e;
-}
+
 .order-stepper.canceled {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 16px;
   padding: 14px 20px;
+  margin: 20px 0;
 }
 .stepper-cancel {
   display: flex;
@@ -869,6 +884,101 @@ body {
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-weight: 900;
+}
+
+/* Payment Grid and Method Cards */
+.payment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.pay-method-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  text-align: right;
+  transition: all 0.25s ease;
+  outline: none;
+  font-family: inherit;
+  color: #fff;
+  width: 100%;
+}
+.pay-method-card:hover {
+  background: rgba(0, 242, 254, 0.08);
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 242, 254, 0.15);
+}
+.pay-method-card b {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.pay-method-card span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Order Action Pills */
+.order-action-pills-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+.order-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  transition: all 0.2s ease;
+}
+.order-pill-btn:hover {
+  transform: translateY(-2px);
+}
+.order-pill-btn.primary {
+  background: rgba(0, 242, 254, 0.12);
+  border-color: rgba(0, 242, 254, 0.4);
+  color: var(--cyan);
+}
+.order-pill-btn.primary:hover {
+  background: rgba(0, 242, 254, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.2);
+}
+.order-pill-btn.danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+.order-pill-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2);
+}
+.order-pill-btn.info {
+  background: rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #c084fc;
+}
+.order-pill-btn.info:hover {
+  background: rgba(139, 92, 246, 0.25);
 }
 
 /* Timeline & Notes */
