@@ -2714,7 +2714,7 @@
         <div>
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:18px;">${isPaid ? '✅' : isRejected ? '❌' : '⏳'}</span>
-            <b style="font-size:15px; color:#22c55e;">${fmt(w.amount)} تومان</b>
+            <b style="font-size:15px; color:#22c55e;">${priceLabel(w.amount)}</b>
             <small style="color:var(--text-muted); font-size:11px;">#${w.id}</small>
           </div>
           <div style="font-size:13px; color:var(--text-color); margin-top:4px;">
@@ -2747,7 +2747,7 @@
       <div style="margin-bottom:20px;">
         <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
           <h3 style="font-size:18px; font-weight:900; margin:0 0 8px 0; color:#fff;">🏧 مدیریت درخواست‌های برداشت (${list.length})</h3>
-          <p style="color:var(--text-muted); font-size:13px; margin:0;">${nf(pending.length)} در انتظار · مجموع ${fmt(totalPending)} تومان</p>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">${nf(pending.length)} در انتظار · مجموع ${priceLabel(totalPending)}</p>
           
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-top:16px;">
             <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; text-align:center;">
@@ -2763,7 +2763,7 @@
               <small style="color:var(--text-muted); font-size:12px;">رد‌شده</small>
             </div>
             <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; text-align:center;">
-              <b style="font-size:18px; color:var(--cyan); display:block;">${fmt(totalPending)}</b>
+              <b style="font-size:18px; color:var(--cyan); display:block;">${priceLabel(totalPending)}</b>
               <small style="color:var(--text-muted); font-size:12px;">تومان مانده برداشت</small>
             </div>
           </div>
@@ -3382,7 +3382,7 @@
                   <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:10px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
                     <div>
                       <b style="color:var(--cyan); font-size:13px;">1 ${esc((r.asset || 'USDT').toUpperCase())}</b> = 
-                      <b style="color:#fff; font-size:13px;">${fmt(r.rate_toman || 0)} تومان</b>
+                      <b style="color:#fff; font-size:13px;">${priceLabel(r.rate_toman || 0)}</b>
                     </div>
                     <button type="button" class="user-account-btn" data-del-rate-idx="${idx}" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:4px 8px;">🗑️ حذف</button>
                   </div>
@@ -3431,7 +3431,7 @@
                         ${sr.notify_admin ? `<span style="font-size:10px; padding:2px 6px; border-radius:6px; background:rgba(245,158,11,0.2); color:#f59e0b;">🔔 اعلان ادمین</span>` : ''}
                       </div>
                       <div style="font-size:13px; color:var(--cyan); margin-top:6px;">
-                        💰 مبلغ: <b>${sr.amount > 0 ? fmt(sr.amount) : 'بدون مبلغ (پاداش غیرنقدی)'}</b>
+                        💰 مبلغ: <b>${sr.amount > 0 ? priceLabel(sr.amount) : 'بدون مبلغ (پاداش غیرنقدی)'}</b>
                       </div>
                       <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
                         🎲 وزن شانس: <b>${sr.weight}</b>
