@@ -19,21 +19,33 @@
     setTimeout(() => el.classList.add('hidden'), 3500);
   }
 
-  // API Call helper
+  // API Call helper with multi-path resolution
   async function api(action, payload = {}) {
     const authToken = localStorage.getItem('web_token') || '';
-    const res = await fetch('/api.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, authToken, ...payload })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.ok === false) {
-      const err = new Error(data.message || data.error || 'خطایی رخ داد');
-      Object.assign(err, data);
-      throw err;
+    const endpoints = ['api.php', '/api.php', '../api.php'];
+    let lastErr = null;
+
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, authToken, ...payload })
+        });
+        if (res.status === 404) continue;
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+          const err = new Error(data.message || data.error || 'خطایی رخ داد');
+          Object.assign(err, data);
+          throw err;
+        }
+        return data;
+      } catch (err) {
+        lastErr = err;
+        if (err.requires_email_verification || err.error === 'INVALID_CREDENTIALS' || err.status === 400 || err.status === 403) throw err;
+      }
     }
-    return data;
+    throw lastErr || new Error('خطا در ارتباط با سرور');
   }
 
   function showModal(id) {
