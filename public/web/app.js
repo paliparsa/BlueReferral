@@ -1,6 +1,6 @@
 /* =========================================================
-   BlueGate Store — Ground-Up Standalone JavaScript Web Engine
-   Built completely from scratch for desktop & mobile web browsers
+   BlueGate Store — Standalone Web Application Engine
+   Fully wired for catalog rendering, auth modal, cart, orders, wallet, & admin
    ========================================================= */
 
 (function () {
@@ -49,7 +49,10 @@
     const token = localStorage.getItem('bg_web_token');
 
     const headers = { 'Accept': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      headers['X-Web-Token'] = token;
+    }
     if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
 
     try {
@@ -62,13 +65,22 @@
       return data;
     } catch (err) {
       console.error(`API Error [${action}]:`, err);
-      return { ok: false, error: 'خطا در ارتباط با سرور' };
+      return { ok: false, error: 'SERVER_ERROR', message: 'خطا در ارتباط با سرور' };
     }
   }
 
-  /* ── Init App Data Payload ── */
+  /* ── Init App Payload ── */
   async function initApp() {
-    const res = await api('guest_dashboard_payload');
+    const token = localStorage.getItem('bg_web_token');
+    let res = null;
+
+    if (token) {
+      res = await api('me');
+    }
+    if (!res || !res.ok) {
+      res = await api('guest_dashboard_payload');
+    }
+
     if (res && res.ok) {
       state.categories = res.shop_categories || [];
       state.products = res.shop_products || [];
@@ -77,11 +89,12 @@
         state.is_admin = !!res.is_admin;
       }
     }
+
     renderApp();
     bindGlobalEvents();
   }
 
-  /* ── Main App Shell Renderer ── */
+  /* ── Main App Renderer ── */
   function renderApp() {
     updateHeaderNav();
     updateCartCount();
@@ -109,7 +122,6 @@
     }
   }
 
-  /* ── Update Top Header Elements ── */
   function updateHeaderNav() {
     document.querySelectorAll('.nav-link').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === state.currentTab);
@@ -133,7 +145,7 @@
     }
   }
 
-  /* ── Shop View Renderer (Hero + Filter Sidebar + 4-Column Product Grid) ── */
+  /* ── Shop View Renderer ── */
   function renderShopView(container) {
     const heroHtml = `
       <section class="web-hero-banner">
@@ -166,7 +178,7 @@
             ${state.categories.map(c => `
               <button class="sidebar-cat-btn ${Number(state.activeCategory) === Number(c.id) ? 'active' : ''}" data-cat="${c.id}">
                 ${c.image_url ? `<img src="${esc(c.image_url)}">` : `<span>${esc(c.emoji || '🛒')}</span>`}
-                <b>${esc(c.title)}</b>
+                <b>${esc(c.title || c.name || 'دسته')}</b>
               </button>
             `).join('')}
           </div>
@@ -219,7 +231,7 @@
     `;
   }
 
-  /* ── Filter Products Core Logic ── */
+  /* ── Filter Products ── */
   function getFilteredProducts() {
     let list = [...state.products];
 
@@ -231,11 +243,15 @@
 
     if (state.searchTerm) {
       const q = state.searchTerm.toLowerCase();
-      list = list.filter(p => p.title.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
+      list = list.filter(p => {
+        const t = (p.title || p.name || '').toLowerCase();
+        const d = (p.short_description || p.full_description || '').toLowerCase();
+        return t.includes(q) || d.includes(q);
+      });
     }
 
     if (state.filterInStock) {
-      list = list.filter(p => Number(p.stock) > 0 || (p.variants || []).some(v => Number(v.stock) > 0));
+      list = list.filter(p => Number(p.inventory_available || p.stock || 0) > 0 || (p.variants || []).some(v => Number(v.stock || 1) > 0));
     }
 
     if (state.filterWishlist) {
@@ -255,6 +271,7 @@
 
   /* ── Product Card Component ── */
   function renderProductCard(p) {
+    const title = p.title || p.name || 'محصول بدون عنوان';
     const isWished = state.wishlist.includes(Number(p.id));
     const discount = p.discount_percent ? `<span class="card-discount-badge">${p.discount_percent}% تخفیف</span>` : '';
 
@@ -263,10 +280,10 @@
         <div class="card-img-wrap">
           ${discount}
           <button class="card-wishlist-btn" data-wishlist="${p.id}">${isWished ? '❤️' : '🤍'}</button>
-          ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title)}">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:56px;">🛒</span>`}
+          ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(title)}">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:56px;">🛒</span>`}
         </div>
         <div class="card-content">
-          <h3 class="card-title">${esc(p.title)}</h3>
+          <h3 class="card-title">${esc(title)}</h3>
           <div class="card-price-row">
             <div class="card-price">
               ${priceLabel(p.price)}
@@ -311,7 +328,7 @@
                 ${esc(o.status_text || 'تکمیل شده')}
               </span>
             </div>
-            <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${esc(o.product_title || 'اشتراک دیجیتال')}</div>
+            <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${esc(o.product_title || o.name || 'اشتراک دیجیتال')}</div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:900; color:var(--cyan);">${priceLabel(o.total_price || o.price)}</span>
               ${o.license_key ? `<button style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:#fff; font-size:12px; padding:6px 12px; border-radius:10px;" data-copy="${esc(o.license_key)}">📋 کپی کد لایسنس</button>` : ''}
@@ -349,6 +366,11 @@
   /* ── Profile View Renderer ── */
   function renderProfileView(container) {
     const user = state.user || {};
+    if (!user || user.is_guest) {
+      openAuthModal();
+      return;
+    }
+
     container.innerHTML = `
       <h2 style="font-size:24px; font-weight:900; margin-bottom:20px;">👤 حساب کاربری</h2>
       <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:28px; max-width:600px;">
@@ -359,18 +381,26 @@
             <p style="color:var(--text-muted); font-size:13px;">کد کاربری: #${user.id || '---'}</p>
           </div>
         </div>
-        <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; font-size:14px;">
+            <span style="color:var(--text-muted);">نام کاربری:</span>
+            <b>${esc(user.username || '---')}</b>
+          </div>
           <div style="display:flex; justify-content:space-between; font-size:14px;">
             <span style="color:var(--text-muted);">موجودی کیف پول:</span>
             <b style="color:var(--cyan);">${priceLabel(user.balance || 0)}</b>
           </div>
-          <div style="display:flex; justify-content:space-between; font-size:14px;">
-            <span style="color:var(--text-muted);">امتیاز دعوت:</span>
-            <b>${user.points || 0} امتیاز</b>
-          </div>
         </div>
+        <button class="nav-link" style="background:rgba(239,68,68,0.15); color:#ef4444; width:100%; justify-content:center;" id="btn-logout">خروج از حساب کاربری</button>
       </div>
     `;
+
+    $('btn-logout')?.addEventListener('click', () => {
+      localStorage.removeItem('bg_web_token');
+      state.user = null;
+      showToast('از حساب کاربری خارج شدید', 'info');
+      initApp();
+    });
   }
 
   /* ── Admin View Renderer ── */
@@ -384,10 +414,176 @@
     `;
   }
 
-  /* ── Global Event Delegation & Bindings ── */
+  /* ── Auth Modal (Login & Registration) ── */
+  function openAuthModal() {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+
+    modalContainer.innerHTML = `
+      <div class="modal-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">🔑 ورود / ثبت‌نام در BlueGate</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:20px; background:rgba(255,255,255,0.04); padding:4px; border-radius:14px;">
+          <button id="tab-login-btn" class="nav-link active" style="flex:1; justify-content:center;">ورود به حساب</button>
+          <button id="tab-register-btn" class="nav-link" style="flex:1; justify-content:center;">ثبت‌نام جدید</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form">
+          <div style="margin-bottom:14px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">نام کاربری</label>
+            <input type="text" id="login-username" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">رمز عبور</label>
+            <input type="password" id="login-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">ورود به حساب</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="hidden">
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">نام کاربری (انگلیسی)</label>
+            <input type="text" id="reg-username" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">رمز عبور</label>
+            <input type="password" id="reg-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">ایمیل (اختیاری)</label>
+            <input type="email" id="reg-email" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <div style="margin-bottom:18px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">نام یا نام خانوادگی</label>
+            <input type="text" id="reg-firstname" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">ثبت‌نام حساب جدید</button>
+        </form>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    const loginTab = $('tab-login-btn');
+    const regTab = $('tab-register-btn');
+    const loginForm = $('login-form');
+    const regForm = $('register-form');
+
+    loginTab?.addEventListener('click', () => {
+      loginTab.classList.add('active');
+      regTab.classList.remove('active');
+      loginForm.classList.remove('hidden');
+      regForm.classList.add('hidden');
+    });
+
+    regTab?.addEventListener('click', () => {
+      regTab.classList.add('active');
+      loginTab.classList.remove('active');
+      regForm.classList.remove('hidden');
+      loginForm.classList.add('hidden');
+    });
+
+    // Form Submissions
+    loginForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = $('login-username').value.trim();
+      const password = $('login-password').value;
+      const res = await api('login', {}, 'POST', { username, password });
+      if (res && res.ok) {
+        if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+        state.user = res.user;
+        showToast('با موفقیت وارد شدید! 🎉', 'success');
+        closeModal();
+        initApp();
+      } else {
+        showToast(res.message || 'نام کاربری یا رمز عبور اشتباه است.', 'error');
+      }
+    });
+
+    regForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = $('reg-username').value.trim();
+      const password = $('reg-password').value;
+      const email = $('reg-email').value.trim();
+      const first_name = $('reg-firstname').value.trim();
+      const res = await api('register', {}, 'POST', { username, password, email, first_name });
+      if (res && res.ok) {
+        if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+        state.user = res.user;
+        showToast('ثبت‌نام با موفقیت انجام شد! 🎉', 'success');
+        closeModal();
+        initApp();
+      } else {
+        showToast(res.message || 'خطا در ثبت‌نام.', 'error');
+      }
+    });
+  }
+
+  function closeModal() {
+    const modalContainer = $('modal-container');
+    if (modalContainer) {
+      modalContainer.classList.add('hidden');
+      modalContainer.innerHTML = '';
+    }
+  }
+
+  /* ── Product Detail Preview Modal ── */
+  function openProductModal(pid) {
+    const p = state.products.find(item => Number(item.id) === Number(pid));
+    if (!p) return;
+
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+
+    const title = p.title || p.name || 'جزئیات محصول';
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:600px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:18px; font-weight:900;">${esc(title)}</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:100%; max-height:260px; object-fit:cover; border-radius:16px; margin-bottom:16px;">` : ''}
+        <p style="color:var(--text-muted); font-size:14px; line-height:1.6; margin-bottom:20px;">
+          ${esc(p.full_description || p.short_description || 'توضیحاتی برای این محصول ثبت نشده است.')}
+        </p>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b style="font-size:20px; color:var(--cyan);">${priceLabel(p.price)}</b>
+          <button class="user-account-btn" id="btn-buy-modal" data-buy="${p.id}">⚡ افزودن به سبد خرید</button>
+        </div>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-buy-modal')?.addEventListener('click', () => {
+      addToCart(p.id);
+      closeModal();
+    });
+  }
+
+  /* ── Global Event Delegation ── */
   function bindGlobalEvents() {
-    // Navigation tabs
     document.addEventListener('click', (e) => {
+      // User Account Button -> Open Auth or Profile
+      if (e.target.closest('#user-btn')) {
+        if (state.user && !state.user.is_guest) {
+          state.currentTab = 'profile';
+          renderApp();
+        } else {
+          openAuthModal();
+        }
+        return;
+      }
+
+      // Navigation tabs
       const tabBtn = e.target.closest('[data-tab]');
       if (tabBtn && tabBtn.dataset.tab) {
         state.currentTab = tabBtn.dataset.tab;
@@ -411,13 +607,21 @@
       // Quick Buy
       const buyBtn = e.target.closest('[data-buy]');
       if (buyBtn && buyBtn.dataset.buy) {
+        e.stopPropagation();
         addToCart(buyBtn.dataset.buy);
       }
 
       // Wishlist toggle
       const wishBtn = e.target.closest('[data-wishlist]');
       if (wishBtn && wishBtn.dataset.wishlist) {
+        e.stopPropagation();
         toggleWishlist(wishBtn.dataset.wishlist);
+      }
+
+      // Product Card Preview
+      const card = e.target.closest('.product-card');
+      if (card && card.dataset.pid && !e.target.closest('[data-buy]') && !e.target.closest('[data-wishlist]')) {
+        openProductModal(card.dataset.pid);
       }
 
       // Copy buttons
@@ -428,7 +632,19 @@
       }
     });
 
-    // Top Search Input
+    // In-Stock & Wishlist quick toggles
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#toggle-instock')) {
+        state.filterInStock = !state.filterInStock;
+        renderApp();
+      }
+      if (e.target.closest('#toggle-wishlist')) {
+        state.filterWishlist = !state.filterWishlist;
+        renderApp();
+      }
+    });
+
+    // Search Input
     const searchInput = $('search-input');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -443,7 +659,6 @@
     $('cart-backdrop')?.addEventListener('click', () => openCartDrawer(false));
   }
 
-  /* ── Wishlist Toggle ── */
   function toggleWishlist(pid) {
     const id = Number(pid);
     const idx = state.wishlist.indexOf(id);
@@ -455,22 +670,21 @@
     renderApp();
   }
 
-  /* ── Add To Cart ── */
   function addToCart(pid) {
     const product = state.products.find(p => Number(p.id) === Number(pid));
     if (!product) return;
 
+    const title = product.title || product.name || 'محصول بدون عنوان';
     const existing = state.cart.find(item => Number(item.id) === Number(pid));
     if (existing) existing.qty = (existing.qty || 1) + 1;
-    else state.cart.push({ id: product.id, title: product.title, price: product.price, qty: 1 });
+    else state.cart.push({ id: product.id, title, price: product.price, qty: 1 });
 
     localStorage.setItem('bg_web_cart', JSON.stringify(state.cart));
     updateCartCount();
-    showToast(`"${product.title}" به سبد خرید اضافه شد! 🛒`, 'success');
+    showToast(`"${title}" به سبد خرید اضافه شد! 🛒`, 'success');
     openCartDrawer(true);
   }
 
-  /* ── Cart Drawer Toggle ── */
   function openCartDrawer(open) {
     const drawer = $('cart-drawer');
     const backdrop = $('cart-backdrop');
@@ -507,11 +721,11 @@
         <span>مبلغ قابل پرداخت:</span>
         <span style="color:var(--cyan);">${priceLabel(total)}</span>
       </div>
-      <button class="user-account-btn" style="width:100%; justify-content:center;" onclick="alert('تکمیل سفارش')">تکمیل خرید &amp; پرداخت</button>
+      <button class="user-account-btn" style="width:100%; justify-content:center;" onclick="alert('تکمیل سفارش با موفقیت انجام شد')">تکمیل خرید &amp; پرداخت</button>
     `;
   }
 
-  /* ── Boot Web App ── */
+  /* ── Boot Web Engine ── */
   document.addEventListener('DOMContentLoaded', initApp);
 
 })();
