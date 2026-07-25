@@ -155,7 +155,9 @@ async function api(action,payload={}){
     if(data.error === 'AUTH_REQUIRED'){
       openAuthModal();
     }
-    throw new Error(data.message||data.error||'خطا در ارتباط');
+    const err = new Error(data.message||data.error||'خطا در ارتباط');
+    Object.assign(err, data);
+    throw err;
   }
   return data
 }
