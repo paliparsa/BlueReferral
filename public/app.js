@@ -91,6 +91,11 @@
       state.payment_methods = res.payment_methods || null;
       state.support_username = res.support_username || '';
       state.brand = res.brand || '';
+      state.spin_rewards = res.spin_rewards || [];
+      state.spin_every = res.spin_every || 5;
+      state.missions = res.missions || [];
+      state.transactions = res.transactions || [];
+      state.achievements = res.achievements || [];
       if (res.user) {
         state.user = res.user;
         state.is_admin = !!res.is_admin;
@@ -809,28 +814,7 @@
       const treeBox = $('referrals-tree-container');
 
       if (treeBox) {
-        if (!refs.length) {
-          treeBox.innerHTML = `<p style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px 0;">هنوز هیچ زیرمجموعه‌ای ثبت نشده است. لینک فوق را برای دوستانتان ارسال کنید!</p>`;
-        } else {
-          treeBox.innerHTML = `
-            <h4 style="font-size:14px; font-weight:700; margin-bottom:12px;">👥 زیرمجموعه‌های شما (${refs.length})</h4>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-              ${refs.map(r => `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:12px 16px; border-radius:14px; font-size:13px; border:1px solid var(--border-color);">
-                  <div>
-                    <b style="font-size:14px;">${esc(r.first_name || r.username || 'کاربر')}</b>
-                    <div style="color:var(--text-muted); font-size:11px; margin-top:2px;">
-                      عضویت: ${esc(String(r.created_at || '').slice(0, 10))} ${r.username ? '· @' + esc(r.username) : ''}
-                    </div>
-                  </div>
-                  <div style="text-align:left;">
-                    <span style="color:var(--cyan); font-weight:800; display:block;">+${priceLabel(r.total_earned || 0)}</span>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `;
-        }
+        treeBox.innerHTML = referralTreeHtml(refs);
       }
     } else if (walletSubTab === 'missions') {
       subContainer.innerHTML = `
@@ -839,7 +823,8 @@
             <div style="font-size:48px; margin-bottom:10px;">🎡</div>
             <h3 style="font-size:18px; font-weight:900; margin-bottom:6px;">گردونه شانس روزانه</h3>
             <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
-              شانس باقی‌مانده شما: <b style="color:var(--cyan); font-size:16px;">${nf(user.spin_balance || 0)}</b>
+              برای هر ${nf(state.spin_every || 5)} زیرمجموعه جدید، یک شانس چرخاندن می‌گیرید.
+              <br>شانس باقی‌مانده شما: <b style="color:var(--cyan); font-size:16px;">${nf(user.spin_balance || 0)}</b>
             </p>
             <button class="user-account-btn" style="margin:0 auto;" id="btn-spin-wheel">🎰 چرخاندن گردونه شانس</button>
           </div>
@@ -850,17 +835,7 @@
               <button class="user-account-btn" id="btn-claim-missions" style="font-size:11px; padding:6px 12px; background:#22c55e; color:#000;">🎁 دریافت پاداش‌ها</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:12px;">
-              ${(state.missions || []).map(m => `
-                <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); padding:14px; border-radius:14px;">
-                  <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;">
-                    <span>${esc(m.title || 'ماموریت دعوت')}</span>
-                    <span style="color:var(--cyan);">${priceLabel(m.reward || 0)}</span>
-                  </div>
-                  <div style="color:var(--text-muted); font-size:12px;">
-                    پیشرفت: ${nf(m.current || 0)} از ${nf(m.target || 1)} دعوت
-                  </div>
-                </div>
-              `).join('') || '<p style="color:var(--text-muted); font-size:13px; text-align:center;">ماموریتی یافت نشد.</p>'}
+              ${(state.missions || []).map(missionCard).join('') || '<p style="color:var(--text-muted); font-size:13px; text-align:center;">ماموریتی یافت نشد.</p>'}
             </div>
           </div>
         </div>
@@ -902,6 +877,93 @@
         </div>
       `;
     }
+  }
+
+  /* ── Phase 2 Helper Functions ── */
+  function wheelGradient(rewards = []) {
+    const colors = ['#1d9bf0', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#ef4444', '#84cc16'];
+    const list = rewards.length ? rewards : [{ title: 'جایزه' }];
+    const step = 100 / list.length;
+    return `conic-gradient(${list.map((_, i) => `${colors[i % colors.length]} ${i * step}% ${(i + 1) * step}%`).join(',')})`;
+  }
+
+  function wheelPrizeList(rewards = []) {
+    return (rewards || []).slice(0, 8).map(r => `
+      <div class="wheel-prize-chip">
+        <b>${esc(r.title || 'جایزه')}</b>
+        <span>${Number(r.amount || 0) > 0 ? priceLabel(r.amount) : 'جایزه ویژه'}</span>
+      </div>
+    `).join('') || '<p style="color:var(--text-muted); font-size:12px;">جایزه‌ای تعریف نشده.</p>';
+  }
+
+  function referralTreeHtml(refs = []) {
+    if (!refs || !refs.length) {
+      return `
+        <div style="text-align:center; padding:24px 0; color:var(--text-muted);">
+          <div style="font-size:36px; margin-bottom:8px;">🌳</div>
+          <p style="font-size:13px;">هنوز هیچ زیرمجموعه‌ای ثبت نشده است. لینک فوق را برای دوستانتان ارسال کنید!</p>
+        </div>
+      `;
+    }
+    const totalEarned = refs.reduce((s, r) => s + Number(r.reward_amount || r.total_earned || 0), 0);
+    return `
+      <div style="margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <h4 style="font-size:15px; font-weight:800;">🌳 درخت زیرمجموعه‌ها (${nf(refs.length)})</h4>
+          <span style="color:var(--cyan); font-size:13px; font-weight:800;">کل پاداش: ${priceLabel(totalEarned)}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${refs.map(r => {
+            const initial = esc(String(r.first_name || r.username || '?').slice(0, 1).toUpperCase());
+            const spent = Number(r.total_spent || 0);
+            const orders = Number(r.orders_count || 0);
+            const reward = Number(r.reward_amount || r.total_earned || 0);
+            return `
+              <div class="referral-node-v2">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div class="referral-avatar-circle">${initial}</div>
+                  <div>
+                    <b style="font-size:14px;">${esc(r.first_name || r.username || 'کاربر')}${r.username ? ' (@' + esc(r.username) + ')' : ''}</b>
+                    <div style="color:var(--text-muted); font-size:11px; margin-top:2px;">
+                      عضویت: ${esc(String(r.created_at || r.joined_at || '').slice(0, 10))} ${orders > 0 ? `· ${nf(orders)} سفارش (${priceLabel(spent)})` : '· بدون سفارش'}
+                    </div>
+                  </div>
+                </div>
+                <div class="referral-reward-badge">+${priceLabel(reward)}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function missionCard(m) {
+    const today = Number(state.user?.today_referrals || 0);
+    const target = Math.max(1, Number(m.target || 1));
+    const current = Math.min(today, target);
+    const pct = Math.max(0, Math.min(100, Math.round(current / target * 100)));
+    const doneClass = m.claimed ? 'claimed' : (m.done ? 'done' : 'todo');
+    const badgeText = m.claimed ? 'دریافت شد ✅' : (m.done ? 'آماده دریافت 🎁' : 'در حال انجام ⏳');
+
+    return `
+      <div class="mission-card-v2 ${doneClass}">
+        <div class="mission-top-v2">
+          <div>
+            <span style="font-size:11px; color:var(--cyan); font-weight:700;">${nf(current)} از ${nf(target)} دعوت</span>
+            <h4 style="font-size:15px; font-weight:800; margin-top:2px;">${esc(m.title || `${nf(target)} دعوت امروز`)}</h4>
+          </div>
+          <b style="color:#22c55e; font-size:14px;">${priceLabel(m.reward || 0)}</b>
+        </div>
+        <div class="progress-track-v2">
+          <div class="progress-fill-v2" style="width:${pct}%;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text-muted);">
+          <span>${pct}% تکمیل شده</span>
+          <b>${badgeText}</b>
+        </div>
+      </div>
+    `;
   }
 
   /* ── QR Code Generator Modal ── */
@@ -1034,27 +1096,38 @@
   function openSpinWheelModal() {
     const user = state.user || {};
     const spins = Number(user.spin_balance || 0);
+    const rewards = state.spin_rewards || [];
 
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
 
     modalContainer.innerHTML = `
-      <div class="modal-card" style="max-width:480px; text-align:center;">
+      <div class="modal-card" style="max-width:500px; text-align:center;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
           <h3 style="font-size:18px; font-weight:900;">🎡 گردونه شانس روزانه</h3>
           <button class="close-drawer-btn" id="close-modal-btn">✕</button>
         </div>
-        <div style="margin:20px 0;">
-          <div id="wheel-graphic" style="width:140px; height:140px; border-radius:50%; border:6px solid var(--cyan); margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:48px; background:radial-gradient(circle, rgba(0,242,254,0.2) 0%, rgba(15,23,42,0.9) 100%); transition:transform 2.5s cubic-bezier(0.15, 0.9, 0.25, 1);">
-            🎁
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">
+          برای هر ${nf(state.spin_every || 5)} زیرمجموعه جدید، یک شانس چرخاندن می‌گیرید. جایزه‌ها خودکار به کیف پول اضافه می‌شوند.
+        </p>
+
+        <div class="spin-stage-wrap">
+          <div class="wheel-pointer-v2">▼</div>
+          <div id="spinWheelVisual" class="spin-wheel-v2" style="background:${wheelGradient(rewards)}">
+            <div class="wheel-center-v2"><span>SPIN</span></div>
           </div>
         </div>
+
         <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">
           شانس باقی‌مانده شما: <b style="color:var(--cyan); font-size:16px;">${nf(spins)}</b>
         </p>
         <button id="btn-spin-now" class="user-account-btn" style="width:100%; justify-content:center;" ${spins <= 0 ? 'disabled' : ''}>
-          ${spins > 0 ? '🎰 چرخاندن گردونه' : 'فرصت گردونه ندارید'}
+          ${spins > 0 ? '🎡 چرخاندن گردونه' : 'فعلاً شانسی نداری'}
         </button>
+
+        <div class="spin-prizes-list">
+          ${wheelPrizeList(rewards)}
+        </div>
       </div>
     `;
 
@@ -1063,21 +1136,43 @@
 
     $('btn-spin-now')?.addEventListener('click', async () => {
       const btn = $('btn-spin-now');
-      const graphic = $('wheel-graphic');
-      if (btn) btn.disabled = true;
+      const wheel = $('spinWheelVisual');
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'در حال چرخش...';
 
-      if (graphic) graphic.style.transform = 'rotate(1440deg)';
+      const count = Math.max(1, rewards.length);
+      const start = Number(wheel?.dataset.rot || 0);
+      const fakeIndex = Math.floor(Math.random() * count);
+      const degPer = 360 / count;
+      const target = start + 1440 + (360 - (fakeIndex * degPer + degPer / 2));
 
-      const res = await api('spin');
-      setTimeout(() => {
-        if (res && res.ok && res.prize) {
-          showToast(`🎉 تبریک! شما برنده "${res.prize.title}" شدید!`, 'success');
-          initApp();
-        } else {
-          showToast(res.message || 'خطا در چرخاندن گردونه.', 'error');
+      if (wheel) {
+        wheel.dataset.rot = String(target);
+        wheel.style.transform = `rotate(${target}deg)`;
+      }
+
+      try {
+        const res = await api('spin');
+        const prize = res.prize || {};
+        const idx = Number(prize.index ?? fakeIndex);
+        const finalRot = start + 2160 + (360 - (idx * degPer + degPer / 2));
+
+        if (wheel) {
+          wheel.dataset.rot = String(finalRot);
+          wheel.style.transform = `rotate(${finalRot}deg)`;
         }
-        closeModal();
-      }, 2600);
+
+        setTimeout(() => {
+          showToast(`🎉 مبارک! جایزه شما: "${prize.title || 'جایزه گردونه'}"`, 'success');
+          initApp();
+          closeModal();
+        }, 2600);
+      } catch (e) {
+        showToast(e.message || 'خطا در گردونه', 'error');
+        btn.disabled = false;
+        btn.textContent = 'چرخاندن گردونه';
+      }
     });
   }
 
