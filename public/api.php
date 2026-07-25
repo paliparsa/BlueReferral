@@ -318,6 +318,11 @@ if ($action === 'me') {
     }
 }
 
+// Public guest endpoint — no auth required
+if ($action === 'guest_dashboard_payload') {
+    api_out(guest_dashboard_payload());
+}
+
 if (!$user) {
     api_out(['ok'=>false, 'error'=>'AUTH_REQUIRED', 'message'=>'برای انجام این عملیات باید وارد حساب کاربری خود شوید.'], 401);
 }
@@ -329,6 +334,11 @@ if ($action === 'logout') {
     api_out(['ok'=>true]);
 }
 if ($action === 'my_orders') { api_out(['ok'=>true, 'orders'=>array_map('order_public_payload', user_orders((int)$user['id'], 50))]); }
+if ($action === 'my_referrals') {
+    $stmt = db()->prepare('SELECT id, first_name, username, created_at, referrals_count, total_earned FROM users WHERE referrer_id=? ORDER BY id DESC LIMIT 50');
+    $stmt->execute([(int)$user['id']]);
+    api_out(['ok' => true, 'referrals' => $stmt->fetchAll()]);
+}
 if ($action === 'claim_missions') { [$count, $claimed] = claim_available_missions($user); api_out(dashboard_payload(get_user_by_id((int)$user['id'])) + ['claimed'=>$claimed, 'today_count'=>$count]); }
 if ($action === 'spin') { $user=get_user_by_id((int)$user['id']); if ((int)$user['spin_balance']<=0) api_out(['ok'=>false,'error'=>'NO_SPIN_BALANCE','message'=>'فعلاً شانس گردونه نداری.'],400); $rewards=spin_rewards_public(); $reward=weighted_spin_reward(); $title=$reward['title']??'جایزه گردونه'; $amount=(int)($reward['amount']??0); $idx=0; foreach($rewards as $i=>$r){ if(($r['title']??'')===$title && (int)($r['amount']??0)===$amount){ $idx=$i; break; } } db()->prepare('UPDATE users SET spin_balance=spin_balance-1 WHERE id=? AND spin_balance>0')->execute([$user['id']]); db()->prepare('INSERT INTO spin_logs (user_id, prize_title, prize_amount) VALUES (?,?,?)')->execute([$user['id'],$title,$amount]); if($amount>0)add_balance($user['id'],$amount,'spin_reward',$title,null); if(!empty($reward['notify_admin'])) notify_admins("🎡 جایزه Mini App نیازمند بررسی\nکاربر: <code>".h($user['first_name']??$user['username']??$user['id'])."</code>\nجایزه: <b>".h($title)."</b>"); api_out(dashboard_payload(get_user_by_id((int)$user['id'])) + ['prize'=>['title'=>$title,'amount'=>$amount,'index'=>$idx]]); }
 if ($action === 'withdraw') { $user=get_user_by_id((int)$user['id']); $card=trim((string)($input['card_info']??'')); if(mb_strlen($card)<8) api_out(['ok'=>false,'error'=>'INVALID_CARD_INFO','message'=>'اطلاعات کارت/شبا کامل نیست.'],400); $min=setting_int('min_withdraw',50000); if((int)$user['balance']<$min) api_out(['ok'=>false,'error'=>'LOW_BALANCE','message'=>'موجودی به حداقل برداشت نمی‌رسد.'],400); $pending=db()->prepare('SELECT COUNT(*) c FROM withdrawals WHERE user_id=? AND status="pending"'); $pending->execute([$user['id']]); if((int)$pending->fetch()['c']>0) api_out(['ok'=>false,'error'=>'PENDING_WITHDRAWAL','message'=>'یک برداشت در انتظار دارید.'],400); $amount=(int)$user['balance']; db()->prepare('INSERT INTO withdrawals (user_id, amount, card_info) VALUES (?,?,?)')->execute([$user['id'],$amount,$card]); db()->prepare('UPDATE users SET balance=0 WHERE id=?')->execute([$user['id']]); notify_admins("🏧 برداشت جدید\nکاربر: <code>".h($user['first_name']??$user['username']??$user['id'])."</code>\nمبلغ: <b>".money($amount)."</b>\nاطلاعات:\n".h($card)); api_out(dashboard_payload(get_user_by_id((int)$user['id'])) + ['withdraw_amount'=>$amount]); }
