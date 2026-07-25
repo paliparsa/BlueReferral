@@ -2754,51 +2754,260 @@
     `;
   }
 
+  let webSettingsSubTab = 'general';
+  let webAdminCards = [];
+  let webAdminWallets = [];
+  let webAdminRates = [];
+
+  function initSettingsStateFromObj(settings) {
+    webAdminCards = Array.isArray(settings.card_accounts) ? settings.card_accounts : (function(){
+      try { return JSON.parse(settings.card_accounts_text || '[]'); } catch(e){ return []; }
+    })();
+    webAdminWallets = Array.isArray(settings.crypto_wallets) ? settings.crypto_wallets : (function(){
+      try { return JSON.parse(settings.crypto_wallets_text || '[]'); } catch(e){ return []; }
+    })();
+    webAdminRates = Array.isArray(settings.crypto_manual_rates) ? settings.crypto_manual_rates : (function(){
+      try { return JSON.parse(settings.crypto_manual_rates_text || '[]'); } catch(e){ return []; }
+    })();
+  }
+
   function renderAdminSettingsTabMarkup(settings) {
+    initSettingsStateFromObj(settings);
+    const pm = settings.payment_methods_enabled || {};
+    const starsActive = pm.stars === true || pm.stars === 1 || pm.stars === '1';
+    const cryptoActive = pm.crypto === true || pm.crypto === 1 || pm.crypto === '1';
+    const walletActive = pm.wallet !== false && pm.wallet !== 0 && pm.wallet !== '0';
+    const cardActive = pm.card !== false && pm.card !== 0 && pm.card !== '0';
+
+    const isGen = webSettingsSubTab === 'general';
+    const isPay = webSettingsSubTab === 'payments';
+    const isCry = webSettingsSubTab === 'crypto';
+    const isApp = webSettingsSubTab === 'appearance';
+    const isGam = webSettingsSubTab === 'gamification';
+
     return `
-      <div style="max-width:720px; margin:0 auto; background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:24px;">
-        <h3 style="font-size:18px; font-weight:900; margin:0 0 20px 0; border-bottom:1px solid var(--border-color); padding-bottom:12px;">⚙️ تنظیمات عمومی فروشگاه</h3>
-        
+      <div style="max-width:840px; margin:0 auto;">
+        <!-- Sub-Tab Navigation Bar -->
+        <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; margin-bottom:20px; border-bottom:1px solid var(--border-color);">
+          <button type="button" class="nav-link ${isGen ? 'active' : ''}" data-set-subtab="general" style="border-radius:12px; padding:10px 16px; font-weight:700; font-size:13px; background:${isGen ? 'var(--cyan)' : 'var(--card-dark)'}; color:${isGen ? '#000' : 'var(--text-muted)'}; border:1px solid var(--border-color);">🏪 عمومی</button>
+          <button type="button" class="nav-link ${isPay ? 'active' : ''}" data-set-subtab="payments" style="border-radius:12px; padding:10px 16px; font-weight:700; font-size:13px; background:${isPay ? 'var(--cyan)' : 'var(--card-dark)'}; color:${isPay ? '#000' : 'var(--text-muted)'}; border:1px solid var(--border-color);">💳 کارت &amp; درگاه</button>
+          <button type="button" class="nav-link ${isCry ? 'active' : ''}" data-set-subtab="crypto" style="border-radius:12px; padding:10px 16px; font-weight:700; font-size:13px; background:${isCry ? 'var(--cyan)' : 'var(--card-dark)'}; color:${isCry ? '#000' : 'var(--text-muted)'}; border:1px solid var(--border-color);">🪙 مدیریت رمزارز</button>
+          <button type="button" class="nav-link ${isApp ? 'active' : ''}" data-set-subtab="appearance" style="border-radius:12px; padding:10px 16px; font-weight:700; font-size:13px; background:${isApp ? 'var(--cyan)' : 'var(--card-dark)'}; color:${isApp ? '#000' : 'var(--text-muted)'}; border:1px solid var(--border-color);">🎨 رنگ &amp; ظاهر</button>
+          <button type="button" class="nav-link ${isGam ? 'active' : ''}" data-set-subtab="gamification" style="border-radius:12px; padding:10px 16px; font-weight:700; font-size:13px; background:${isGam ? 'var(--cyan)' : 'var(--card-dark)'}; color:${isGam ? '#000' : 'var(--text-muted)'}; border:1px solid var(--border-color);">🎡 پاداش &amp; گردونه</button>
+        </div>
+
         <form id="admin-settings-form">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-            <div>
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">نام برند (Brand Name):</label>
-              <input type="text" id="set-brand-name" value="${esc(settings.brand_name || 'BlueGate')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
-            </div>
-            <div>
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">یوزرنیم پشتیبانی تلگرام:</label>
-              <input type="text" id="set-support-username" value="${esc(settings.support_username || 'BlueGateSupport')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          <!-- PANE 1: GENERAL -->
+          <div style="display:${isGen ? 'block' : 'none'};">
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">🏪 هویت و تنظیمات عمومی</h3>
+              
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">نام برند (Brand Name):</label>
+                  <input type="text" id="set-brand-name" value="${esc(settings.brand_name || 'BlueGate')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">یوزرنیم پشتیبانی تلگرام:</label>
+                  <input type="text" id="set-support-username" value="${esc(settings.support_username || 'BlueGateSupport')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">حداقل مبلغ برداشت (تومان):</label>
+                  <input type="number" id="set-min-withdraw" value="${settings.min_withdraw || 50000}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">پاداش عضویت اولیه (تومان):</label>
+                  <input type="number" id="set-start-reward" value="${settings.start_reward || 2000}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">کلید API ایمیل (Resend API Key):</label>
+                  <input type="password" id="set-resend-key" value="${esc(settings.resend_api_key || '')}" placeholder="re_..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">ایمیل فرستنده سیستم:</label>
+                  <input type="email" id="set-resend-email" value="${esc(settings.resend_from_email || 'onboarding@resend.dev')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-            <div>
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">حداقل مبلغ برداشت (تومان):</label>
-              <input type="number" id="set-min-withdraw" value="${settings.min_withdraw || 50000}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          <!-- PANE 2: PAYMENTS & CARDS -->
+          <div style="display:${isPay ? 'block' : 'none'};">
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">💳 روش‌های فعال پرداخت</h3>
+              
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:20px;">
+                <label style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:12px; padding:12px; cursor:pointer;">
+                  <input type="checkbox" id="set-pay-wallet" ${walletActive ? 'checked' : ''}>
+                  <span style="font-size:13px; font-weight:700;">💳 کیف پول داخلی</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:12px; padding:12px; cursor:pointer;">
+                  <input type="checkbox" id="set-pay-card" ${cardActive ? 'checked' : ''}>
+                  <span style="font-size:13px; font-weight:700;">💳 کارت به کارت</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:12px; padding:12px; cursor:pointer;">
+                  <input type="checkbox" id="set-pay-stars" ${starsActive ? 'checked' : ''}>
+                  <span style="font-size:13px; font-weight:700;">⭐️ Telegram Stars</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:12px; padding:12px; cursor:pointer;">
+                  <input type="checkbox" id="set-pay-crypto" ${cryptoActive ? 'checked' : ''}>
+                  <span style="font-size:13px; font-weight:700;">🪙 رمزارز (Crypto)</span>
+                </label>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">ارزش هر Telegram Star به تومان:</label>
+                  <input type="number" id="set-stars-rate" value="${settings.stars_rate_toman || 3200}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+              </div>
+
+              <div style="margin-bottom:20px;">
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">راهنما و دستورالعمل عمومی پرداخت:</label>
+                <textarea id="set-payment-instructions" rows="3" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; direction:rtl; text-align:right;">${esc(settings.payment_instructions || '')}</textarea>
+              </div>
             </div>
-            <div>
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">پاداش عضویت اول (تومان):</label>
-              <input type="number" id="set-start-reward" value="${settings.start_reward || 2000}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+
+            <!-- Bank Cards Builder List -->
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <div>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">💳 مدیریت حساب‌های کارت به کارت</h3>
+                  <small style="color:var(--text-muted);">کارت‌های بانکی برای واریز مستقیم کاربران</small>
+                </div>
+                <button type="button" class="user-account-btn" id="btn-add-bank-card" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">➕ افزودن کارت جدید</button>
+              </div>
+
+              <div id="web-cards-builder-list" style="display:flex; flex-direction:column; gap:10px;">
+                ${!webAdminCards.length ? `<p style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">هیچ کارتی ثبت نشده است.</p>` : webAdminCards.map((c, idx) => `
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                      <b style="font-size:14px; color:#fff;">${esc(c.title || 'کارت بانکی')}</b>
+                      <code style="display:block; direction:ltr; text-align:left; font-size:14px; color:var(--cyan); margin-top:4px;">${esc(c.card || '')}</code>
+                      <small style="color:var(--text-muted); font-size:12px;">صاحب کارت: ${esc(c.owner || 'نامشخص')}${c.sheba ? ` · شبا: ${esc(c.sheba)}` : ''}</small>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                      <button type="button" class="user-account-btn" data-edit-card-idx="${idx}" style="background:rgba(255,255,255,0.1); color:#fff; font-size:11px; padding:6px 12px;">✏️ ویرایش</button>
+                      <button type="button" class="user-account-btn" data-del-card-idx="${idx}" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:6px 12px;">🗑️ حذف</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">توضیحات و راهنمای عمومی پرداخت:</label>
-            <textarea id="set-payment-instructions" rows="3" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; direction:rtl; text-align:right;">${esc(settings.payment_instructions || '')}</textarea>
+          <!-- PANE 3: CRYPTO MANAGER -->
+          <div style="display:${isCry ? 'block' : 'none'};">
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">🪙 تنظیمات منبع نرخ رمزارز</h3>
+              
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">منبع دریافت نرخ live:</label>
+                  <select id="set-crypto-source" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                    <option value="auto" ${settings.crypto_rate_source === 'auto' || !settings.crypto_rate_source ? 'selected' : ''}>خودکار (Wallex → Ramzinex → Nobitex)</option>
+                    <option value="wallex" ${settings.crypto_rate_source === 'wallex' ? 'selected' : ''}>والکس (Wallex)</option>
+                    <option value="ramzinex" ${settings.crypto_rate_source === 'ramzinex' ? 'selected' : ''}>رمزینکس (Ramzinex)</option>
+                    <option value="nobitex" ${settings.crypto_rate_source === 'nobitex' ? 'selected' : ''}>نوبیتکس (Nobitex)</option>
+                    <option value="manual" ${settings.crypto_rate_source === 'manual' ? 'selected' : ''}>فقط نرخ دستی (Manual)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">درصد احتیاط (Markup %):</label>
+                  <input type="number" step="0.1" id="set-crypto-markup" value="${settings.crypto_rate_markup_percent || 1}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Crypto Wallets Builder List -->
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <div>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">👛 کیف پول‌های دریافت رمزارز</h3>
+                  <small style="color:var(--text-muted);">آدرس‌های ولت جهت دریافت USDT, TRX, TON</small>
+                </div>
+                <button type="button" class="user-account-btn" id="btn-add-crypto-wallet" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">➕ افزودن ولت رمزارز</button>
+              </div>
+
+              <div id="web-wallets-builder-list" style="display:flex; flex-direction:column; gap:10px;">
+                ${!webAdminWallets.length ? `<p style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">هیچ کیف پول رمزارزی ثبت نشده است.</p>` : webAdminWallets.map((w, idx) => `
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                      <b style="font-size:14px; color:#fff;">${esc(w.title || w.asset || 'کیف پول')}</b>
+                      <span style="font-size:11px; padding:2px 8px; border-radius:6px; background:rgba(29,155,240,0.2); color:var(--cyan); margin-right:6px;">${esc(w.asset || 'USDT')} · ${esc(w.network || 'TRC20')}</span>
+                      <code style="display:block; direction:ltr; text-align:left; font-size:12px; color:var(--text-muted); margin-top:4px; word-break:break-all;">${esc(w.address || '')}</code>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                      <button type="button" class="user-account-btn" data-edit-wallet-idx="${idx}" style="background:rgba(255,255,255,0.1); color:#fff; font-size:11px; padding:6px 12px;">✏️ ویرایش</button>
+                      <button type="button" class="user-account-btn" data-del-wallet-idx="${idx}" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:6px 12px;">🗑️ حذف</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Manual Rates Builder List -->
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <div>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">📈 نرخ دستی رمزارزها (Fallback Rates)</h3>
+                  <small style="color:var(--text-muted);">در صورت قطعی صرافی‌های آنلاین استفاده می‌شود</small>
+                </div>
+                <button type="button" class="user-account-btn" id="btn-add-crypto-rate" style="background:rgba(255,255,255,0.1); color:#fff; font-size:12px; padding:8px 14px;">➕ افزودن نرخ دستی</button>
+              </div>
+
+              <div id="web-rates-builder-list" style="display:flex; flex-direction:column; gap:8px;">
+                ${!webAdminRates.length ? `<p style="color:var(--text-muted); font-size:13px; text-align:center; padding:12px;">نرخ دستی تعیین نشده است.</p>` : webAdminRates.map((r, idx) => `
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:10px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                      <b style="color:var(--cyan); font-size:13px;">1 ${esc((r.asset || 'USDT').toUpperCase())}</b> = 
+                      <b style="color:#fff; font-size:13px;">${fmt(r.rate_toman || 0)} تومان</b>
+                    </div>
+                    <button type="button" class="user-account-btn" data-del-rate-idx="${idx}" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:4px 8px;">🗑️ حذف</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
-            <div>
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">کلید API ایمیل (Resend API Key):</label>
-              <input type="password" id="set-resend-key" value="${esc(settings.resend_api_key || '')}" placeholder="re_..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
-            </div>
-            <div>
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">ایمیل فرستنده سیستم:</label>
-              <input type="email" id="set-resend-email" value="${esc(settings.resend_from_email || 'onboarding@resend.dev')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          <!-- PANE 4: APPEARANCE -->
+          <div style="display:${isApp ? 'block' : 'none'};">
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">🎨 رنگ و تم ظاهری</h3>
+              
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">رنگ اصلی تم (Theme Color):</label>
+                  <input type="color" id="set-theme-color" value="${esc(settings.theme_color || '#1d9bf0')}" style="width:100%; height:42px; border:0; background:transparent; cursor:pointer;">
+                </div>
+              </div>
             </div>
           </div>
 
-          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000; font-weight:800; padding:12px;">💾 ذخیره تنظیمات</button>
+          <!-- PANE 5: GAMIFICATION -->
+          <div style="display:${isGam ? 'block' : 'none'};">
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">🎡 تنظیمات گردونه شانس</h3>
+              
+              <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">تعداد زیرمجموعه برای دریافت ۱ شانس گردونه:</label>
+                <input type="number" id="set-spin-every" value="${settings.spin_referrals_per_chance || 5}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+              </div>
+
+              <div>
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">تعریف جوایز گردونه (هر خط: عنوان|مبلغ|وزن):</label>
+                <textarea id="set-spin-rewards" rows="4" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; direction:ltr; text-align:left;">${esc(settings.spin_rewards_text || '')}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000; font-weight:800; padding:14px; font-size:15px; border-radius:14px; margin-top:10px;">💾 ذخیره تمامی تنظیمات</button>
         </form>
       </div>
     `;
@@ -3096,18 +3305,264 @@
     });
   }
 
+  function openWebCardBuilderModal(settings, index = null) {
+    const card = index === null ? {} : (webAdminCards[index] || {});
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:16px; font-weight:800; margin:0;">${index === null ? '➕ افزودن کارت بانکی جدید' : '✏️ ویرایش کارت بانکی'}</h3>
+          <button class="ghost" id="modal-close-btn" style="border:0; background:transparent; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        <form id="card-builder-form">
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">عنوان کارت:</label>
+            <input type="text" id="cb-title" value="${esc(card.title || '')}" placeholder="مثلاً کارت اصلی متصل به حساب" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">شماره کارت (۱۶ رقمی):</label>
+            <input type="text" id="cb-card" value="${esc(card.card || '')}" placeholder="6037..." required style="width:100%; direction:ltr; text-align:left; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نام صاحب کارت:</label>
+            <input type="text" id="cb-owner" value="${esc(card.owner || '')}" placeholder="نام و نام خانوادگی" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">شماره شبا (اختیاری):</label>
+            <input type="text" id="cb-sheba" value="${esc(card.sheba || '')}" placeholder="IR..." style="width:100%; direction:ltr; text-align:left; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000; font-weight:800; padding:12px;">💾 ذخیره کارت</button>
+        </form>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    const closeModal = () => {
+      modalContainer.classList.add('hidden');
+      modalContainer.innerHTML = '';
+      if (document.body) {
+        document.body.style.overflow = '';
+        document.body.classList.remove('has-open-popup');
+      }
+    };
+
+    $('modal-close-btn')?.addEventListener('click', closeModal);
+    $('card-builder-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const obj = {
+        title: $('cb-title').value.trim(),
+        card: $('cb-card').value.trim(),
+        owner: $('cb-owner').value.trim(),
+        sheba: $('cb-sheba').value.trim()
+      };
+      if (index === null) webAdminCards.push(obj);
+      else webAdminCards[index] = obj;
+      closeModal();
+      renderAdminView($('app'));
+    });
+  }
+
+  function openWebWalletBuilderModal(settings, index = null) {
+    const w = index === null ? { network: 'TRC20', asset: 'USDT' } : (webAdminWallets[index] || {});
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:16px; font-weight:800; margin:0;">${index === null ? '➕ افزودن ولت رمزارز جدید' : '✏️ ویرایش ولت رمزارز'}</h3>
+          <button class="ghost" id="modal-close-btn" style="border:0; background:transparent; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        <form id="wallet-builder-form">
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">ارز رمزنگاری:</label>
+            <select id="wb-asset" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+              <option value="USDT" ${w.asset === 'USDT' ? 'selected' : ''}>USDT (تتر)</option>
+              <option value="TRX" ${w.asset === 'TRX' ? 'selected' : ''}>TRX (ترون)</option>
+              <option value="TON" ${w.asset === 'TON' ? 'selected' : ''}>TON (تن کوین)</option>
+            </select>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">عنوان ولت:</label>
+            <input type="text" id="wb-title" value="${esc(w.title || '')}" placeholder="مثلاً کیف پول اختصاصی تتر" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">شبکه کیف پول:</label>
+            <select id="wb-network" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+              <option value="TRC20" ${w.network === 'TRC20' ? 'selected' : ''}>TRC20 (TRON Network)</option>
+              <option value="TON" ${w.network === 'TON' ? 'selected' : ''}>TON Network</option>
+              <option value="BEP20" ${w.network === 'BEP20' ? 'selected' : ''}>BEP20 (BNB Smart Chain)</option>
+              <option value="ERC20" ${w.network === 'ERC20' ? 'selected' : ''}>ERC20 (Ethereum)</option>
+            </select>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">آدرس ولت:</label>
+            <textarea id="wb-address" rows="3" placeholder="آدرس کیف پول" required style="width:100%; direction:ltr; text-align:left; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:monospace;">${esc(w.address || '')}</textarea>
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000; font-weight:800; padding:12px;">💾 ذخیره کیف پول</button>
+        </form>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    const closeModal = () => {
+      modalContainer.classList.add('hidden');
+      modalContainer.innerHTML = '';
+      if (document.body) {
+        document.body.style.overflow = '';
+        document.body.classList.remove('has-open-popup');
+      }
+    };
+
+    $('modal-close-btn')?.addEventListener('click', closeModal);
+    $('wallet-builder-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const obj = {
+        asset: $('wb-asset').value,
+        title: $('wb-title').value.trim(),
+        network: $('wb-network').value,
+        address: $('wb-address').value.trim(),
+        rate_symbol: $('wb-asset').value,
+        is_active: '1'
+      };
+      if (index === null) webAdminWallets.push(obj);
+      else webAdminWallets[index] = obj;
+      closeModal();
+      renderAdminView($('app'));
+    });
+  }
+
+  function openWebRateBuilderModal(settings) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:400px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:16px; font-weight:800; margin:0;">➕ افزودن نرخ دستی رمزارز</h3>
+          <button class="ghost" id="modal-close-btn" style="border:0; background:transparent; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        <form id="rate-builder-form">
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نماد ارز (Symbol):</label>
+            <input type="text" id="rb-asset" value="USDT" placeholder="USDT" required style="width:100%; direction:ltr; text-align:left; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">قیمت به تومان:</label>
+            <input type="number" id="rb-rate" placeholder="95000" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000; font-weight:800; padding:12px;">💾 ذخیره نرخ</button>
+        </form>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    const closeModal = () => {
+      modalContainer.classList.add('hidden');
+      modalContainer.innerHTML = '';
+      if (document.body) {
+        document.body.style.overflow = '';
+        document.body.classList.remove('has-open-popup');
+      }
+    };
+
+    $('modal-close-btn')?.addEventListener('click', closeModal);
+    $('rate-builder-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const obj = {
+        asset: $('rb-asset').value.trim().toUpperCase(),
+        rate_toman: Number($('rb-rate').value)
+      };
+      webAdminRates.push(obj);
+      closeModal();
+      renderAdminView($('app'));
+    });
+  }
+
   function bindAdminSettingsTabEvents(settings) {
+    // Sub-tab switching
+    document.querySelectorAll('[data-set-subtab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        webSettingsSubTab = btn.dataset.setSubtab;
+        renderAdminView($('app'));
+      });
+    });
+
+    // Cards builder handlers
+    $('btn-add-bank-card')?.addEventListener('click', () => openWebCardBuilderModal(settings));
+    document.querySelectorAll('[data-edit-card-idx]').forEach(btn => {
+      btn.addEventListener('click', () => openWebCardBuilderModal(settings, Number(btn.dataset.editCardIdx)));
+    });
+    document.querySelectorAll('[data-del-card-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        webAdminCards.splice(Number(btn.dataset.delCardIdx), 1);
+        renderAdminView($('app'));
+      });
+    });
+
+    // Crypto Wallets builder handlers
+    $('btn-add-crypto-wallet')?.addEventListener('click', () => openWebWalletBuilderModal(settings));
+    document.querySelectorAll('[data-edit-wallet-idx]').forEach(btn => {
+      btn.addEventListener('click', () => openWebWalletBuilderModal(settings, Number(btn.dataset.editWalletIdx)));
+    });
+    document.querySelectorAll('[data-del-wallet-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        webAdminWallets.splice(Number(btn.dataset.delWalletIdx), 1);
+        renderAdminView($('app'));
+      });
+    });
+
+    // Crypto Rates builder handlers
+    $('btn-add-crypto-rate')?.addEventListener('click', () => openWebRateBuilderModal(settings));
+    document.querySelectorAll('[data-del-rate-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        webAdminRates.splice(Number(btn.dataset.delRateIdx), 1);
+        renderAdminView($('app'));
+      });
+    });
+
+    // Admin settings form submit
     $('admin-settings-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const payload = {
-        brand_name: $('set-brand-name').value.trim(),
-        support_username: $('set-support-username').value.trim(),
-        min_withdraw: Number($('set-min-withdraw').value),
-        start_reward: Number($('set-start-reward').value),
-        payment_instructions: $('set-payment-instructions').value.trim(),
-        resend_api_key: $('set-resend-key').value.trim(),
-        resend_from_email: $('set-resend-email').value.trim()
+        brand_name: $('set-brand-name')?.value.trim() || settings.brand_name || 'BlueGate',
+        support_username: $('set-support-username')?.value.trim() || settings.support_username || 'BlueGateSupport',
+        min_withdraw: Number($('set-min-withdraw')?.value || settings.min_withdraw || 50000),
+        start_reward: Number($('set-start-reward')?.value || settings.start_reward || 2000),
+        payment_instructions: $('set-payment-instructions')?.value.trim() || '',
+        resend_api_key: $('set-resend-key')?.value.trim() || '',
+        resend_from_email: $('set-resend-email')?.value.trim() || 'onboarding@resend.dev',
+        payment_methods_enabled: {
+          wallet: $('set-pay-wallet')?.checked ?? true,
+          card: $('set-pay-card')?.checked ?? true,
+          stars: $('set-pay-stars')?.checked ?? false,
+          crypto: $('set-pay-crypto')?.checked ?? false
+        },
+        stars_rate_toman: Number($('set-stars-rate')?.value || 3200),
+        card_accounts_text: JSON.stringify(webAdminCards),
+        crypto_wallets_text: JSON.stringify(webAdminWallets),
+        crypto_manual_rates_text: JSON.stringify(webAdminRates),
+        crypto_rate_source: $('set-crypto-source')?.value || 'auto',
+        crypto_rate_markup_percent: Number($('set-crypto-markup')?.value || 1),
+        theme_color: $('set-theme-color')?.value || '#1d9bf0',
+        spin_referrals_per_chance: Number($('set-spin-every')?.value || 5),
+        spin_rewards_text: $('set-spin-rewards')?.value || ''
       };
+
       const res = await api('admin_save_settings', {}, 'POST', payload);
       if (res && res.ok) {
         showToast('⚙️ تنظیمات با موفقیت ذخیره شد!', 'success');
