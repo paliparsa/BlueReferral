@@ -130,9 +130,10 @@ function product_payload(array $p, bool $activeVariants=true): array {
     }, product_variants((int)$p['id'], $activeVariants));
 
     $pm = price_meta_public($p);
-    $pDiscount = (int)($p['flash_sale_discount'] ?? $p['discount_percent'] ?? 0);
-    $rawPPrice = (int)$pm['toman'];
-    $pOrigPrice = ($pDiscount > 0 && $pDiscount < 100) ? (int)round($rawPPrice / (1 - $pDiscount / 100)) : (int)($p['old_price'] ?? 0);
+    $rawPPrice = (int)$pm['toman'];  // Original full price (flash_sale_discount is NOT baked in)
+    $flashDiscount = (int)($p['flash_sale_discount'] ?? 0);
+    // old_price = original price for display as crossed-out when flash is active
+    $pOrigPrice = ($flashDiscount > 0 && $rawPPrice > 0) ? $rawPPrice : (int)($p['old_price'] ?? 0);
 
     return [
         'id' => (int)$p['id'],
@@ -140,8 +141,8 @@ function product_payload(array $p, bool $activeVariants=true): array {
         'category_title' => $p['category_title'] ?? null,
         'category_emoji' => $p['category_emoji'] ?? null,
         'name' => $p['name'],
-        'price' => $rawPPrice,
-        'old_price' => $pOrigPrice,
+        'price' => $rawPPrice,      // Original price. Frontends apply flash_sale_discount at display time
+        'old_price' => $pOrigPrice, // Same as price when flash active (for crossed-out display)
         'price_label' => product_price_label($p),
         'price_currency' => $pm['currency'],
         'price_usd' => $pm['usd'],
