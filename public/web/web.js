@@ -166,6 +166,57 @@
     else modal.classList.add('open');
   }
 
+  let activePayOrder = null;
+
+  function openPaymentModal(order) {
+    if (!order) return;
+    activePayOrder = order;
+
+    $('payOrderId').textContent = order.id;
+    $('payItemName').textContent = order.product_name || selectedProduct?.name || 'سفارش سرویس';
+    $('payAmountText').textContent = `${nf(order.final_amount || order.total_amount)} تومان`;
+
+    const pm = state?.payment_methods || {};
+    const cards = pm.card_accounts || [];
+    const cardContainer = $('cardListDisplay');
+    if (cards.length > 0) {
+      cardContainer.innerHTML = cards.map(c => `
+        <div class="card-item-box">
+          <div style="font-size:12px; color:var(--text-muted);">${c.bank_name || 'کارت بانکی'} - به نام <b>${c.holder_name || ''}</b></div>
+          <div class="card-num">
+            <span>${c.card_number}</span>
+            <button type="button" class="copy-btn" data-copy="${c.card_number}">کپی 📋</button>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      cardContainer.innerHTML = `<div style="font-size:13px; color:var(--text-muted); text-align:center; padding:10px;">شماره کارتی ثبت نشده است. لطفاً با پشتیبانی تماس بگیرید.</div>`;
+    }
+
+    const cryptoWallets = pm.crypto_wallets || [];
+    const cryptoContainer = $('cryptoListDisplay');
+    if (cryptoWallets.length > 0) {
+      cryptoContainer.innerHTML = cryptoWallets.map(w => `
+        <div class="crypto-item-box">
+          <div style="font-size:12px; color:var(--accent);">شبکه: <b>${w.network || 'TRC20'}</b></div>
+          <div class="crypto-addr">
+            <span>${w.address}</span>
+            <button type="button" class="copy-btn" data-copy="${w.address}">کپی 📋</button>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      cryptoContainer.innerHTML = `<div style="font-size:13px; color:var(--text-muted); text-align:center; padding:10px;">کیف پول رمزارز ثبت نشده است.</div>`;
+    }
+
+    $('receiptError').classList.add('hidden');
+    $('cryptoError').classList.add('hidden');
+
+    const modal = $('paymentModal');
+    if (typeof modal.showModal === 'function') modal.showModal();
+    else modal.classList.add('open');
+  }
+
   // Confirm Purchase Action
   async function confirmPurchase() {
     if (!selectedProduct) return;
@@ -186,19 +237,21 @@
       });
 
       if (res.ok) {
-        showToast('سفارش شما با موفقیت ثبت شد 🎉');
         $('checkoutModal').close?.();
 
-        // If card payment: select card
-        if (payMethod === 'card' && res.order?.id) {
-          await api('select_payment_method', { order_id: res.order.id, method: 'card', details: {} });
-        } else if (payMethod === 'crypto' && res.order?.id) {
-          await api('select_payment_method', { order_id: res.order.id, method: 'crypto', details: {} });
+        if (useWallet) {
+          showToast('سفارش با موفقیت از کیف پول پرداخت شد 🎉');
+          openTracker(res.order?.id);
+          loadData();
+        } else {
+          // Select payment method & Open Payment Details Modal
+          if (payMethod === 'card' && res.order?.id) {
+            await api('select_payment_method', { order_id: res.order.id, method: 'card', details: {} });
+          } else if (payMethod === 'crypto' && res.order?.id) {
+            await api('select_payment_method', { order_id: res.order.id, method: 'crypto', details: {} });
+          }
+          openPaymentModal(res.order);
         }
-
-        // Show Tracking Dialog
-        openTracker(res.order?.id);
-        loadData();
       }
     } catch (err) {
       errEl.textContent = err.message || 'خطا در ثبت سفارش';
@@ -262,6 +315,18 @@
     if (t.id === 'closeCheckoutModal') $('checkoutModal').close?.();
     if (t.id === 'confirmBuyBtn') confirmPurchase();
 
+    // Payment Modal
+    if (t.id === 'closePaymentModal') $('paymentModal').close?.();
+    if (t.dataset?.payTab) {
+      document.querySelectorAll('.pay-tab').forEach(b => b.classList.toggle('active', b === t));
+      $('cardPaySection').classList.toggle('hidden', t.dataset.payTab !== 'card');
+      $('cryptoPaySection').classList.toggle('hidden', t.dataset.payTab !== 'crypto');
+    }
+    if (t.dataset?.copy) {
+      navigator.clipboard.writeText(t.dataset.copy);
+      showToast('در حافظه کپی شد! 📋');
+    }
+
     // Order Tracking Modal
     if (t.id === 'trackOrderBtn' || t.id === 'footerTrackBtn') openTracker();
     if (t.id === 'closeTrackerModal') $('trackerModal').close?.();
@@ -274,15 +339,55 @@
       resEl.classList.remove('hidden');
       if (match) {
         resEl.innerHTML = `
-          <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px;">
+          <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-top: 10px;">
             <h4>سفارش #${match.id} - ${match.product_name}</h4>
             <p>وضعیت: <strong style="color:var(--accent);">${match.status_fa || match.status}</strong></p>
             <small>تاریخ: ${match.created_at || ''}</small>
           </div>
         `;
       } else {
-        resEl.innerHTML = `<p style="color:#f87171;">سفارشی با این شناسه در حساب شما یافت نشد. لطفاً وارد حساب خود شوید.</p>`;
+        resEl.innerHTML = `<p style="color:#f87171; margin-top:10px;">سفارشی با این شناسه در حساب شما یافت نشد. لطفاً وارد حساب خود شوید.</p>`;
       }
+    }
+  });
+
+  // Receipt Form Submit
+  $('receiptForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!activePayOrder) return;
+    const note = $('receiptNote').value;
+    const errEl = $('receiptError');
+    errEl.classList.add('hidden');
+
+    try {
+      await api('submit_receipt', { order_id: activePayOrder.id, note });
+      showToast('رسید پرداخت با موفقیت ثبت شد 🎉');
+      $('paymentModal').close?.();
+      openTracker(activePayOrder.id);
+      loadData();
+    } catch (err) {
+      errEl.textContent = err.message || 'خطا در ثبت رسید';
+      errEl.classList.remove('hidden');
+    }
+  });
+
+  // Crypto Form Submit
+  $('cryptoForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!activePayOrder) return;
+    const txHash = $('cryptoTxid').value;
+    const errEl = $('cryptoError');
+    errEl.classList.add('hidden');
+
+    try {
+      await api('submit_crypto_hash', { order_id: activePayOrder.id, tx_hash: txHash });
+      showToast('کد هش تراکنش با موفقیت ثبت شد 🎉');
+      $('paymentModal').close?.();
+      openTracker(activePayOrder.id);
+      loadData();
+    } catch (err) {
+      errEl.textContent = err.message || 'خطا در ثبت کد تراکنش';
+      errEl.classList.remove('hidden');
     }
   });
 

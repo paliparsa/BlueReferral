@@ -224,6 +224,53 @@
     </div>
   </dialog>
 
+  <!-- Payment Details & Receipt Upload Modal -->
+  <dialog id="paymentModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="payModalTitle">درگاه پرداخت و واریز 💳</h3>
+        <button type="button" class="modal-close" id="closePaymentModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="pay-summary-box">
+          <div><small>سفارش #<span id="payOrderId">...</span></small><h4 id="payItemName">...</h4></div>
+          <span class="pay-amount" id="payAmountText">...</span>
+        </div>
+
+        <div class="pay-method-tabs" id="payMethodTabs">
+          <button type="button" class="pay-tab active" data-pay-tab="card">💳 کارت به کارت</button>
+          <button type="button" class="pay-tab" data-pay-tab="crypto">🪙 رمزارز / USDT</button>
+        </div>
+
+        <!-- Card-to-Card Section -->
+        <div id="cardPaySection" class="pay-section">
+          <div class="card-display-box" id="cardListDisplay"></div>
+          <form id="receiptForm" style="margin-top: 14px;">
+            <div class="field">
+              <label for="receiptNote">شماره پیگیری / کد ارجاع کارت به کارت:</label>
+              <input type="text" id="receiptNote" placeholder="شماره پیگیری یا نام صاحب کارت واریز کننده" required />
+            </div>
+            <div id="receiptError" class="modal-error hidden"></div>
+            <button type="submit" class="btn-primary">ثبت رسید و تایید پرداخت 🚀</button>
+          </form>
+        </div>
+
+        <!-- Crypto Section -->
+        <div id="cryptoPaySection" class="pay-section hidden">
+          <div class="crypto-display-box" id="cryptoListDisplay"></div>
+          <form id="cryptoForm" style="margin-top: 14px;">
+            <div class="field">
+              <label for="cryptoTxid">کد هش تراکنش (TXID / Hash):</label>
+              <input type="text" id="cryptoTxid" placeholder="کد TXID یا Hash واریز تتر" required />
+            </div>
+            <div id="cryptoError" class="modal-error hidden"></div>
+            <button type="submit" class="btn-primary">ثبت کد تراکنش رمزارز 🚀</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <script src="web.js"></script>
 </body>
 </html>

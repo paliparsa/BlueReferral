@@ -606,6 +606,87 @@ body {
   margin-bottom: 14px;
 }
 
+/* Payment Modal & Details Display */
+.pay-summary-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(29, 155, 240, 0.1);
+  border: 1px solid rgba(29, 155, 240, 0.3);
+  padding: 12px 16px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+.pay-amount {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.pay-method-tabs {
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+}
+.pay-tab {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pay-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.card-item-box, .crypto-item-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.card-num, .crypto-addr {
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 12px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0;
+  word-break: break-all;
+}
+.copy-btn {
+  background: rgba(29, 155, 240, 0.2);
+  color: var(--accent);
+  border: 1px solid rgba(29, 155, 240, 0.4);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.copy-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
 .hidden {
   display: none !important;
 }
