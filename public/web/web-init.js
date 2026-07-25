@@ -155,56 +155,36 @@
         $('footerSupportLink').href = `https://t.me/${window.state.support_username}`;
       }
 
-      // If user is admin, inject Admin Panel buttons across header, nav, sidebar, and mobile bottom nav
-      if (window.state.is_admin) {
-        let adminHeaderBtn = $('webAdminHeaderBtn');
-        if (!adminHeaderBtn) {
-          adminHeaderBtn = document.createElement('a');
-          adminHeaderBtn.id = 'webAdminHeaderBtn';
-          adminHeaderBtn.href = '?admin=1';
-          adminHeaderBtn.className = 'web-auth-btn';
-          adminHeaderBtn.style.background = 'linear-gradient(135deg, #f59e0b, #ef4444)';
-          adminHeaderBtn.style.marginRight = '8px';
-          adminHeaderBtn.innerHTML = '<span>👑</span> <b>پنل مدیریت</b>';
-          const actions = document.querySelector('.web-header-actions');
-          if (actions) actions.insertBefore(adminHeaderBtn, actions.firstChild);
-        }
-
-        let adminNavBtn = $('webAdminNavBtn');
-        if (!adminNavBtn) {
-          adminNavBtn = document.createElement('a');
-          adminNavBtn.id = 'webAdminNavBtn';
-          adminNavBtn.href = '?admin=1';
-          adminNavBtn.className = 'web-nav-btn';
-          adminNavBtn.style.color = '#f59e0b';
-          adminNavBtn.style.fontWeight = 'bold';
-          adminNavBtn.innerHTML = '👑 مدیریت';
-          const nav = document.querySelector('.web-header-nav');
-          if (nav) nav.appendChild(adminNavBtn);
-        }
-
-        let adminSidebarBtn = $('webAdminSidebarBtn');
-        if (!adminSidebarBtn) {
-          adminSidebarBtn = document.createElement('a');
-          adminSidebarBtn.id = 'webAdminSidebarBtn';
-          adminSidebarBtn.href = '?admin=1';
-          adminSidebarBtn.className = 'web-sidebar-btn';
-          adminSidebarBtn.style.color = '#f59e0b';
-          adminSidebarBtn.innerHTML = '<span>👑</span><b>پنل مدیریت</b>';
-          const sidebarInner = document.querySelector('.web-sidebar-inner');
-          if (sidebarInner) sidebarInner.appendChild(adminSidebarBtn);
-        }
-
-        let adminBottomBtn = $('webAdminBottomBtn');
-        if (!adminBottomBtn) {
-          adminBottomBtn = document.createElement('a');
-          adminBottomBtn.id = 'webAdminBottomBtn';
-          adminBottomBtn.href = '?admin=1';
-          adminBottomBtn.style.cssText = 'color:#f59e0b; font-size:11px; text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1;';
-          adminBottomBtn.innerHTML = '<span style="font-size:18px">👑</span>مدیریت';
-          const bottomNav = document.querySelector('.bottom-nav');
-          if (bottomNav) bottomNav.appendChild(adminBottomBtn);
-        }
+      // If user is admin, inject Admin Panel button (header only, once per session)
+      if (window.state.is_admin && !$('webAdminHeaderBtn')) {
+        const adminHeaderBtn = document.createElement('a');
+        adminHeaderBtn.id = 'webAdminHeaderBtn';
+        adminHeaderBtn.href = '?admin=1';
+        adminHeaderBtn.className = 'web-auth-btn';
+        adminHeaderBtn.style.cssText = 'background:linear-gradient(135deg,#f59e0b,#ef4444);margin-right:8px;font-size:12px;padding:8px 14px;';
+        adminHeaderBtn.innerHTML = '<span>👑</span> <b>پنل مدیریت</b>';
+        const actions = document.querySelector('.web-header-actions');
+        if (actions) actions.insertBefore(adminHeaderBtn, actions.firstChild);
+      }
+      if (window.state.is_admin && !$('webAdminNavBtn')) {
+        const adminNavBtn = document.createElement('a');
+        adminNavBtn.id = 'webAdminNavBtn';
+        adminNavBtn.href = '?admin=1';
+        adminNavBtn.className = 'web-nav-btn';
+        adminNavBtn.style.cssText = 'color:#f59e0b;font-weight:bold;';
+        adminNavBtn.textContent = '👑 مدیریت';
+        const nav = document.querySelector('.web-header-nav');
+        if (nav) nav.appendChild(adminNavBtn);
+      }
+      if (window.state.is_admin && !$('webAdminSidebarBtn')) {
+        const adminSidebarBtn = document.createElement('a');
+        adminSidebarBtn.id = 'webAdminSidebarBtn';
+        adminSidebarBtn.href = '?admin=1';
+        adminSidebarBtn.className = 'web-sidebar-btn';
+        adminSidebarBtn.style.cssText = 'color:#f59e0b;';
+        adminSidebarBtn.innerHTML = '<span>👑</span><b>پنل مدیریت</b>';
+        const sidebarInner = document.querySelector('.web-sidebar-inner');
+        if (sidebarInner) sidebarInner.appendChild(adminSidebarBtn);
       }
     } else if (!token) {
       btnText.textContent = 'ورود / ثبت‌نام';
@@ -568,14 +548,24 @@
   };
 
   // Card view mode toggle listener (Grid vs List)
+  // IMPORTANT: productCardMode in app.js is a local `let`, not a window property.
+  // We must use window.setProductCardMode() to update it correctly.
   document.addEventListener('click', (e) => {
     const modeBtn = e.target.closest('[data-card-mode]');
-    if (modeBtn && modeBtn.dataset.cardMode) {
-      const mode = modeBtn.dataset.cardMode;
+    if (!modeBtn || !modeBtn.dataset.cardMode) return;
+    const mode = modeBtn.dataset.cardMode;
+    if (typeof window.setProductCardMode === 'function') {
+      // Use app.js's own setter — this updates the local `productCardMode` var
+      // that productCard() actually reads, then calls renderShop internally.
+      window.setProductCardMode(mode);
+    } else {
+      // Fallback if somehow setProductCardMode isn't available yet
       window.productCardMode = mode;
       localStorage.setItem('blue_ref_card_mode', mode);
       if (typeof window.renderShop === 'function') window.renderShop();
     }
+    // Prevent the global [data-tab] listener from also firing
+    e.stopPropagation();
   });
 
   /* ── Phase 3: 3D Card Tilt & Copy Glow FX ── */
