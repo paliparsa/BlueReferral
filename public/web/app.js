@@ -595,20 +595,60 @@
       loginForm.classList.add('hidden');
     });
 
+    let pendingUserId = null;
+
+    function showOtpForm(userId, message) {
+      pendingUserId = userId;
+      modalContainer.innerHTML = `
+        <div class="modal-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+            <h3 style="font-size:18px; font-weight:900;">✉️ تایید ایمیل</h3>
+            <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+          </div>
+          <p style="color:var(--text-muted); font-size:14px; margin-bottom:20px; text-align:center;">${esc(message)}</p>
+          <form id="otp-form">
+            <div style="margin-bottom:20px;">
+              <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">کد تایید ۶ رقمی</label>
+              <input type="text" id="otp-code" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; text-align:center; font-size:24px; letter-spacing:4px;">
+            </div>
+            <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">تایید کد</button>
+          </form>
+        </div>
+      `;
+      $('close-modal-btn')?.addEventListener('click', closeModal);
+      $('otp-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const otp = $('otp-code').value.trim();
+        const res = await api('verify_email_otp', {}, 'POST', { user_id: pendingUserId, otp });
+        if (res && res.ok) {
+          if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+          state.user = res.user;
+          showToast(res.message || 'ایمیل تایید شد!', 'success');
+          closeModal();
+          initApp();
+        } else {
+          showToast(res.message || 'کد تایید نامعتبر است.', 'error');
+        }
+      });
+    }
+
     // Form Submissions
     loginForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const username = $('login-username').value.trim();
       const password = $('login-password').value;
       const res = await api('login', {}, 'POST', { username, password });
+      
       if (res && res.ok) {
         if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
         state.user = res.user;
         showToast('با موفقیت وارد شدید! 🎉', 'success');
         closeModal();
         initApp();
+      } else if (res && res.error === 'EMAIL_VERIFICATION_REQUIRED') {
+        showOtpForm(res.user_id, res.message);
       } else {
-        showToast(res.message || 'نام کاربری یا رمز عبور اشتباه است.', 'error');
+        showToast(res ? res.message : 'نام کاربری یا رمز عبور اشتباه است.', 'error');
       }
     });
 
@@ -619,14 +659,19 @@
       const email = $('reg-email').value.trim();
       const first_name = $('reg-firstname').value.trim();
       const res = await api('register', {}, 'POST', { username, password, email, first_name });
+      
       if (res && res.ok) {
-        if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
-        state.user = res.user;
-        showToast('ثبت‌نام با موفقیت انجام شد! 🎉', 'success');
-        closeModal();
-        initApp();
+        if (res.requires_email_verification) {
+          showOtpForm(res.user_id, res.message);
+        } else {
+          if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+          state.user = res.user;
+          showToast('ثبت‌نام با موفقیت انجام شد! 🎉', 'success');
+          closeModal();
+          initApp();
+        }
       } else {
-        showToast(res.message || 'خطا در ثبت‌نام.', 'error');
+        showToast(res ? res.message : 'خطا در ثبت‌نام.', 'error');
       }
     });
   }
@@ -648,6 +693,7 @@
     if (!modalContainer) return;
 
     const title = p.title || p.name || 'جزئیات محصول';
+    const variants = p.variants || [];
 
     modalContainer.innerHTML = `
       <div class="modal-card" style="max-width:600px;">
@@ -659,17 +705,47 @@
         <p style="color:var(--text-muted); font-size:14px; line-height:1.6; margin-bottom:20px;">
           ${esc(p.full_description || p.short_description || 'توضیحاتی برای این محصول ثبت نشده است.')}
         </p>
+
+        ${variants.length > 0 ? `
+          <div style="margin-bottom:20px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">انتخاب پلن / مدت زمان</label>
+            <select id="modal-variant-select" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; font-size:14px;">
+              ${variants.map(v => `<option value="${v.id}" data-price="${v.price}" data-title="${esc(v.title)}">${esc(v.title)} — ${priceLabel(v.price)}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <b style="font-size:20px; color:var(--cyan);">${priceLabel(p.price)}</b>
-          <button class="user-account-btn" id="btn-buy-modal" data-buy="${p.id}">⚡ افزودن به سبد خرید</button>
+          <b id="modal-price-label" style="font-size:20px; color:var(--cyan);">
+            ${priceLabel(variants.length > 0 ? variants[0].price : p.price)}
+          </b>
+          <button class="user-account-btn" id="btn-buy-modal">⚡ افزودن به سبد خرید</button>
         </div>
       </div>
     `;
 
     modalContainer.classList.remove('hidden');
     $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    const vSelect = $('modal-variant-select');
+    const priceLbl = $('modal-price-label');
+
+    if (vSelect && priceLbl) {
+      vSelect.addEventListener('change', () => {
+        const opt = vSelect.options[vSelect.selectedIndex];
+        priceLbl.textContent = priceLabel(opt.dataset.price);
+      });
+    }
+
     $('btn-buy-modal')?.addEventListener('click', () => {
-      addToCart(p.id);
+      let vId = null, vTitle = '', vPrice = null;
+      if (vSelect) {
+        const opt = vSelect.options[vSelect.selectedIndex];
+        vId = opt.value;
+        vTitle = opt.dataset.title;
+        vPrice = opt.dataset.price;
+      }
+      addToCart(p.id, vId, vTitle, vPrice);
       closeModal();
     });
   }
@@ -709,11 +785,16 @@
         renderApp();
       }
 
-      // Quick Buy
+      // Quick Buy (From Cards)
       const buyBtn = e.target.closest('[data-buy]');
       if (buyBtn && buyBtn.dataset.buy) {
         e.stopPropagation();
-        addToCart(buyBtn.dataset.buy);
+        const p = state.products.find(item => Number(item.id) === Number(buyBtn.dataset.buy));
+        if (p && p.variants && p.variants.length > 0) {
+          openProductModal(p.id);
+        } else {
+          addToCart(buyBtn.dataset.buy);
+        }
       }
 
       // Wishlist toggle
@@ -779,18 +860,24 @@
     renderApp();
   }
 
-  function addToCart(pid) {
+  function addToCart(pid, vId = null, vTitle = '', vPrice = null) {
     const product = state.products.find(p => Number(p.id) === Number(pid));
     if (!product) return;
 
     const title = product.title || product.name || 'محصول بدون عنوان';
-    const existing = state.cart.find(item => Number(item.id) === Number(pid));
-    if (existing) existing.qty = (existing.qty || 1) + 1;
-    else state.cart.push({ id: product.id, title, price: product.price, qty: 1 });
+    const finalTitle = vId ? `${title} — ${vTitle}` : title;
+    const finalPrice = vPrice !== null ? vPrice : product.price;
+
+    const existing = state.cart.find(item => Number(item.id) === Number(pid) && item.vid == vId);
+    if (existing) {
+      existing.qty = (existing.qty || 1) + 1;
+    } else {
+      state.cart.push({ id: product.id, vid: vId, title: finalTitle, price: finalPrice, qty: 1 });
+    }
 
     localStorage.setItem('bg_web_cart', JSON.stringify(state.cart));
     updateCartCount();
-    showToast(`"${title}" به سبد خرید اضافه شد! 🛒`, 'success');
+    showToast(`"${finalTitle}" به سبد خرید اضافه شد! 🛒`, 'success');
     openCartDrawer(true);
   }
 
@@ -857,7 +944,9 @@
     for (const item of state.cart) {
       for (let i = 0; i < (item.qty || 1); i++) {
         try {
-          const res = await api('create_order', {}, 'POST', { product_id: item.id, use_wallet: 0 });
+          const payload = { product_id: item.id, use_wallet: 0 };
+          if (item.vid) payload.variant_id = item.vid;
+          const res = await api('create_order', {}, 'POST', payload);
           if (res && res.ok) okCount++;
           else failCount++;
         } catch(e) {
