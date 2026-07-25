@@ -141,6 +141,34 @@
       if ($('footerSupportLink') && window.state.support_username) {
         $('footerSupportLink').href = `https://t.me/${window.state.support_username}`;
       }
+
+      // If user is admin, inject Admin Panel button into topbar & sidebar
+      if (window.state.is_admin) {
+        let adminHeaderBtn = $('webAdminHeaderBtn');
+        if (!adminHeaderBtn) {
+          adminHeaderBtn = document.createElement('a');
+          adminHeaderBtn.id = 'webAdminHeaderBtn';
+          adminHeaderBtn.href = '?admin=1';
+          adminHeaderBtn.className = 'web-auth-btn';
+          adminHeaderBtn.style.background = 'linear-gradient(135deg, #f59e0b, #ef4444)';
+          adminHeaderBtn.style.marginRight = '8px';
+          adminHeaderBtn.innerHTML = '<span>👑</span> <b>پنل مدیریت</b>';
+          const actions = document.querySelector('.web-header-actions');
+          if (actions) actions.insertBefore(adminHeaderBtn, actions.firstChild);
+        }
+
+        let adminSidebarBtn = $('webAdminSidebarBtn');
+        if (!adminSidebarBtn) {
+          adminSidebarBtn = document.createElement('a');
+          adminSidebarBtn.id = 'webAdminSidebarBtn';
+          adminSidebarBtn.href = '?admin=1';
+          adminSidebarBtn.className = 'web-sidebar-btn';
+          adminSidebarBtn.style.color = '#f59e0b';
+          adminSidebarBtn.innerHTML = '<span>👑</span><b>پنل مدیریت</b>';
+          const sidebarInner = document.querySelector('.web-sidebar-inner');
+          if (sidebarInner) sidebarInner.appendChild(adminSidebarBtn);
+        }
+      }
     } else if (!token) {
       btnText.textContent = 'ورود / ثبت‌نام';
       if (btnIcon) btnIcon.textContent = '🔑';
