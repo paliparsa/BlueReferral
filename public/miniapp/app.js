@@ -1883,6 +1883,24 @@ function initAuthHandlers() {
     btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
   });
 
+  let pendingVerifUserId = null;
+
+  function showOtpVerificationScreen(userId, email, message) {
+    pendingVerifUserId = userId;
+    openAuthModal('login');
+    document.querySelector('.auth-tabs')?.classList.add('hidden');
+    $('loginForm')?.classList.add('hidden');
+    $('registerForm')?.classList.add('hidden');
+    $('telegramTab')?.classList.add('hidden');
+    
+    if ($('otpEmailTarget')) $('otpEmailTarget').textContent = email || '';
+    if ($('otpCodeInput')) { $('otpCodeInput').value = ''; setTimeout(() => $('otpCodeInput').focus(), 100); }
+    if ($('otpError')) $('otpError').classList.add('hidden');
+    
+    $('otpVerificationForm')?.classList.remove('hidden');
+    showStatus(message || 'کد تایید ۶ رقمی به ایمیل شما ارسال شد 📩');
+  }
+
   $('loginForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = $('loginUsername').value;
@@ -1900,12 +1918,7 @@ function initAuthHandlers() {
       }
     } catch (err) {
       if (err.requires_email_verification || err.error === 'EMAIL_VERIFICATION_REQUIRED') {
-        pendingVerifUserId = err.user_id;
-        if ($('otpEmailTarget')) $('otpEmailTarget').textContent = err.email || '';
-        $('loginForm').classList.add('hidden');
-        document.querySelector('.auth-tabs')?.classList.add('hidden');
-        $('otpVerificationForm')?.classList.remove('hidden');
-        showStatus(err.message || 'کد تایید ۶ رقمی به ایمیل شما ارسال شد 📩');
+        showOtpVerificationScreen(err.user_id, err.email, err.message);
         return;
       }
       if (errEl) {
@@ -1914,8 +1927,6 @@ function initAuthHandlers() {
       }
     }
   });
-
-  let pendingVerifUserId = null;
 
   $('registerForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1930,12 +1941,7 @@ function initAuthHandlers() {
     try {
       const res = await api('register', { username, email, first_name, password, ref_code });
       if (res.requires_email_verification) {
-        pendingVerifUserId = res.user_id;
-        if ($('otpEmailTarget')) $('otpEmailTarget').textContent = res.email;
-        $('registerForm').classList.add('hidden');
-        document.querySelector('.auth-tabs')?.classList.add('hidden');
-        $('otpVerificationForm')?.classList.remove('hidden');
-        showStatus('کد تایید ۶ رقمی به ایمیل شما ارسال شد 📩');
+        showOtpVerificationScreen(res.user_id, res.email, res.message);
         return;
       }
       if (res.auth_token) {

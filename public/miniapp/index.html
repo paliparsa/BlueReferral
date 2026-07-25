@@ -167,12 +167,15 @@
       </div>
 
       <form id="otpVerificationForm" class="auth-form hidden text-center">
-        <div style="margin-bottom: 8px;">
+        <div style="margin-bottom: 12px;">
           <h4 style="margin: 0 0 6px 0; font-size: 16px; color: #fff;">کد تایید ایمیل 📩</h4>
-          <p style="font-size: 12px; color: var(--muted); margin: 0;">کد ۶ رقمی به ایمیل <strong id="otpEmailTarget" style="color: #fff;"></strong> ارسال شد.</p>
+          <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5;">
+            کد ۶ رقمی به ایمیل <strong id="otpEmailTarget" style="color: #fff;"></strong> ارسال شد.<br>
+            <span style="color: #f59e0b; font-size: 11px; display: inline-block; margin-top: 4px;">⚠️ (لطفاً پوشه اسپم / Spam ایمیل خود را نیز بررسی کنید)</span>
+          </p>
         </div>
         <div class="field">
-          <input type="text" id="otpCodeInput" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 10px; font-size: 24px; font-weight: 900; text-align: center;" required />
+          <input type="text" id="otpCodeInput" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 10px; font-size: 24px; font-weight: 900; text-align: center; width: 100%; box-sizing: border-box;" required />
         </div>
         <div id="otpError" class="auth-error hidden"></div>
         <button type="submit" class="primary block-btn">تایید و ورود به حساب</button>
