@@ -2229,6 +2229,9 @@
     const activityLog = res.activity_log || [];
     const adminRoles = res.admin_roles || [];
     const backups = res.backups || [];
+    const variants = res.variants || [];
+    const withdrawals = res.withdrawals || [];
+    const settings = res.settings || {};
 
     const lowStockProds = products.filter(p => Number(p.inventory_available || 0) < 3);
 
@@ -2260,13 +2263,17 @@
 
       <!-- Admin Sub Tabs Header -->
       <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:20px; border-bottom:1px solid var(--border-color); scrollbar-width:none;">
-        <button class="nav-link ${adminActiveTab === 'dashboard' ? 'active' : ''}" data-admin-subtab="dashboard">📊 داشبورد &amp; نمودارها</button>
+        <button class="nav-link ${adminActiveTab === 'dashboard' ? 'active' : ''}" data-admin-subtab="dashboard">📊 داشبورد</button>
         <button class="nav-link ${adminActiveTab === 'orders' ? 'active' : ''}" data-admin-subtab="orders">📜 سفارش‌ها (${orders.length})</button>
         <button class="nav-link ${adminActiveTab === 'products' ? 'active' : ''}" data-admin-subtab="products">🛒 محصولات (${products.length})</button>
+        <button class="nav-link ${adminActiveTab === 'categories' ? 'active' : ''}" data-admin-subtab="categories">📂 دسته‌بندی‌ها (${categories.length})</button>
+        <button class="nav-link ${adminActiveTab === 'variants' ? 'active' : ''}" data-admin-subtab="variants">📐 پلن‌ها (${variants.length})</button>
         <button class="nav-link ${adminActiveTab === 'inventory' ? 'active' : ''}" data-admin-subtab="inventory">📦 انبار (${inventory.length})</button>
-        <button class="nav-link ${adminActiveTab === 'coupons' ? 'active' : ''}" data-admin-subtab="coupons">🎟 کدهای تخفیف (${coupons.length})</button>
-        <button class="nav-link ${adminActiveTab === 'activity' ? 'active' : ''}" data-admin-subtab="activity">📜 لاگ فعالیت (${activityLog.length})</button>
-        <button class="nav-link ${adminActiveTab === 'roles' ? 'active' : ''}" data-admin-subtab="roles">👥 نقش‌های ادمین</button>
+        <button class="nav-link ${adminActiveTab === 'withdrawals' ? 'active' : ''}" data-admin-subtab="withdrawals">🏧 برداشت‌ها (${withdrawals.length})</button>
+        <button class="nav-link ${adminActiveTab === 'coupons' ? 'active' : ''}" data-admin-subtab="coupons">🎟 تخفیف‌ها (${coupons.length})</button>
+        <button class="nav-link ${adminActiveTab === 'settings' ? 'active' : ''}" data-admin-subtab="settings">⚙️ تنظیمات</button>
+        <button class="nav-link ${adminActiveTab === 'activity' ? 'active' : ''}" data-admin-subtab="activity">📜 لاگ (${activityLog.length})</button>
+        <button class="nav-link ${adminActiveTab === 'roles' ? 'active' : ''}" data-admin-subtab="roles">👥 نقش‌ها</button>
         <button class="nav-link ${adminActiveTab === 'backups' ? 'active' : ''}" data-admin-subtab="backups">💾 بکاپ (${backups.length})</button>
       </div>
 
@@ -2289,13 +2296,25 @@
         bindAdminOrdersTabEvents(orders);
       } else if (adminActiveTab === 'products') {
         subContent.innerHTML = renderAdminProductsTabMarkup(products, categories);
-        bindAdminProductsTabEvents(products);
+        bindAdminProductsTabEvents(products, categories);
+      } else if (adminActiveTab === 'categories') {
+        subContent.innerHTML = renderAdminCategoriesTabMarkup(categories);
+        bindAdminCategoriesTabEvents(categories);
+      } else if (adminActiveTab === 'variants') {
+        subContent.innerHTML = renderAdminVariantsTabMarkup(variants, products);
+        bindAdminVariantsTabEvents(variants, products);
       } else if (adminActiveTab === 'inventory') {
         subContent.innerHTML = renderAdminInventoryTabMarkup(inventory, products);
         bindAdminInventoryTabEvents(inventory);
+      } else if (adminActiveTab === 'withdrawals') {
+        subContent.innerHTML = renderAdminWithdrawalsTabMarkup(withdrawals);
+        bindAdminWithdrawalsTabEvents(withdrawals);
       } else if (adminActiveTab === 'coupons') {
         subContent.innerHTML = renderAdminCouponsTabMarkup(coupons);
         bindAdminCouponsTabEvents(coupons);
+      } else if (adminActiveTab === 'settings') {
+        subContent.innerHTML = renderAdminSettingsTabMarkup(settings);
+        bindAdminSettingsTabEvents(settings);
       } else if (adminActiveTab === 'activity') {
         subContent.innerHTML = renderAdminActivityTabMarkup(activityLog);
       } else if (adminActiveTab === 'roles') {
@@ -2589,29 +2608,198 @@
   }
 
   function renderAdminProductsTabMarkup(products, categories) {
-    if (!products.length) {
-      return `<p style="color:var(--text-muted); text-align:center; padding:30px;">محصولی ثبت نشده است.</p>`;
-    }
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <h3 style="font-size:16px; font-weight:800; margin:0;">🛒 مدیریت محصولات (${products.length})</h3>
+        <button class="user-account-btn" id="btn-add-product" style="background:#22c55e; color:#000; font-size:12px;">➕ افزودن محصول جدید</button>
+      </div>
+      ${!products.length ? `<p style="color:var(--text-muted); text-align:center; padding:30px;">محصولی ثبت نشده است.</p>` : `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
+          ${products.map(p => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:16px; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <b style="font-size:15px; display:flex; align-items:center; gap:6px;">
+                    ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:24px; height:24px; border-radius:6px; object-fit:cover;">` : (p.emoji || '📦')}
+                    ${esc(p.name)}
+                  </b>
+                  <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:${p.is_active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${p.is_active ? '#22c55e' : '#ef4444'};">
+                    ${p.is_active ? 'فعال' : 'غیرفعال'}
+                  </span>
+                </div>
+                <div style="color:var(--cyan); font-weight:800; font-size:15px; margin-bottom:8px;">${priceLabel(p.price)}</div>
+                <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:12px;">${esc(p.short_description || 'بدون توضیح')}</small>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+                <button class="nav-link" data-admin-edit-pid="${p.id}" style="flex:1; justify-content:center; font-size:11px; padding:6px 8px; background:rgba(59,130,246,0.15); color:#60a5fa;">✏️ ویرایش</button>
+                <button class="nav-link" data-admin-toggle-pid="${p.id}" style="flex:1; justify-content:center; font-size:11px; padding:6px 8px; background:${p.is_active ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}; color:${p.is_active ? '#ef4444' : '#22c55e'};">
+                  ${p.is_active ? '🚫 غیرفعال' : '✅ فعال'}
+                </button>
+                <button class="nav-link" data-admin-delete-pid="${p.id}" style="justify-content:center; font-size:11px; padding:6px 8px; background:rgba(239,68,68,0.2); color:#ef4444;">🗑️</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminCategoriesTabMarkup(categories) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <h3 style="font-size:16px; font-weight:800; margin:0;">📂 مدیریت دسته‌بندی‌ها (${categories.length})</h3>
+        <button class="user-account-btn" id="btn-add-category" style="background:#22c55e; color:#000; font-size:12px;">➕ افزودن دسته‌بندی جدید</button>
+      </div>
+      ${!categories.length ? `<p style="color:var(--text-muted); text-align:center; padding:30px;">دسته‌بندی ثبت نشده است.</p>` : `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
+          ${categories.map(c => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b style="font-size:15px; display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:20px;">${esc(c.emoji || '🛒')}</span>
+                  ${esc(c.title)}
+                </b>
+                <small style="color:var(--text-muted); font-size:12px; display:block; margin-top:4px;">ترتیب: ${c.sort_order} | وضعیت: ${c.is_active ? 'فعال' : 'غیرفعال'}</small>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="nav-link" data-admin-edit-cid="${c.id}" style="padding:6px 10px; font-size:11px; background:rgba(59,130,246,0.15); color:#60a5fa;">✏️</button>
+                <button class="nav-link" data-admin-delete-cid="${c.id}" style="padding:6px 10px; font-size:11px; background:rgba(239,68,68,0.2); color:#ef4444;">🗑️</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminVariantsTabMarkup(variants, products) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <h3 style="font-size:16px; font-weight:800; margin:0;">📐 مدیریت پلن‌ها / متغیرها (${variants.length})</h3>
+        <button class="user-account-btn" id="btn-add-variant" style="background:#22c55e; color:#000; font-size:12px;">➕ افزودن پلن جدید</button>
+      </div>
+      ${!variants.length ? `<p style="color:var(--text-muted); text-align:center; padding:30px;">پلنی ثبت نشده است.</p>` : `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
+          ${variants.map(v => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:16px; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <b style="font-size:14px;">${esc(v.title)}</b>
+                  <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:${v.is_active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${v.is_active ? '#22c55e' : '#ef4444'};">
+                    ${v.is_active ? 'فعال' : 'غیرفعال'}
+                  </span>
+                </div>
+                <small style="color:var(--cyan); font-weight:700; display:block; margin-bottom:4px;">محصول: ${esc(v.product_name || 'نامشخص')}</small>
+                <div style="color:var(--text-color); font-weight:800; font-size:14px;">${priceLabel(v.price)} ${v.discount_percent > 0 ? `<span style="color:#ef4444; font-size:12px;">(${v.discount_percent}٪ تخفیف)</span>` : ''}</div>
+                <small style="color:var(--text-muted); font-size:12px; display:block; margin-top:4px;">مدت: ${v.duration_days} روز</small>
+              </div>
+              <div style="display:flex; gap:6px; margin-top:12px;">
+                <button class="nav-link" data-admin-edit-vid="${v.id}" style="flex:1; justify-content:center; font-size:11px; padding:6px; background:rgba(59,130,246,0.15); color:#60a5fa;">✏️ ویرایش</button>
+                <button class="nav-link" data-admin-delete-vid="${v.id}" style="padding:6px 10px; font-size:11px; background:rgba(239,68,68,0.2); color:#ef4444;">🗑️</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminWithdrawalsTabMarkup(withdrawals) {
+    const pending = withdrawals.filter(w => w.status === 'pending');
+    const processed = withdrawals.filter(w => w.status !== 'pending');
 
     return `
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
-        ${products.map(p => `
-          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:16px; display:flex; flex-direction:column; justify-content:space-between;">
-            <div>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <b style="font-size:14px;">${esc(p.name)}</b>
-                <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:${p.is_active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${p.is_active ? '#22c55e' : '#ef4444'};">
-                  ${p.is_active ? 'فعال' : 'غیرفعال'}
+      <div style="margin-bottom:20px;">
+        <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0;">🏧 مدیریت درخواست‌های برداشت (${withdrawals.length})</h3>
+        
+        ${pending.length > 0 ? `
+          <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:18px; padding:16px; margin-bottom:24px;">
+            <h4 style="font-size:14px; color:#f59e0b; margin:0 0 12px 0;">⏳ در انتظار اقدام (${pending.length})</h4>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              ${pending.map(w => `
+                <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                  <div>
+                    <b style="font-size:15px; color:#22c55e;">${fmt(w.amount)} تومان</b>
+                    <div style="font-size:13px; color:var(--text-color); margin-top:4px;">کاربر: <b>${esc(w.first_name || w.username || w.user_id)}</b></div>
+                    <small style="color:var(--text-muted); font-size:12px; display:block; margin-top:4px;">اطلاعات کارت/حساب: <code style="direction:ltr; display:inline-block;">${esc(w.card_info || 'نامشخص')}</code></small>
+                    <small style="color:var(--text-muted); font-size:11px;">تاریخ درخواست: ${esc(w.created_at || '')}</small>
+                  </div>
+                  <div style="display:flex; gap:8px;">
+                    <button class="user-account-btn" data-admin-withdraw-act="${w.id}:paid" style="background:#22c55e; color:#000; font-size:11px; padding:6px 12px;">✅ تایید &amp; پرداخت</button>
+                    <button class="user-account-btn" data-admin-withdraw-act="${w.id}:rejected" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:6px 12px;">❌ رد درخواست</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <h4 style="font-size:14px; font-weight:700; margin:0 0 12px 0;">📋 تاریخچه برداشت‌ها</h4>
+        ${!processed.length ? `<p style="color:var(--text-muted); padding:20px; text-align:center;">تاریخچه‌ای وجود ندارد.</p>` : `
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            ${processed.map(w => `
+              <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div>
+                  <b style="font-size:14px;">${fmt(w.amount)} تومان</b>
+                  <small style="color:var(--text-muted); margin-right:10px;">کاربر: ${esc(w.first_name || w.username || w.user_id)}</small>
+                </div>
+                <span style="font-size:11px; padding:3px 10px; border-radius:8px; background:${w.status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${w.status === 'paid' ? '#22c55e' : '#ef4444'}; font-weight:700;">
+                  ${w.status === 'paid' ? 'پرداخت‌شده' : 'رد‌شده'}
                 </span>
               </div>
-              <div style="color:var(--cyan); font-weight:800; font-size:15px; margin-bottom:8px;">${priceLabel(p.price)}</div>
-              <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:12px;">${esc(p.short_description || 'بدون توضیح')}</small>
-            </div>
-            <button class="nav-link" data-admin-toggle-pid="${p.id}" style="justify-content:center; font-size:12px; background:${p.is_active ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}; color:${p.is_active ? '#ef4444' : '#22c55e'};">
-              ${p.is_active ? '🚫 غیرفعال کردن' : '✅ فعال کردن'}
-            </button>
+            `).join('')}
           </div>
-        `).join('')}
+        `}
+      </div>
+    `;
+  }
+
+  function renderAdminSettingsTabMarkup(settings) {
+    return `
+      <div style="max-width:720px; margin:0 auto; background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:24px;">
+        <h3 style="font-size:18px; font-weight:900; margin:0 0 20px 0; border-bottom:1px solid var(--border-color); padding-bottom:12px;">⚙️ تنظیمات عمومی فروشگاه</h3>
+        
+        <form id="admin-settings-form">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">نام برند (Brand Name):</label>
+              <input type="text" id="set-brand-name" value="${esc(settings.brand_name || 'BlueGate')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">یوزرنیم پشتیبانی تلگرام:</label>
+              <input type="text" id="set-support-username" value="${esc(settings.support_username || 'BlueGateSupport')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">حداقل مبلغ برداشت (تومان):</label>
+              <input type="number" id="set-min-withdraw" value="${settings.min_withdraw || 50000}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">پاداش عضویت اول (تومان):</label>
+              <input type="number" id="set-start-reward" value="${settings.start_reward || 2000}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">توضیحات و راهنمای عمومی پرداخت:</label>
+            <textarea id="set-payment-instructions" rows="3" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; direction:rtl; text-align:right;">${esc(settings.payment_instructions || '')}</textarea>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">کلید API ایمیل (Resend API Key):</label>
+              <input type="password" id="set-resend-key" value="${esc(settings.resend_api_key || '')}" placeholder="re_..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">ایمیل فرستنده سیستم:</label>
+              <input type="email" id="set-resend-email" value="${esc(settings.resend_from_email || 'onboarding@resend.dev')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+          </div>
+
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000; font-weight:800; padding:12px;">💾 ذخیره تنظیمات</button>
+        </form>
       </div>
     `;
   }
@@ -2802,7 +2990,17 @@
     });
   }
 
-  function bindAdminProductsTabEvents(products) {
+  function bindAdminProductsTabEvents(products, categories) {
+    $('btn-add-product')?.addEventListener('click', () => openAddProductModal(categories));
+
+    document.querySelectorAll('[data-admin-edit-pid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = Number(btn.dataset.adminEditPid);
+        const p = products.find(x => Number(x.id) === pid);
+        if (p) openAddProductModal(categories, p);
+      });
+    });
+
     document.querySelectorAll('[data-admin-toggle-pid]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const pid = btn.dataset.adminTogglePid;
@@ -2814,6 +3012,305 @@
           showToast(res ? res.message : 'خطا در تغییر وضعیت محصول.', 'error');
         }
       });
+    });
+
+    document.querySelectorAll('[data-admin-delete-pid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('آیا از غیرفعال‌سازی این محصول اطمینان دارید؟')) return;
+        const pid = btn.dataset.adminDeletePid;
+        const res = await api('admin_delete_product', {}, 'POST', { product_id: pid });
+        if (res && res.ok) {
+          showToast('محصول غیرفعال شد', 'info');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در حذف محصول.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminCategoriesTabEvents(categories) {
+    $('btn-add-category')?.addEventListener('click', () => openAddCategoryModal());
+
+    document.querySelectorAll('[data-admin-edit-cid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cid = Number(btn.dataset.adminEditCid);
+        const c = categories.find(x => Number(x.id) === cid);
+        if (c) openAddCategoryModal(c);
+      });
+    });
+
+    document.querySelectorAll('[data-admin-delete-cid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('آیا از غیرفعال‌سازی این دسته‌بندی اطمینان دارید؟')) return;
+        const cid = btn.dataset.adminDeleteCid;
+        const res = await api('admin_delete_category', {}, 'POST', { category_id: cid });
+        if (res && res.ok) {
+          showToast('دسته‌بندی غیرفعال شد', 'info');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در حذف دسته‌بندی.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminVariantsTabEvents(variants, products) {
+    $('btn-add-variant')?.addEventListener('click', () => openAddVariantModal(products));
+
+    document.querySelectorAll('[data-admin-edit-vid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const vid = Number(btn.dataset.adminEditVid);
+        const v = variants.find(x => Number(x.id) === vid);
+        if (v) openAddVariantModal(products, v);
+      });
+    });
+
+    document.querySelectorAll('[data-admin-delete-vid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('آیا از غیرفعال‌سازی این پلن اطمینان دارید؟')) return;
+        const vid = btn.dataset.adminDeleteVid;
+        const res = await api('admin_delete_variant', {}, 'POST', { variant_id: vid });
+        if (res && res.ok) {
+          showToast('پلن غیرفعال شد', 'info');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در حذف پلن.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminWithdrawalsTabEvents(withdrawals) {
+    document.querySelectorAll('[data-admin-withdraw-act]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const [wid, act] = btn.dataset.adminWithdrawAct.split(':');
+        const res = await api('admin_withdraw_action', {}, 'POST', { withdrawal_id: wid, action_type: act });
+        if (res && res.ok) {
+          showToast(act === 'paid' ? 'برداشت تایید و پرداخت شد' : 'برداشت رد شد', 'success');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در ثبت اقدام برداشت.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminSettingsTabEvents(settings) {
+    $('admin-settings-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        brand_name: $('set-brand-name').value.trim(),
+        support_username: $('set-support-username').value.trim(),
+        min_withdraw: Number($('set-min-withdraw').value),
+        start_reward: Number($('set-start-reward').value),
+        payment_instructions: $('set-payment-instructions').value.trim(),
+        resend_api_key: $('set-resend-key').value.trim(),
+        resend_from_email: $('set-resend-email').value.trim()
+      };
+      const res = await api('admin_save_settings', {}, 'POST', payload);
+      if (res && res.ok) {
+        showToast('⚙️ تنظیمات با موفقیت ذخیره شد!', 'success');
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ذخیره تنظیمات.', 'error');
+      }
+    });
+  }
+
+  function openAddProductModal(categories, product = null) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:560px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">${product ? '✏️ ویرایش محصول' : '🛒 افزودن محصول جدید'}</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <form id="product-form" style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نام محصول:</label>
+            <input type="text" id="prod-name" value="${esc(product?.name || '')}" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">دسته‌بندی:</label>
+              <select id="prod-category" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+                <option value="">بدون دسته‌بندی</option>
+                ${categories.map(c => `<option value="${c.id}" ${product && Number(product.category_id) === Number(c.id) ? 'selected' : ''}>${esc(c.emoji || '🛒')} ${esc(c.title)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">قیمت پایه‌ای (تومان):</label>
+              <input type="number" id="prod-price" value="${product?.price || 0}" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">توضیح کوتاه:</label>
+            <input type="text" id="prod-short-desc" value="${esc(product?.short_description || '')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">لینک تصویر:</label>
+            <input type="url" id="prod-img" value="${esc(product?.image_url || '')}" placeholder="https://..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000; font-weight:800; padding:12px; margin-top:8px;">${product ? 'ذخیره تغییرات' : 'ایجاد محصول'}</button>
+        </form>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    $('product-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        name: $('prod-name').value.trim(),
+        category_id: $('prod-category').value ? Number($('prod-category').value) : null,
+        price: Number($('prod-price').value),
+        short_description: $('prod-short-desc').value.trim(),
+        image_url: $('prod-img').value.trim()
+      };
+      if (product) payload.product_id = product.id;
+      const action = product ? 'admin_update_product' : 'admin_add_product';
+      const res = await api(action, {}, 'POST', payload);
+      if (res && res.ok) {
+        showToast(product ? 'محصول بروزرسانی شد!' : 'محصول جدید ایجاد شد!', 'success');
+        closeModal();
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ثبت اطلاعات.', 'error');
+      }
+    });
+  }
+
+  function openAddCategoryModal(category = null) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:440px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">${category ? '✏️ ویرایش دسته‌بندی' : '📂 افزودن دسته‌بندی جدید'}</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <form id="category-form" style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نام دسته:</label>
+            <input type="text" id="cat-title" value="${esc(category?.title || '')}" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">ایموجی:</label>
+              <input type="text" id="cat-emoji" value="${esc(category?.emoji || '🛒')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">ترتیب نمایش:</label>
+              <input type="number" id="cat-sort" value="${category?.sort_order || 0}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000; font-weight:800; padding:12px; margin-top:8px;">${category ? 'ذخیره تغییرات' : 'ایجاد دسته'}</button>
+        </form>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    $('category-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        title: $('cat-title').value.trim(),
+        emoji: $('cat-emoji').value.trim(),
+        sort_order: Number($('cat-sort').value)
+      };
+      if (category) payload.category_id = category.id;
+      const action = category ? 'admin_update_category' : 'admin_add_category';
+      const res = await api(action, {}, 'POST', payload);
+      if (res && res.ok) {
+        showToast(category ? 'دسته‌بندی بروزرسانی شد!' : 'دسته‌بندی جدید ایجاد شد!', 'success');
+        closeModal();
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ثبت دسته.', 'error');
+      }
+    });
+  }
+
+  function openAddVariantModal(products, variant = null) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">${variant ? '✏️ ویرایش پلن / متغیر' : '📐 افزودن پلن جدید'}</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <form id="variant-form" style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">محصول مرتبط:</label>
+            <select id="var-product" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+              ${products.map(p => `<option value="${p.id}" ${variant && Number(variant.product_id) === Number(p.id) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">عنوان پلن (مثلاً 1 ماهه تک کاربره):</label>
+            <input type="text" id="var-title" value="${esc(variant?.title || '')}" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">قیمت (تومان):</label>
+              <input type="number" id="var-price" value="${variant?.price || 0}" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">مدت زمان (روز):</label>
+              <input type="number" id="var-duration" value="${variant?.duration_days || 30}" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            </div>
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">درصد تخفیف (٪):</label>
+            <input type="number" id="var-discount" value="${variant?.discount_percent || 0}" min="0" max="100" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000; font-weight:800; padding:12px; margin-top:8px;">${variant ? 'ذخیره تغییرات' : 'ایجاد پلن'}</button>
+        </form>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    $('variant-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        product_id: Number($('var-product').value),
+        title: $('var-title').value.trim(),
+        price: Number($('var-price').value),
+        duration_days: Number($('var-duration').value),
+        discount_percent: Number($('var-discount').value)
+      };
+      if (variant) payload.variant_id = variant.id;
+      const action = variant ? 'admin_update_variant' : 'admin_add_variant';
+      const res = await api(action, {}, 'POST', payload);
+      if (res && res.ok) {
+        showToast(variant ? 'پلن بروزرسانی شد!' : 'پلن جدید ایجاد شد!', 'success');
+        closeModal();
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ثبت پلن.', 'error');
+      }
     });
   }
 
