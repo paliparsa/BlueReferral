@@ -592,7 +592,11 @@ body {
 }
 
 .drawer-backdrop {
-  position: fixed; inset: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
   z-index: 9400;
@@ -624,24 +628,66 @@ body {
 .web-toast.success { border-color: var(--success); color: #6ee7b7; }
 
 .modal-container {
-  position: fixed; inset: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   z-index: 9000;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 30px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .modal-card {
   background: linear-gradient(180deg, rgba(15, 24, 44, 0.98), rgba(7, 12, 24, 0.99));
   border: 1px solid var(--border-cyan);
   border-radius: 24px;
   width: 100%;
-  max-width: 520px;
-  padding: 28px;
+  max-width: 580px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
   color: #fff;
+  margin: auto;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 242, 254, 0.4) rgba(0, 0, 0, 0.3);
+}
+
+/* Sleek Webkit Custom Scrollbars */
+.modal-card::-webkit-scrollbar,
+.drawer-body::-webkit-scrollbar,
+.modal-container::-webkit-scrollbar,
+.sidebar-cat-list::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.modal-card::-webkit-scrollbar-track,
+.drawer-body::-webkit-scrollbar-track,
+.modal-container::-webkit-scrollbar-track,
+.sidebar-cat-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+}
+.modal-card::-webkit-scrollbar-thumb,
+.drawer-body::-webkit-scrollbar-thumb,
+.modal-container::-webkit-scrollbar-thumb,
+.sidebar-cat-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.35);
+  border-radius: 10px;
+}
+.modal-card::-webkit-scrollbar-thumb:hover,
+.drawer-body::-webkit-scrollbar-thumb:hover,
+.sidebar-cat-list::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
 }
 
 @media (max-width: 959px) {
@@ -880,9 +926,12 @@ body {
   background: rgba(239, 68, 68, 0.2);
   border-color: var(--danger);
   color: #fca5a5;
-  width: 40px; height: 40px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 900;
 }
 
@@ -1028,12 +1077,14 @@ body {
 .luxury-bank-card-v2 {
   background: linear-gradient(135deg, rgba(29, 155, 240, 0.12) 0%, rgba(139, 92, 246, 0.18) 100%);
   border: 1px solid rgba(0, 242, 254, 0.3);
-  border-radius: 20px;
-  padding: 20px;
-  margin: 14px 0;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 12px 0;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
 }
 .luxury-bank-card-v2::after {
   content: '';
@@ -1047,10 +1098,10 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .card-chip-icon {
-  font-size: 24px;
+  font-size: 22px;
 }
 .bank-title {
   font-size: 13px;
@@ -1059,14 +1110,15 @@ body {
 }
 .bank-number-display {
   font-family: 'Courier New', Courier, monospace;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   color: #fff;
   text-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
   text-align: center;
-  margin: 14px 0;
+  margin: 10px 0;
   direction: ltr;
+  word-break: break-all;
 }
 .bank-owner-row {
   display: flex;
@@ -1296,15 +1348,29 @@ body {
   .product-title {
     font-size: 13px !important;
   }
+  .modal-container {
+    padding: 12px 6px !important;
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+  }
   .modal-card {
     max-width: 100% !important;
-    width: 96% !important;
-    margin: 10px auto !important;
-    padding: 20px !important;
+    width: 98% !important;
+    max-height: calc(100vh - 84px) !important;
+    margin: 6px auto !important;
+    padding: 18px 14px !important;
     border-radius: 20px !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    box-sizing: border-box !important;
   }
   .bank-number-display {
-    font-size: 16px !important;
+    font-size: 15px !important;
     letter-spacing: 1px !important;
   }
 }

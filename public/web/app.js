@@ -487,14 +487,7 @@
   function openOrderDetailModal(orderId) {
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
-
-    modalContainer.innerHTML = `
-      <div class="modal-card" style="max-width:600px; padding:32px;">
-        <div style="text-align:center; margin-bottom:20px;">
-          <h3 style="font-size:20px; font-weight:900;">⏳ در حال بارگذاری سفارش...</h3>
-        </div>
-      </div>
-    `;
+    if (document.body) document.body.style.overflow = 'hidden';
     modalContainer.classList.remove('hidden');
 
     // Fetch order details via API
@@ -1813,6 +1806,7 @@
     `;
 
     modalContainer.classList.remove('hidden');
+    if (document.body) document.body.style.overflow = 'hidden';
     $('close-modal-btn')?.addEventListener('click', closeModal);
 
     const loginTab = $('tab-login-btn');
@@ -1956,6 +1950,7 @@
       modalContainer.classList.add('hidden');
       modalContainer.innerHTML = '';
     }
+    if (document.body) document.body.style.overflow = '';
   }
 
   /* ── Product Detail Preview Modal ── */
@@ -2026,6 +2021,15 @@
 
   /* ── Global Event Delegation ── */
   function bindGlobalEvents() {
+    // Wheel listener for horizontal category carousel & pills
+    document.addEventListener('wheel', (e) => {
+      const scrollEl = e.target.closest('.sidebar-cat-list, .hero-trust-row, .order-action-pills-bar, .stepper-nodes-row');
+      if (scrollEl && e.deltaY !== 0) {
+        scrollEl.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
     document.addEventListener('click', (e) => {
       // User Account Button -> Open Auth or Profile
       if (e.target.closest('#user-btn')) {
