@@ -649,3 +649,142 @@ body {
   .category-sidebar { width: 100%; }
   .cart-drawer { width: 100%; }
 }
+
+/* ── Phase 2: Spin Wheel, Missions, Referral Tree & Loyalty Styling ── */
+.spin-stage-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 20px 0;
+}
+.spin-wheel-v2 {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  position: relative;
+  border: 6px solid var(--cyan);
+  box-shadow: 0 0 30px rgba(0, 242, 254, 0.4), inset 0 0 20px rgba(0,0,0,0.5);
+  transition: transform 3s cubic-bezier(0.15, 0.9, 0.2, 1);
+}
+.wheel-pointer-v2 {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  color: #f59e0b;
+  z-index: 10;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  animation: pointerPulse 1.5s infinite ease-in-out;
+}
+@keyframes pointerPulse {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(3px); }
+}
+.wheel-center-v2 {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  background: var(--bg-dark);
+  border: 3px solid var(--cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--cyan);
+  box-shadow: 0 0 16px rgba(0,0,0,0.8);
+  z-index: 5;
+}
+.spin-prizes-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+}
+.wheel-prize-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 12px;
+}
+.wheel-prize-chip b { color: #fff; display: block; font-size: 12px; }
+.wheel-prize-chip span { color: var(--cyan); font-size: 11px; }
+
+/* Missions Progress Bar Track */
+.mission-card-v2 {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  padding: 16px;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.mission-card-v2:hover {
+  border-color: var(--border-cyan);
+}
+.mission-top-v2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.progress-track-v2 {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 10px 0 8px;
+}
+.progress-fill-v2 {
+  height: 100%;
+  background: var(--accent-grad);
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+/* Referral Nodes Tree */
+.referral-node-v2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  padding: 14px 18px;
+  border-radius: 16px;
+  margin-bottom: 10px;
+  transition: background 0.2s;
+}
+.referral-node-v2:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.referral-avatar-circle {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(139, 92, 246, 0.3));
+  border: 1px solid var(--border-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.referral-reward-badge {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 12px;
+}
+
