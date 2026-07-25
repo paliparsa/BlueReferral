@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   telegram_id BIGINT NULL UNIQUE,
   username VARCHAR(255) NULL,
   web_username VARCHAR(128) NULL UNIQUE,
+  email VARCHAR(255) NULL UNIQUE,
   password_hash VARCHAR(255) NULL,
   auth_token VARCHAR(128) NULL,
   first_name VARCHAR(255) NULL,
