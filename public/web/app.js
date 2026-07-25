@@ -2091,61 +2091,133 @@
 
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
+    if (document.body) document.body.style.overflow = 'hidden';
 
     const title = p.title || p.name || 'جزئیات محصول';
     const variants = p.variants || [];
+    const isWished = state.wishlist.includes(Number(p.id));
+
+    // Description text handling
+    const rawDesc = (p.full_description || p.short_description || '').trim();
+    const hasDesc = rawDesc && rawDesc !== '-' && rawDesc !== '.';
+
+    let selectedVariant = variants.length > 0 ? variants[0] : null;
+    let selectedQty = 1;
 
     modalContainer.innerHTML = `
-      <div class="modal-card" style="max-width:600px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div class="modal-card" style="max-width:620px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
           <h3 style="font-size:18px; font-weight:900;">${esc(title)}</h3>
-          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="card-wishlist-btn" id="modal-wish-btn" style="position:static;" title="علاقه‌مندی">${isWished ? '❤️' : '🤍'}</button>
+            <button class="user-account-btn" id="modal-share-btn" style="padding:6px 10px; font-size:12px;" title="اشتراک‌گذاری">🔗</button>
+            <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+          </div>
         </div>
-        ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:100%; max-height:260px; object-fit:cover; border-radius:16px; margin-bottom:16px;">` : ''}
-        <p style="color:var(--text-muted); font-size:14px; line-height:1.6; margin-bottom:20px;">
-          ${esc(p.full_description || p.short_description || 'توضیحاتی برای این محصول ثبت نشده است.')}
-        </p>
 
-        ${variants.length > 0 ? `
-          <div style="margin-bottom:20px;">
-            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">انتخاب پلن / مدت زمان</label>
-            <select id="modal-variant-select" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; font-size:14px;">
-              ${variants.map(v => `<option value="${v.id}" data-price="${v.price}" data-title="${esc(v.title)}">${esc(v.title)} — ${priceLabel(v.price)}</option>`).join('')}
-            </select>
+        ${p.image_url ? `
+          <div class="product-modal-hero">
+            <img src="${esc(p.image_url)}" alt="${esc(title)}">
           </div>
         ` : ''}
 
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <b id="modal-price-label" style="font-size:20px; color:var(--cyan);">
-            ${priceLabel(variants.length > 0 ? variants[0].price : p.price)}
-          </b>
-          <button class="user-account-btn" id="btn-buy-modal">⚡ افزودن به سبد خرید</button>
+        ${hasDesc ? `
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; margin-bottom:16px; font-size:13.5px; line-height:1.6; color:var(--text-muted);">
+            ${esc(rawDesc)}
+          </div>
+        ` : `
+          <div style="display:flex; justify-content:space-around; background:rgba(0,242,254,0.04); border:1px solid rgba(0,242,254,0.2); border-radius:14px; padding:12px; margin-bottom:16px; font-size:12px; color:var(--cyan);">
+            <span>⚡ <b>تحویل آنی ۲۴ ساعته</b></span>
+            <span>🛡️ <b>ضمانت سلامت اکانت</b></span>
+            <span>🎧 <b>پشتیبانی اختصاصی</b></span>
+          </div>
+        `}
+
+        ${variants.length > 0 ? `
+          <div style="margin-bottom:18px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:8px;">انتخاب پلن / مدت زمان اشتراک:</label>
+            <div class="variant-cards-grid">
+              ${variants.map((v, idx) => `
+                <button class="variant-option-card ${idx === 0 ? 'selected' : ''}" data-v-id="${v.id}" data-v-price="${v.price}" data-v-title="${esc(v.title)}">
+                  <div class="variant-card-header">
+                    <span class="variant-title">${esc(v.title)}</span>
+                    <span class="variant-badge">${v.duration_days ? `${v.duration_days} روز` : 'پلن ویژه'}</span>
+                  </div>
+                  <div class="variant-price">${priceLabel(v.price)}</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:16px; margin-top:10px;">
+          <div>
+            <small style="color:var(--text-muted); font-size:11px; display:block;">مبلغ کل:</small>
+            <b id="modal-price-label" style="font-size:22px; color:var(--cyan); font-weight:900;">
+              ${priceLabel((selectedVariant ? selectedVariant.price : p.price) * selectedQty)}
+            </b>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="modal-qty-control">
+              <button class="qty-btn" id="modal-qty-minus">-</button>
+              <span class="qty-val" id="modal-qty-val">1</span>
+              <button class="qty-btn" id="modal-qty-plus">+</button>
+            </div>
+            <button class="user-account-btn" id="btn-buy-modal" style="background:linear-gradient(135deg, var(--cyan), #1d9bf0); color:#000; font-weight:900; padding:12px 20px; font-size:14px;">⚡ افزودن به سبد خرید</button>
+          </div>
         </div>
       </div>
     `;
 
     modalContainer.classList.remove('hidden');
     $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('modal-wish-btn')?.addEventListener('click', () => toggleWishlist(p.id));
+    $('modal-share-btn')?.addEventListener('click', () => openShareSheet(p.id));
 
-    const vSelect = $('modal-variant-select');
-    const priceLbl = $('modal-price-label');
-
-    if (vSelect && priceLbl) {
-      vSelect.addEventListener('change', () => {
-        const opt = vSelect.options[vSelect.selectedIndex];
-        priceLbl.textContent = priceLabel(opt.dataset.price);
+    // Variant Card Selection Handler
+    document.querySelectorAll('.variant-option-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        document.querySelectorAll('.variant-option-card').forEach(c => c.classList.remove('selected'));
+        const btn = e.currentTarget;
+        btn.classList.add('selected');
+        selectedVariant = {
+          id: btn.dataset.vId,
+          title: btn.dataset.vTitle,
+          price: Number(btn.dataset.vPrice)
+        };
+        updateModalPrice();
       });
+    });
+
+    // Quantity Buttons
+    $('modal-qty-plus')?.addEventListener('click', () => {
+      selectedQty++;
+      $('modal-qty-val').textContent = selectedQty;
+      updateModalPrice();
+    });
+
+    $('modal-qty-minus')?.addEventListener('click', () => {
+      if (selectedQty > 1) {
+        selectedQty--;
+        $('modal-qty-val').textContent = selectedQty;
+        updateModalPrice();
+      }
+    });
+
+    function updateModalPrice() {
+      const basePrice = selectedVariant ? selectedVariant.price : p.price;
+      $('modal-price-label').textContent = priceLabel(basePrice * selectedQty);
     }
 
     $('btn-buy-modal')?.addEventListener('click', () => {
-      let vId = null, vTitle = '', vPrice = null;
-      if (vSelect) {
-        const opt = vSelect.options[vSelect.selectedIndex];
-        vId = opt.value;
-        vTitle = opt.dataset.title;
-        vPrice = opt.dataset.price;
+      for (let i = 0; i < selectedQty; i++) {
+        addToCart(
+          p.id,
+          selectedVariant ? selectedVariant.id : null,
+          selectedVariant ? selectedVariant.title : '',
+          selectedVariant ? selectedVariant.price : p.price
+        );
       }
-      addToCart(p.id, vId, vTitle, vPrice);
       closeModal();
     });
   }
