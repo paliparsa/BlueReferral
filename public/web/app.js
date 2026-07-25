@@ -87,33 +87,7 @@
 
     if (res && res.ok) {
       state.categories = res.shop_categories || [];
-      state.products = (res.shop_products || []).map(p => {
-        let maxVarDiscount = 0;
-        if (p.variants && p.variants.length > 0) {
-          p.variants.forEach(v => {
-            if (Number(v.discount_percent || 0) > maxVarDiscount) {
-              maxVarDiscount = Number(v.discount_percent);
-            }
-          });
-        }
-        const finalDiscount = Math.max(
-          Number(p.discount_percent || 0),
-          Number(p.flash_sale_discount || 0),
-          maxVarDiscount
-        );
-        let orig = Number(p.old_price || 0);
-        if (!orig && finalDiscount > 0 && finalDiscount < 100 && Number(p.price) > 0) {
-          orig = Math.round(Number(p.price) / (1 - finalDiscount / 100));
-        }
-        if (orig <= Number(p.price)) {
-          orig = 0;
-        }
-        return {
-          ...p,
-          discount_percent: finalDiscount,
-          old_price: orig
-        };
-      });
+      state.products = res.shop_products || [];
       state.bot_username = res.bot_username || '';
       state.payment_methods = res.payment_methods || null;
       state.support_username = res.support_username || '';
@@ -388,38 +362,49 @@
     `;
   }
 
+  /* ── Glowing Top Section — mirrors miniapp "⭐ محصولات ویژه" section ── */
+  /* Shows: is_featured=1 OR active flash sale (flash_sale_start/end window + discount set) */
   function glowingFlashSaleSectionHtml() {
-    const flashProducts = state.products.filter(p => Number(p.discount_percent || 0) > 0 || (Number(p.old_price || 0) > Number(p.price)));
-    if (!flashProducts.length) return '';
+    const specialProducts = state.products.filter(p => Number(p.is_featured) === 1 || flashSaleActive(p));
+    if (!specialProducts.length) return '';
+
+    const flashProduct = specialProducts.find(p => flashSaleActive(p));
+    const timerText = flashProduct ? getFlashTimeRemaining(flashProduct) : '';
 
     return `
       <section class="glowing-flash-sale-section">
         <div class="flash-sale-header">
           <div style="display:flex; align-items:center; gap:8px;">
-            <span class="glowing-fire-icon">🔥</span>
-            <h3 class="flash-sale-title">پیشنهادهای شگفت‌انگیز &amp; تخفیف‌های ویژه امروز</h3>
+            <span class="glowing-fire-icon">⭐</span>
+            <h3 class="flash-sale-title">محصولات ویژه &amp; فلش فروش</h3>
           </div>
+          ${timerText ? `
           <div class="flash-sale-timer-pill">
             <span>⏰ زمان باقی‌مانده:</span>
-            <b class="flash-sale-timer">${getFlashTimeRemaining(flashProducts[0])}</b>
-          </div>
+            <b class="flash-sale-timer">${timerText}</b>
+          </div>` : ''}
         </div>
 
         <div class="glowing-flash-products-row">
-          ${flashProducts.slice(0, 6).map(p => {
-            const disc = Number(p.discount_percent || 0);
-            const orig = Number(p.old_price || 0);
+          ${specialProducts.slice(0, 6).map(p => {
+            const flash = flashSaleActive(p);
+            const disc = Number(p.flash_sale_discount || 0);
+            // crossed price: only shown during active flash sale, computed as current price / (1 - disc%)
+            const realPrice = flash && disc > 0
+              ? Math.round(Number(p.price) * (1 - disc / 100))
+              : Number(p.price);
+            const crossedPrice = flash && disc > 0 ? Number(p.price) : 0;
             return `
               <div class="glowing-flash-card" data-pid="${p.id}">
-                <span class="flash-card-badge">${disc > 0 ? `🔥 −${disc}٪` : '🔥 تخفیف ویژه'}</span>
+                <span class="flash-card-badge">${flash ? `⚡ −${disc}٪` : '⭐ ویژه'}</span>
                 <div class="flash-card-img">
                   ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title || p.name)}">` : `<span>🛍️</span>`}
                 </div>
                 <div class="flash-card-title">${esc(p.title || p.name)}</div>
                 <div class="flash-card-bottom">
                   <div class="flash-card-price-col">
-                    ${orig > 0 ? `<s class="flash-card-orig-price">${priceLabel(orig)}</s>` : ''}
-                    <b class="flash-card-cur-price">${priceLabel(p.price)}</b>
+                    ${crossedPrice > 0 ? `<s class="flash-card-orig-price">${priceLabel(crossedPrice)}</s>` : ''}
+                    <b class="flash-card-cur-price">${priceLabel(realPrice)}</b>
                   </div>
                   <button class="card-quick-buy-btn" data-buy="${p.id}" style="padding:6px 12px; font-size:12px;">⚡ خرید</button>
                 </div>
@@ -469,39 +454,52 @@
     return list;
   }
 
-  /* ── Product Card Component ── */
+  /* ── Flash Sale Active Check — mirrors miniapp flashSaleActive(p) ── */
+  function flashSaleActive(p) {
+    if (!p.flash_sale_start || !p.flash_sale_end || !Number(p.flash_sale_discount)) return false;
+    const now = Date.now();
+    return now >= new Date(p.flash_sale_start).getTime() && now <= new Date(p.flash_sale_end).getTime();
+  }
+
+  function flashSaleCountdown(p) {
+    if (!flashSaleActive(p)) return '';
+    const ms = new Date(p.flash_sale_end).getTime() - Date.now();
+    if (ms <= 0) return '';
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `⚡ فلش فروش −${p.flash_sale_discount}٪ · ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  /* ── Product Card Component — mirrors miniapp productCard(p) ── */
   function renderProductCard(p) {
     const title = p.title || p.name || 'محصول بدون عنوان';
     const isWished = state.wishlist.includes(Number(p.id));
-    const discountPct = Number(p.flash_sale_discount || p.discount_percent || 0);
-    const isFlash = Number(p.is_featured || 0) === 1 || discountPct >= 15;
+    const flash = flashSaleActive(p);
+    const variantDiscount = (p.variants || []).some(v => Number(v.discount_percent) > 0);
+    const hasSale = flash || variantDiscount;
 
-    let origPrice = p.old_price;
-    if (!origPrice && discountPct > 0 && discountPct < 100) {
-      origPrice = Math.round(Number(p.price) / (1 - discountPct / 100));
-    }
-    
-    const flashBadge = isFlash ? `
-      <div class="flash-sale-badge">
-        <span>🔥</span>
-        <b class="flash-sale-timer">${getFlashTimeRemaining()}</b>
-      </div>
-    ` : (discountPct > 0 ? `<span class="card-discount-badge">−${discountPct}% تخفیف</span>` : '');
+    // crossed-out price only shown when flash sale is active (exactly like miniapp)
+    const priceHtml = flash
+      ? `<s style="color:var(--text-muted); font-size:12px; text-decoration:line-through;">${priceLabel(p.price)}</s>
+         <b style="color:var(--cyan); font-weight:900; display:block;">${priceLabel(Math.round(Number(p.price) * (1 - Number(p.flash_sale_discount) / 100)))}</b>`
+      : `<b style="color:var(--cyan); font-weight:900;">${priceLabel(p.price)}</b>`;
+
+    const badgeHtml = flash
+      ? `<div class="flash-sale-badge"><span>⚡</span><b>${flashSaleCountdown(p)}</b></div>`
+      : (variantDiscount ? `<span class="card-discount-badge">% تخفیف پلن‌ها</span>` : '');
 
     return `
-      <div class="product-card" data-pid="${p.id}">
+      <div class="product-card ${hasSale ? 'has-sale' : ''}" data-pid="${p.id}">
         <div class="card-img-wrap">
-          ${flashBadge}
+          ${badgeHtml}
           <button class="card-wishlist-btn" data-wishlist="${p.id}">${isWished ? '❤️' : '🤍'}</button>
           ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(title)}">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:56px;">🛒</span>`}
         </div>
         <div class="card-content">
           <h3 class="card-title">${esc(title)}</h3>
           <div class="card-price-row">
-            <div class="card-price">
-              ${origPrice ? `<s style="color:var(--text-muted); font-size:12px; margin-left:4px; text-decoration:line-through;">${priceLabel(origPrice)}</s>` : ''}
-              <b style="color:var(--cyan); font-weight:900;">${priceLabel(p.price)}</b>
-            </div>
+            <div class="card-price">${priceHtml}</div>
             <div style="display:flex; gap:6px;">
               <button class="user-account-btn" data-share="${p.id}" style="padding:6px 10px; font-size:12px;" title="اشتراک‌گذاری">🔗</button>
               <button class="card-quick-buy-btn" data-buy="${p.id}">⚡ خرید آنی</button>
@@ -520,26 +518,18 @@
     localStorage.setItem('bg_web_recent', JSON.stringify(state.recent));
   }
 
+  /* getFlashTimeRemaining kept for timer pill in banner only */
   function getFlashTimeRemaining(p = null) {
-    const now = new Date();
-    let targetEnd = null;
-
     if (p && p.flash_sale_end) {
-      const parsed = new Date(p.flash_sale_end);
-      if (!isNaN(parsed.getTime())) {
-        targetEnd = parsed;
+      const ms = new Date(p.flash_sale_end).getTime() - Date.now();
+      if (ms > 0) {
+        const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
+        const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
+        const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+        return `${nf(h)}:${nf(m)}:${nf(s)}`;
       }
     }
-
-    if (!targetEnd) {
-      targetEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-    }
-
-    const diff = Math.max(0, Math.floor((targetEnd - now) / 1000));
-    const h = String(Math.floor(diff / 3600)).padStart(2, '0');
-    const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
-    const s = String(diff % 60).padStart(2, '0');
-    return `${nf(h)}:${nf(m)}:${nf(s)}`;
+    return '';
   }
 
   function recentProductsHtml() {
