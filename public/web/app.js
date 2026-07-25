@@ -101,9 +101,12 @@
           Number(p.flash_sale_discount || 0),
           maxVarDiscount
         );
-        let orig = p.old_price;
+        let orig = Number(p.old_price || 0);
         if (!orig && finalDiscount > 0 && finalDiscount < 100 && Number(p.price) > 0) {
           orig = Math.round(Number(p.price) / (1 - finalDiscount / 100));
+        }
+        if (orig <= Number(p.price)) {
+          orig = 0;
         }
         return {
           ...p,
@@ -386,9 +389,8 @@
   }
 
   function glowingFlashSaleSectionHtml() {
-    const flashProducts = state.products.filter(p => Number(p.discount_percent || 0) > 0 || Number(p.is_featured || 0) === 1 || p.old_price);
-    const displayList = flashProducts.length > 0 ? flashProducts.slice(0, 6) : state.products.slice(0, 4);
-    if (!displayList.length) return '';
+    const flashProducts = state.products.filter(p => Number(p.discount_percent || 0) > 0 || (Number(p.old_price || 0) > Number(p.price)));
+    if (!flashProducts.length) return '';
 
     return `
       <section class="glowing-flash-sale-section">
@@ -399,27 +401,24 @@
           </div>
           <div class="flash-sale-timer-pill">
             <span>⏰ زمان باقی‌مانده:</span>
-            <b class="flash-sale-timer">${getFlashTimeRemaining()}</b>
+            <b class="flash-sale-timer">${getFlashTimeRemaining(flashProducts[0])}</b>
           </div>
         </div>
 
         <div class="glowing-flash-products-row">
-          ${displayList.map(p => {
-            const disc = Number(p.discount_percent || p.flash_sale_discount || 0);
-            let orig = p.old_price;
-            if (!orig && disc > 0 && disc < 100 && Number(p.price) > 0) {
-              orig = Math.round(Number(p.price) / (1 - disc / 100));
-            }
+          ${flashProducts.slice(0, 6).map(p => {
+            const disc = Number(p.discount_percent || 0);
+            const orig = Number(p.old_price || 0);
             return `
               <div class="glowing-flash-card" data-pid="${p.id}">
-                <span class="flash-card-badge">${disc > 0 ? `🔥 −${disc}٪` : '⭐ پیشنهاد ویژه'}</span>
+                <span class="flash-card-badge">${disc > 0 ? `🔥 −${disc}٪` : '🔥 تخفیف ویژه'}</span>
                 <div class="flash-card-img">
                   ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title || p.name)}">` : `<span>🛍️</span>`}
                 </div>
                 <div class="flash-card-title">${esc(p.title || p.name)}</div>
                 <div class="flash-card-bottom">
                   <div class="flash-card-price-col">
-                    ${orig ? `<s class="flash-card-orig-price">${priceLabel(orig)}</s>` : ''}
+                    ${orig > 0 ? `<s class="flash-card-orig-price">${priceLabel(orig)}</s>` : ''}
                     <b class="flash-card-cur-price">${priceLabel(p.price)}</b>
                   </div>
                   <button class="card-quick-buy-btn" data-buy="${p.id}" style="padding:6px 12px; font-size:12px;">⚡ خرید</button>
