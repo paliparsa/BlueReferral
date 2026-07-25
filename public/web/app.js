@@ -73,8 +73,332 @@
     }
   }
 
+  /* ── Phase 6 Quality & Polish System ── */
+
+  /* Synthesized Chime Audio Feedback */
+  function playChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.15);
+      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.3);
+      osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.45);
+
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.7);
+    } catch(e) {}
+  }
+
+  /* Canvas Confetti Particles Animation */
+  function fireConfetti() {
+    try {
+      let canvas = $('confetti-canvas');
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'confetti-canvas';
+        canvas.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:10000;';
+        document.body.appendChild(canvas);
+      }
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const colors = ['#00f2fe', '#4facfe', '#38ef7d', '#11998e', '#f59e0b', '#ec4899', '#8b5cf6', '#ffffff'];
+      const particles = Array.from({ length: 70 }, () => ({
+        x: canvas.width / 2 + (Math.random() * 200 - 100),
+        y: canvas.height / 2,
+        r: Math.random() * 6 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: (Math.random() - 0.5) * 12,
+        vy: (Math.random() - 1.5) * 12 - 4,
+        gravity: 0.25,
+        opacity: 1
+      }));
+
+      let startTime = null;
+      function animate(timestamp) {
+        if (!startTime) startTime = timestamp;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let alive = false;
+
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += p.gravity;
+          p.opacity -= 0.015;
+
+          if (p.opacity > 0) {
+            alive = true;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, p.opacity);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        });
+
+        if (alive) requestAnimationFrame(animate);
+        else canvas.remove();
+      }
+      requestAnimationFrame(animate);
+    } catch(e) {}
+  }
+
+  function celebrate() {
+    playChime();
+    fireConfetti();
+    if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+  }
+
+  /* First-Time User Onboarding Slides */
+  function shouldShowOnboarding() {
+    return !localStorage.getItem('bg_web_onboarded');
+  }
+
+  function showOnboarding() {
+    if (!shouldShowOnboarding()) return;
+
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    const slides = [
+      { emoji: '🛍️', title: 'به BlueGate خوش آمدید!', desc: 'مرجع تخصصی خرید اشتراک‌های پرمیوم، اکانت‌های هوش مصنوعی و خدمات دیجیتال با تحویل فوری.' },
+      { emoji: '👥', title: 'درآمدزایی واقعی با دعوت دوستان', desc: 'لینک اختصاصی خودتان را به دوستان بفرستید و برای هر عضویت یا خرید، پاداش نقد دریافت کنید.' },
+      { emoji: '⚡', title: 'تحویل ۲۴ ساعته & پشتیبانی', desc: 'خرید آسان با کیف پول، کارت‌به‌کارت و رمزارز، همراه با پشتیبانی آنلاین در ۷ روز هفته.' }
+    ];
+
+    let curSlide = 0;
+
+    function renderSlide() {
+      const s = slides[curSlide];
+      modalContainer.innerHTML = `
+        <div class="modal-card" style="max-width:440px; text-align:center; padding:32px 24px;">
+          <div style="font-size:56px; margin-bottom:14px;">${s.emoji}</div>
+          <h3 style="font-size:20px; font-weight:900; color:#fff; margin-bottom:10px;">${s.title}</h3>
+          <p style="color:var(--text-muted); font-size:13.5px; line-height:1.7; margin-bottom:24px;">${s.desc}</p>
+          
+          <div style="display:flex; justify-content:center; gap:8px; margin-bottom:24px;">
+            ${slides.map((_, idx) => `
+              <span style="width:${idx === curSlide ? '24px' : '8px'}; height:8px; border-radius:10px; background:${idx === curSlide ? 'var(--cyan)' : 'rgba(255,255,255,0.2)'}; transition:0.3s all;"></span>
+            `).join('')}
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button id="onb-skip-btn" class="nav-link" style="flex:1; justify-content:center;">رد کردن</button>
+            <button id="onb-next-btn" class="user-account-btn" style="flex:1; justify-content:center; background:var(--cyan); color:#000;">${curSlide === slides.length - 1 ? 'شروع خرید ✨' : 'بعدی ›'}</button>
+          </div>
+        </div>
+      `;
+
+      $('onb-skip-btn')?.addEventListener('click', finishOnboarding);
+      $('onb-next-btn')?.addEventListener('click', () => {
+        if (curSlide < slides.length - 1) {
+          curSlide++;
+          renderSlide();
+        } else {
+          finishOnboarding();
+        }
+      });
+    }
+
+    function finishOnboarding() {
+      localStorage.setItem('bg_web_onboarded', '1');
+      closeModal();
+      celebrate();
+    }
+
+    renderSlide();
+    modalContainer.classList.remove('hidden');
+  }
+
+  /* Number Counter Count-up Animation */
+  function animateCount(el, endValue, duration = 1000) {
+    if (!el) return;
+    const startValue = Number(el.dataset.val || 0);
+    if (startValue === endValue) return;
+
+    let startTimestamp = null;
+    function step(timestamp) {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const current = Math.floor(progress * (endValue - startValue) + startValue);
+      el.textContent = current.toLocaleString('fa-IR');
+      el.dataset.val = current;
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    }
+    window.requestAnimationFrame(step);
+  }
+
+  /* Theme Color Palette Selector */
+  function applyUserTheme() {
+    const color = localStorage.getItem('bg_web_accent') || '#00f2fe';
+    document.documentElement.style.setProperty('--cyan', color);
+  }
+
+  function openPaletteModal() {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    const palettes = [
+      { name: 'فیروزه‌ای (پیش‌فرض)', color: '#00f2fe' },
+      { name: 'زمردی', color: '#22c55e' },
+      { name: 'طلایی', color: '#f59e0b' },
+      { name: 'بنفش رویال', color: '#8b5cf6' },
+      { name: 'رز پینک', color: '#ec4899' },
+      { name: 'آبی یاقوتی', color: '#3b82f6' }
+    ];
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:440px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:18px; font-weight:900;">🎨 انتخاب رنگ پوسته سایت</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+          رنگ اصلی و هایلایت‌های سایت را انتخاب کنید:
+        </p>
+
+        <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-bottom:20px;">
+          ${palettes.map(p => `
+            <button class="theme-swatch-btn" data-theme-color="${p.color}" style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; display:flex; align-items:center; gap:10px; cursor:pointer;">
+              <span style="width:20px; height:20px; border-radius:50%; background:${p.color}; display:inline-block;"></span>
+              <span style="color:#fff; font-size:12px; font-weight:700;">${p.name}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    document.querySelectorAll('[data-theme-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.themeColor;
+        localStorage.setItem('bg_web_accent', color);
+        applyUserTheme();
+        showToast('رنگ پوسته تغییر کرد! 🎨', 'success');
+        closeModal();
+      });
+    });
+  }
+
+  /* Robust Copy Text with Fallback */
+  function copyText(text) {
+    if (!text) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('با موفقیت کپی شد! 📋', 'success');
+      }).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('با موفقیت کپی شد! 📋', 'success');
+    } catch(e) {
+      showToast('خطا در کپی متن.', 'error');
+    }
+  }
+
+  /* App State Persistence */
+  function saveAppLastState() {
+    localStorage.setItem('bg_web_last_tab', state.currentTab);
+  }
+
+  function restoreAppLastState() {
+    const lastTab = localStorage.getItem('bg_web_last_tab');
+    if (lastTab && ['shop', 'orders', 'wallet', 'profile', 'admin'].includes(lastTab)) {
+      state.currentTab = lastTab;
+    }
+  }
+
+  /* Admin Data CSV Exporters */
+  function exportOrdersCsv(orders = []) {
+    if (!orders || !orders.length) return;
+    const headers = ['Order_ID', 'User_ID', 'Product', 'Amount_Toman', 'Status', 'Created_At'];
+    const rows = orders.map(o => [
+      o.id,
+      o.user_id || '',
+      `"${(o.display_name || o.product_title || '').replace(/"/g, '""')}"`,
+      o.final_amount || o.price || 0,
+      o.status || '',
+      `"${o.created_at || ''}"`
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `orders_export_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('خروجی CSV سفارش‌ها دانلود شد! 📥', 'success');
+  }
+
+  function exportProductsCsv(products = []) {
+    if (!products || !products.length) return;
+    const headers = ['Product_ID', 'Name', 'Price_Toman', 'Status', 'Inventory'];
+    const rows = products.map(p => [
+      p.id,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      p.price || 0,
+      p.is_active ? 'Active' : 'Inactive',
+      p.inventory_available || 0
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `products_export_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('خروجی CSV محصولات دانلود شد! 📥', 'success');
+  }
+
   /* ── Init App Payload ── */
   async function initApp() {
+    applyUserTheme();
+    restoreAppLastState();
+
     const token = localStorage.getItem('bg_web_token');
     let res = null;
 
@@ -110,6 +434,7 @@
     renderApp();
     bindGlobalEvents();
     handleDeepLink();
+    setTimeout(showOnboarding, 600);
   }
 
   /* ── Product Deep Link Handler ── */
@@ -1730,9 +2055,14 @@
             <b style="color:var(--cyan);">${priceLabel(user.balance || 0)}</b>
           </div>
         </div>
-        <button class="nav-link" style="background:rgba(239,68,68,0.15); color:#ef4444; width:100%; justify-content:center;" id="btn-logout">خروج از حساب کاربری</button>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+          <button class="user-account-btn" id="btn-theme-palette" style="width:100%; justify-content:center; background:rgba(255,255,255,0.06); color:#fff;">🎨 تغییر پوسته / رنگ سایت</button>
+          <button class="nav-link" style="background:rgba(239,68,68,0.15); color:#ef4444; width:100%; justify-content:center;" id="btn-logout">خروج از حساب کاربری</button>
+        </div>
       </div>
     `;
+
+    $('btn-theme-palette')?.addEventListener('click', openPaletteModal);
 
     $('btn-logout')?.addEventListener('click', () => {
       localStorage.removeItem('bg_web_token');
@@ -1875,6 +2205,8 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="user-account-btn" id="btn-admin-broadcast" style="background:#8b5cf6; font-size:12px; padding:8px 14px;">📢 پیام همگانی</button>
           <button class="user-account-btn" id="btn-admin-reward" style="background:#22c55e; color:#000; font-size:12px; padding:8px 14px;">🎁 اهدا پاداش/اعتبار</button>
+          <button class="user-account-btn" id="btn-admin-export-orders" style="background:rgba(255,255,255,0.08); font-size:12px; padding:8px 14px;">📥 CSV سفارش‌ها</button>
+          <button class="user-account-btn" id="btn-admin-export-prods" style="background:rgba(255,255,255,0.08); font-size:12px; padding:8px 14px;">📥 CSV محصولات</button>
           <button class="user-account-btn" id="btn-refresh-rates" style="background:rgba(255,255,255,0.08); font-size:12px; padding:8px 14px;">⚡ رفرش نرخ ارز</button>
           <button class="user-account-btn" id="btn-refresh-admin" style="font-size:12px; padding:8px 14px;">🔄 رفرش</button>
         </div>
@@ -1949,6 +2281,8 @@
     $('btn-refresh-admin')?.addEventListener('click', () => renderAdminView(container));
     $('btn-admin-broadcast')?.addEventListener('click', openBroadcastModal);
     $('btn-admin-reward')?.addEventListener('click', openPurchaseRewardModal);
+    $('btn-admin-export-orders')?.addEventListener('click', () => exportOrdersCsv(orders));
+    $('btn-admin-export-prods')?.addEventListener('click', () => exportProductsCsv(products));
     $('btn-alert-add-inventory')?.addEventListener('click', () => openAddInventoryModal(products));
     $('btn-refresh-rates')?.addEventListener('click', async () => {
       showToast('در حال دریافت آخرین نرخ‌های کریپتو...', 'info');
