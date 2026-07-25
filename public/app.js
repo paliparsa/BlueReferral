@@ -181,9 +181,9 @@
           <h1 class="hero-title">دسترسی فوری به <span class="hero-highlight">برترین سرویس‌های دنیا</span></h1>
           <p class="hero-subtitle">خرید مستقیم و بدون واسطه اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و سرویس‌های کاربردی با تحویل خودکار ۲۴ ساعته.</p>
           <div class="hero-trust-row">
-            <div class="trust-chip"><span>⚡</span><b>تحویل خودکار ۲۴/۷</b></div>
-            <div class="trust-chip"><span>🛡️</span><b>ضمانت ۱۰۰٪ کارکرد</b></div>
-            <div class="trust-chip"><span>💬</span><b>پشتیبانی زنده تلگرام</b></div>
+            <div class="trust-chip" data-tab="wallet" style="cursor:pointer;"><span>🎡</span><b>گردونه شانس روزانه</b></div>
+            <div class="trust-chip" data-tab="wallet" style="cursor:pointer;"><span>💰</span><b>کیف پول &amp; پاداش دعوت</b></div>
+            <div class="trust-chip" data-tab="wallet" style="cursor:pointer;"><span>👥</span><b>درخت زیرمجموعه‌ها</b></div>
           </div>
         </div>
       </section>
