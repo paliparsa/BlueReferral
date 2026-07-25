@@ -1,4 +1,8 @@
 <?php
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+
 $host = strtolower($_SERVER['HTTP_HOST'] ?? '');
 
 // If domain is Telegram Bot domain, route to Telegram MiniApp:
