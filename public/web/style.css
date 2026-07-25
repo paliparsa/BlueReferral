@@ -687,6 +687,169 @@ body {
   color: #fff;
 }
 
+/* Realistic Credit Card Component */
+.credit-card-item {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.credit-card-item::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(29, 155, 240, 0.2) 0%, transparent 70%);
+  pointer-events: none;
+}
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.card-chip {
+  font-size: 24px;
+  line-height: 1;
+}
+.card-bank-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.card-number-display {
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  direction: ltr;
+}
+.card-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.card-owner-name {
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Online Crypto Wallet Component */
+.crypto-card-item {
+  background: linear-gradient(135deg, #131e32, #091322);
+  border: 1px solid rgba(29, 155, 240, 0.25);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 14px;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.crypto-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.network-badge {
+  background: rgba(29, 155, 240, 0.2);
+  color: var(--accent);
+  border: 1px solid rgba(29, 155, 240, 0.4);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.crypto-address-display {
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  direction: ltr;
+  word-break: break-all;
+}
+
+/* Order Stepper Status Timeline */
+.order-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 0;
+  position: relative;
+}
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+.step-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+}
+.step-item.active .step-icon {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.step-item.done .step-icon {
+  border-color: #22c55e;
+  background: #22c55e;
+  color: #fff;
+}
+.step-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.step-item.active .step-label, .step-item.done .step-label {
+  color: #fff;
+}
+.stepper-line {
+  position: absolute;
+  top: 17px;
+  right: 10%;
+  left: 10%;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+
 .hidden {
   display: none !important;
 }

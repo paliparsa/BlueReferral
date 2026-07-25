@@ -177,44 +177,66 @@
     $('payAmountText').textContent = `${nf(order.final_amount || order.total_amount)} تومان`;
 
     const pm = state?.payment_methods || {};
-    let cards = pm.card_accounts || [];
+    let cards = pm.card_accounts || pm.card?.accounts || [];
     const cardContainer = $('cardListDisplay');
 
     if (!cards || cards.length === 0) {
-      const rawText = pm.card_accounts_text || state?.payment_instructions || state?.settings?.payment_instructions || '';
+      const rawText = pm.card_accounts_text || pm.card?.instructions || state?.payment_instructions || state?.settings?.payment_instructions || '';
       const matches = rawText.match(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g) || [];
       if (matches.length > 0) {
-        cards = matches.map(num => ({ card_number: num.replace(/\s+/g, '-'), holder_name: 'شماره کارت جهت واریز', bank_name: 'کارت بانکی' }));
+        cards = matches.map(num => ({ card: num.replace(/\s+/g, '-'), owner: 'شماره کارت جهت واریز', title: 'کارت بانکی' }));
       }
     }
 
     if (cards && cards.length > 0) {
-      cardContainer.innerHTML = cards.map(c => `
-        <div class="card-item-box">
-          <div style="font-size:12px; color:var(--text-muted);">${c.bank_name || 'کارت بانکی'} - به نام <b>${c.holder_name || ''}</b></div>
-          <div class="card-num">
-            <span>${c.card_number}</span>
-            <button type="button" class="copy-btn" data-copy="${c.card_number}">کپی 📋</button>
+      cardContainer.innerHTML = cards.map(c => {
+        const rawCard = (c.card || c.card_number || '').replace(/\D+/g, '');
+        const formattedCard = rawCard.length === 16 ? rawCard.replace(/(\d{4})/g, '$1 ').trim() : (c.card || c.card_number || '');
+        const owner = c.owner || c.holder_name || 'صاحب حساب مشخص نشده';
+        const bank = c.title || c.bank_name || 'کارت بانکی';
+        return `
+          <div class="credit-card-item">
+            <div class="card-header-row">
+              <span class="card-chip">💳</span>
+              <span class="card-bank-title">${bank}</span>
+            </div>
+            <div class="card-number-display">
+              <span>${formattedCard}</span>
+              <button type="button" class="copy-btn" data-copy="${rawCard}">کپی 📋</button>
+            </div>
+            <div class="card-footer-row">
+              <span>به نام: <strong class="card-owner-name">${owner}</strong></span>
+              ${c.sheba ? `<small>شبا: ${c.sheba}</small>` : ''}
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     } else {
-      const instructions = state?.payment_instructions || 'لطفاً مبلغ را به شماره کارت واریز کرده و کد ارجاع را ثبت کنید.';
-      cardContainer.innerHTML = `<div style="font-size:13px; color:var(--text); padding:10px; background:rgba(255,255,255,0.05); border-radius:12px;">${instructions}</div>`;
+      const instructions = state?.payment_instructions || pm.card?.instructions || 'لطفاً مبلغ را به شماره کارت واریز کرده و کد ارجاع را ثبت کنید.';
+      cardContainer.innerHTML = `<div style="font-size:13px; color:var(--text); padding:14px; background:rgba(255,255,255,0.05); border-radius:14px; line-height:1.6;">${instructions}</div>`;
     }
 
-    const cryptoWallets = pm.crypto_wallets || [];
+    let cryptoWallets = pm.crypto_wallets || pm.crypto?.wallets || [];
     const cryptoContainer = $('cryptoListDisplay');
-    if (cryptoWallets.length > 0) {
-      cryptoContainer.innerHTML = cryptoWallets.map(w => `
-        <div class="crypto-item-box">
-          <div style="font-size:12px; color:var(--accent);">شبکه: <b>${w.network || 'TRC20'}</b></div>
-          <div class="crypto-addr">
-            <span>${w.address}</span>
-            <button type="button" class="copy-btn" data-copy="${w.address}">کپی 📋</button>
+    if (cryptoWallets && cryptoWallets.length > 0) {
+      cryptoContainer.innerHTML = cryptoWallets.map(w => {
+        const net = w.network || 'TRC20';
+        const addr = w.address || '';
+        const symbol = w.asset || w.rate_symbol || 'USDT';
+        const estAmount = w.estimated_amount ? `(${w.estimated_amount} ${symbol})` : '';
+        return `
+          <div class="crypto-card-item">
+            <div class="crypto-header-row">
+              <span style="font-size:13px; font-weight:800; color:#fff;">🪙 ${symbol} ${estAmount}</span>
+              <span class="network-badge">شبکه: ${net}</span>
+            </div>
+            <div class="crypto-address-display">
+              <span>${addr}</span>
+              <button type="button" class="copy-btn" data-copy="${addr}">کپی 📋</button>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     } else {
       cryptoContainer.innerHTML = `<div style="font-size:13px; color:var(--text-muted); text-align:center; padding:10px;">کیف پول رمزارز ثبت نشده است.</div>`;
     }
