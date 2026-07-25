@@ -13,6 +13,19 @@
   const WEB_TOKEN_KEY = 'web_token';
   let _pendingOtpUserId = null;
 
+  // Reactive state getter/setter so topbar syncs immediately whenever state changes
+  let _st = window.state || null;
+  try {
+    Object.defineProperty(window, 'state', {
+      get() { return _st; },
+      set(val) {
+        _st = val;
+        try { syncWebAuthBtn(); } catch(e) {}
+      },
+      configurable: true
+    });
+  } catch(e) {}
+
   /* ── Helpers ── */
   const $ = (id) => document.getElementById(id);
   function showStatus(msg, type = 'success') {
@@ -142,7 +155,7 @@
         $('footerSupportLink').href = `https://t.me/${window.state.support_username}`;
       }
 
-      // If user is admin, inject Admin Panel button into topbar & sidebar
+      // If user is admin, inject Admin Panel buttons across header, nav, sidebar, and mobile bottom nav
       if (window.state.is_admin) {
         let adminHeaderBtn = $('webAdminHeaderBtn');
         if (!adminHeaderBtn) {
@@ -157,6 +170,19 @@
           if (actions) actions.insertBefore(adminHeaderBtn, actions.firstChild);
         }
 
+        let adminNavBtn = $('webAdminNavBtn');
+        if (!adminNavBtn) {
+          adminNavBtn = document.createElement('a');
+          adminNavBtn.id = 'webAdminNavBtn';
+          adminNavBtn.href = '?admin=1';
+          adminNavBtn.className = 'web-nav-btn';
+          adminNavBtn.style.color = '#f59e0b';
+          adminNavBtn.style.fontWeight = 'bold';
+          adminNavBtn.innerHTML = '👑 مدیریت';
+          const nav = document.querySelector('.web-header-nav');
+          if (nav) nav.appendChild(adminNavBtn);
+        }
+
         let adminSidebarBtn = $('webAdminSidebarBtn');
         if (!adminSidebarBtn) {
           adminSidebarBtn = document.createElement('a');
@@ -167,6 +193,17 @@
           adminSidebarBtn.innerHTML = '<span>👑</span><b>پنل مدیریت</b>';
           const sidebarInner = document.querySelector('.web-sidebar-inner');
           if (sidebarInner) sidebarInner.appendChild(adminSidebarBtn);
+        }
+
+        let adminBottomBtn = $('webAdminBottomBtn');
+        if (!adminBottomBtn) {
+          adminBottomBtn = document.createElement('a');
+          adminBottomBtn.id = 'webAdminBottomBtn';
+          adminBottomBtn.href = '?admin=1';
+          adminBottomBtn.style.cssText = 'color:#f59e0b; font-size:11px; text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1;';
+          adminBottomBtn.innerHTML = '<span style="font-size:18px">👑</span>مدیریت';
+          const bottomNav = document.querySelector('.bottom-nav');
+          if (bottomNav) bottomNav.appendChild(adminBottomBtn);
         }
       }
     } else if (!token) {
@@ -337,11 +374,7 @@
 
   /* ── If app.js exposes openAuthModal, patch it ── */
   // Poll briefly to patch after app.js loads
-  let _patchAttempts = 0;
   const _patchTimer = setInterval(() => {
-    _patchAttempts++;
-    if (_patchAttempts > 30) { clearInterval(_patchTimer); return; }
-
     // Expose openAuthModal to miniapp
     if (typeof window.openAuthModal === 'undefined') {
       window.openAuthModal = openAuthModal;
