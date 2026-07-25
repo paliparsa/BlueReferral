@@ -479,10 +479,16 @@
     const variantDiscount = (p.variants || []).some(v => Number(v.discount_percent) > 0);
     const hasSale = flash || variantDiscount;
 
-    // crossed-out price only shown when flash sale is active (exactly like miniapp)
+    // Flash sale: p.price = original, discounted = p.price * (1 - flash_sale_discount/100)
+    // Variant discount: v.price already discounted by price_runtime_meta, v.old_price = original
+    const flashDiscount = Number(p.flash_sale_discount || 0);
+    const discountedPrice = flash && flashDiscount > 0
+      ? Math.round(Number(p.price) * (1 - flashDiscount / 100))
+      : Number(p.price);
+
     const priceHtml = flash
       ? `<s style="color:var(--text-muted); font-size:12px; text-decoration:line-through;">${priceLabel(p.price)}</s>
-         <b style="color:var(--cyan); font-weight:900; display:block;">${priceLabel(Math.round(Number(p.price) * (1 - Number(p.flash_sale_discount) / 100)))}</b>`
+         <b style="color:var(--cyan); font-weight:900; display:block;">${priceLabel(discountedPrice)}</b>`
       : `<b style="color:var(--cyan); font-weight:900;">${priceLabel(p.price)}</b>`;
 
     const badgeHtml = flash
@@ -2242,11 +2248,10 @@
             <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:8px;">انتخاب پلن / مدت زمان اشتراک:</label>
             <div class="variant-cards-grid">
               ${variants.map((v, idx) => {
-                const vDisc = Number(v.discount_percent || p.flash_sale_discount || 0);
-                let vOrig = v.old_price;
-                if (!vOrig && vDisc > 0 && vDisc < 100) {
-                  vOrig = Math.round(Number(v.price) / (1 - vDisc / 100));
-                }
+                // v.price is already the discounted price (price_runtime_meta applies discount_percent)
+                // v.old_price is the original price before discount (computed in API)
+                const vDisc = Number(v.discount_percent || 0);
+                const vOrig = Number(v.old_price || 0);  // already pre-computed by API
                 return `
                   <button class="variant-option-card ${idx === 0 ? 'selected' : ''}" data-v-id="${v.id}" data-v-price="${v.price}" data-v-orig="${vOrig || ''}" data-v-title="${esc(v.title)}">
                     <div class="variant-card-header">
@@ -2254,7 +2259,7 @@
                       <span class="variant-badge">${v.duration_days ? `${v.duration_days} روز` : 'پلن ویژه'}</span>
                     </div>
                     <div class="variant-price">
-                      ${vOrig ? `<s style="color:var(--text-muted); font-size:11px; margin-left:4px; text-decoration:line-through;">${priceLabel(vOrig)}</s>` : ''}
+                      ${vOrig > 0 && vOrig > Number(v.price) ? `<s style="color:var(--text-muted); font-size:11px; margin-left:4px; text-decoration:line-through;">${priceLabel(vOrig)}</s>` : ''}
                       <span>${priceLabel(v.price)}</span>
                       ${vDisc > 0 ? `<span class="flash-pill" style="font-size:10px; background:rgba(239, 68, 68, 0.2); color:#fca5a5; padding:2px 6px; border-radius:6px; margin-right:4px;">−${nf(vDisc)}٪</span>` : ''}
                     </div>
@@ -2616,5 +2621,26 @@
   } else {
     initApp();
   }
+
+  /* ── Live Flash Sale Countdown Ticker (updates DOM in-place every second) ── */
+  setInterval(() => {
+    // Update all .flash-sale-timer elements on the page
+    document.querySelectorAll('.flash-sale-timer').forEach(el => {
+      const card = el.closest('[data-pid]');
+      if (!card) return;
+      const pid = card.dataset.pid;
+      const p = state.products.find(x => Number(x.id) === Number(pid));
+      if (!p || !flashSaleActive(p)) return;
+      const text = flashSaleCountdown(p);
+      if (text) el.textContent = text;
+    });
+    // Update flash-sale-timer pill in top banner
+    document.querySelectorAll('.flash-sale-timer:not([data-pid] *)').forEach(el => {
+      const flashP = state.products.find(p => flashSaleActive(p));
+      if (!flashP) return;
+      const t = getFlashTimeRemaining(flashP);
+      if (t) el.textContent = t;
+    });
+  }, 1000);
 
 })();
