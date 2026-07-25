@@ -167,6 +167,14 @@
       <h3 id="dialogTitle">ورودی</h3>
       <p id="dialogText" class="muted"></p>
       <textarea id="dialogInput" rows="5"></textarea>
+
+      <div id="receiptDropzone" class="receipt-dropzone" style="display:none;">
+        <span class="dropzone-icon">📥</span>
+        <b class="dropzone-title">تصویر رسید را اینجا رها کنید</b>
+        <span class="dropzone-subtitle">یا برای انتخاب فایل کلیک کنید (عکس / اسکرین‌شات)</span>
+        <div id="dropzonePreview" class="dropzone-preview hidden"></div>
+      </div>
+
       <input type="file" id="dialogFileInput" accept="image/*" style="display:none; margin-bottom: 10px; width: 100%;" />
       <div class="dialog-actions">
         <button value="cancel" class="secondary">لغو</button>

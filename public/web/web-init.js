@@ -601,6 +601,100 @@
     }
   });
 
+  /* ── Phase 3: 3D Card Tilt & Copy Glow FX ── */
+  document.addEventListener('mousemove', (e) => {
+    const card = e.target.closest('.luxury-bank-card');
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    const rotY = (x / rect.width) * 16;
+    const rotX = -(y / rect.height) * 16;
+    card.style.transform = `perspective(1000px) rotateY(${rotY}deg) rotateX(${rotX}deg)`;
+  });
+
+  document.addEventListener('mouseleave', (e) => {
+    const card = e.target.closest('.luxury-bank-card');
+    if (card) {
+      card.style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg)';
+    }
+  }, true);
+
+  // Copy card button glow feedback
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-copy]');
+    if (btn) {
+      const card = btn.closest('.luxury-bank-card');
+      if (card) {
+        card.classList.add('copied-glow');
+        setTimeout(() => card.classList.remove('copied-glow'), 1200);
+      }
+    }
+  });
+
+  /* ── Phase 3: Drag-and-Drop Receipt Dropzone ── */
+  function initReceiptDropzone() {
+    const dropzone = $('receiptDropzone');
+    const fileInput = $('dialogFileInput');
+    const previewBox = $('dropzonePreview');
+    if (!dropzone || !fileInput) return;
+
+    // Show dropzone if file input is visible
+    const observer = new MutationObserver(() => {
+      const isFileVisible = fileInput.style.display !== 'none';
+      dropzone.style.display = isFileVisible ? 'flex' : 'none';
+    });
+    observer.observe(fileInput, { attributes: true, attributeFilter: ['style'] });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length && files[0].type.startsWith('image/')) {
+        fileInput.files = files;
+        showFilePreview(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files[0]) {
+        showFilePreview(fileInput.files[0]);
+      }
+    });
+
+    function showFilePreview(file) {
+      if (!previewBox) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewBox.innerHTML = `<img src="${e.target.result}" alt="رسید انتخاب شده">`;
+        previewBox.classList.remove('hidden');
+        dropzone.querySelector('.dropzone-title').textContent = '✅ تصویر رسید انتخاب شد';
+        dropzone.querySelector('.dropzone-subtitle').textContent = file.name;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  // Initialize receipt dropzone once DOM is ready
+  setTimeout(initReceiptDropzone, 300);
+
   /* ── Poll to initialize topbar & auth state on load ── */
   const _patchTimer = setInterval(() => {
     if (typeof window.openAuthModal === 'undefined') {
@@ -628,5 +722,5 @@
     setTimeout(() => location.reload(), 700);
   };
 
-  console.log('[WebInit] BlueGate Web Mode Phase 2 Fixed & Operational ✅');
+  console.log('[WebInit] BlueGate Web Mode Phase 3 Fixed & Operational ✅');
 })();

@@ -618,6 +618,93 @@ body.web-mode .page {
 }
 
 /* ═══════════════════════════════════════════════════════
+   PHASE 3: DESKTOP CART DRAWER & 3D PAYMENT DROPZONE
+   ═══════════════════════════════════════════════════════ */
+
+/* Slide-Over Desktop Cart Drawer */
+@media (min-width: 960px) {
+  #cartSheet.cart-sheet {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: auto;
+    width: 420px;
+    height: 100vh;
+    border-radius: 0;
+    border-left: 1px solid rgba(0, 242, 254, 0.3);
+    background: linear-gradient(180deg, rgba(14, 26, 48, 0.98), rgba(8, 17, 31, 0.99));
+    box-shadow: -10px 0 50px rgba(0, 0, 0, 0.7);
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 10000;
+  }
+  #cartSheet.cart-sheet.open {
+    transform: translateX(0);
+  }
+  #cartSheet .cart-sheet-inner {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+  #cartSheet .cart-items {
+    flex: 1;
+    overflow-y: auto;
+    margin: 16px 0;
+    padding-right: 4px;
+  }
+  #cartSheet .cart-sheet-handle { display: none; }
+}
+
+/* Interactive 3D Luxury Bank Card Tilt & Copy Glow */
+body.web-mode .luxury-bank-card {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease-out, box-shadow 0.25s ease;
+}
+body.web-mode .luxury-bank-card.copied-glow {
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.6), 0 0 0 2px #22c55e !important;
+}
+
+/* Drag-and-Drop Receipt Dropzone */
+.receipt-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px dashed rgba(0, 242, 254, 0.3);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 12px 0;
+  text-align: center;
+  box-sizing: border-box;
+}
+.receipt-dropzone:hover, .receipt-dropzone.dragover {
+  background: rgba(0, 242, 254, 0.08);
+  border-color: #00f2fe;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+}
+.dropzone-icon { font-size: 32px; }
+.dropzone-title { font-size: 14px; color: #fff; font-weight: 700; }
+.dropzone-subtitle { font-size: 11.5px; color: rgba(255, 255, 255, 0.5); }
+.dropzone-preview {
+  margin-top: 10px;
+  width: 100%;
+  max-height: 140px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dropzone-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ═══════════════════════════════════════════════════════
    PHASE 2: DESKTOP HERO & ENHANCED CATALOG SHOWCASE
    ═══════════════════════════════════════════════════════ */
 
