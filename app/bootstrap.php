@@ -1243,7 +1243,17 @@ function tg(string $method, array $data = []) {
 
 function h($value): string { return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 function money($amount): string { $a = (int)$amount; if ($a === 0) return 'رایگان'; return number_format($a) . ' تومان'; }
-function is_admin($id): bool {
+function is_admin($userOrId): bool {
+    if (is_array($userOrId)) {
+        $tid = (int)($userOrId['telegram_id'] ?? 0);
+        $username = strtolower((string)($userOrId['username'] ?? ''));
+        if (!empty($userOrId['is_admin'])) return true;
+        if ($username && in_array($username, array_map('strtolower', app_config('ADMIN_USERNAMES', ['admin'])), true)) return true;
+        $id = $tid;
+    } else {
+        $id = (int)$userOrId;
+    }
+    if (!$id) return false;
     $admins = app_config('ADMIN_IDS', []);
     return in_array((int)$id, array_map('intval', $admins), true);
 }
