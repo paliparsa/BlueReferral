@@ -1899,6 +1899,15 @@ function initAuthHandlers() {
         location.reload();
       }
     } catch (err) {
+      if (err.requires_email_verification || err.error === 'EMAIL_VERIFICATION_REQUIRED') {
+        pendingVerifUserId = err.user_id;
+        if ($('otpEmailTarget')) $('otpEmailTarget').textContent = err.email || '';
+        $('loginForm').classList.add('hidden');
+        document.querySelector('.auth-tabs')?.classList.add('hidden');
+        $('otpVerificationForm')?.classList.remove('hidden');
+        showStatus(err.message || 'کد تایید ۶ رقمی به ایمیل شما ارسال شد 📩');
+        return;
+      }
       if (errEl) {
         errEl.textContent = err.message || 'خطا در ورود';
         errEl.classList.remove('hidden');
