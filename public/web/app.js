@@ -90,6 +90,10 @@
       }
     }
 
+    if (new URLSearchParams(window.location.search).has('admin') || window.location.hash.includes('admin')) {
+      state.currentTab = 'admin';
+    }
+
     renderApp();
     bindGlobalEvents();
   }
@@ -123,6 +127,17 @@
   }
 
   function updateHeaderNav() {
+    const nav = document.querySelector('.header-nav');
+    if (nav && state.is_admin && !$('admin-header-nav-btn')) {
+      const btn = document.createElement('button');
+      btn.id = 'admin-header-nav-btn';
+      btn.className = 'nav-link';
+      btn.dataset.tab = 'admin';
+      btn.style.color = '#f59e0b';
+      btn.innerHTML = `<span>👑</span> مدیریت`;
+      nav.appendChild(btn);
+    }
+
     document.querySelectorAll('.nav-link').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === state.currentTab);
     });
@@ -877,21 +892,287 @@
     });
   }
 
-  /* ── Admin View Renderer ── */
-  function renderAdminView(container) {
+  /* ── Admin View Renderer (Native Web Admin Dashboard) ── */
+  async function renderAdminView(container) {
+    if (!state.user || state.user.is_guest) {
+      openAuthModal();
+      return;
+    }
+
+    container.innerHTML = `<div style="text-align:center; padding:40px;">⏳ در حال دریافت اطلاعات داشبورد مدیریت...</div>`;
+
+    const res = await api('admin_summary');
+    if (!res || !res.ok) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:60px 20px; background:var(--card-dark); border-radius:24px; border:1px solid rgba(239,68,68,0.3);">
+          <div style="font-size:48px; margin-bottom:12px;">🚫</div>
+          <h3 style="color:#ef4444;">دسترسی غیرمجاز!</h3>
+          <p style="color:var(--text-muted); font-size:14px;">شما دسترسی مدیریت را ندارید یا نشست شما منقضی شده است.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const report = res.report || {};
+    const orders = res.orders || [];
+    const products = res.products || [];
+    const categories = res.categories || [];
+
+    const todayRev = report.today?.revenue || 0;
+    const todayOrdersCount = report.today?.c || 0;
+
     container.innerHTML = `
-      <h2 style="font-size:24px; font-weight:900; margin-bottom:20px; color:#f59e0b;">👑 پنل مدیریت BlueGate</h2>
-      <div style="background:var(--card-dark); border:1px solid rgba(245,158,11,0.3); border-radius:24px; padding:28px;">
-        <p style="color:var(--text-muted); margin-bottom:16px;">مدیریت کامل محصولات، دسته‌بندی‌ها و سفارش‌ها.</p>
-        <button class="user-account-btn" onclick="window.location.href='?admin=1'">ورود به داشبورد کامل مدیریت</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h2 style="font-size:24px; font-weight:900; color:#f59e0b;">👑 پنل مدیریت BlueGate</h2>
+        <button class="user-account-btn" id="btn-refresh-admin">🔄 رفرش اطلاعات</button>
+      </div>
+
+      <!-- Stats Cards Row -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:28px;">
+        <div style="background:var(--card-dark); border:1px solid rgba(245,158,11,0.3); border-radius:20px; padding:20px;">
+          <small style="color:var(--text-muted); font-size:12px;">فروش امروز</small>
+          <h3 style="font-size:22px; font-weight:900; color:#f59e0b; margin-top:4px;">${priceLabel(todayRev)}</h3>
+        </div>
+        <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px;">
+          <small style="color:var(--text-muted); font-size:12px;">سفارش‌های امروز</small>
+          <h3 style="font-size:22px; font-weight:900; color:#fff; margin-top:4px;">${nf(todayOrdersCount)} سفارش</h3>
+        </div>
+        <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px;">
+          <small style="color:var(--text-muted); font-size:12px;">کل محصولات active</small>
+          <h3 style="font-size:22px; font-weight:900; color:var(--cyan); margin-top:4px;">${nf(products.length)} محصول</h3>
+        </div>
+        <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px;">
+          <small style="color:var(--text-muted); font-size:12px;">دسته‌بندی‌های فعال</small>
+          <h3 style="font-size:22px; font-weight:900; color:#fff; margin-top:4px;">${nf(categories.length)} دسته</h3>
+        </div>
+      </div>
+
+      <!-- Admin Sub Tabs -->
+      <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+        <button id="admin-tab-orders" class="nav-link active">📜 سفارش‌های اخیر (${orders.length})</button>
+        <button id="admin-tab-products" class="nav-link">🛒 مدیریت محصولات (${products.length})</button>
+      </div>
+
+      <!-- Sub Content Container -->
+      <div id="admin-sub-content">
+        ${renderAdminOrdersList(orders)}
+      </div>
+    `;
+
+    $('btn-refresh-admin')?.addEventListener('click', () => renderAdminView(container));
+
+    const ordersTabBtn = $('admin-tab-orders');
+    const prodsTabBtn = $('admin-tab-products');
+    const subContent = $('admin-sub-content');
+
+    ordersTabBtn?.addEventListener('click', () => {
+      ordersTabBtn.classList.add('active');
+      prodsTabBtn?.classList.remove('active');
+      if (subContent) subContent.innerHTML = renderAdminOrdersList(orders);
+      bindAdminOrderEvents(orders);
+    });
+
+    prodsTabBtn?.addEventListener('click', () => {
+      prodsTabBtn.classList.add('active');
+      ordersTabBtn?.classList.remove('active');
+      if (subContent) subContent.innerHTML = renderAdminProductsList(products);
+      bindAdminProductEvents(products);
+    });
+
+    bindAdminOrderEvents(orders);
+  }
+
+  /* ── Admin Orders List Markup ── */
+  function renderAdminOrdersList(orders) {
+    if (!orders.length) {
+      return `<p style="color:var(--text-muted); text-align:center; padding:30px;">سفارشی یافت نشد.</p>`;
+    }
+
+    return `
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        ${orders.map(o => `
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:12px;">
+              <div>
+                <b>سفارش #${o.id}</b>
+                <span style="color:var(--text-muted); font-size:12px; margin-right:8px;">کاربر ID: #${o.user_id || '---'}</span>
+              </div>
+              <span style="background:rgba(245,158,11,0.15); color:#f59e0b; font-weight:800; font-size:12px; padding:4px 12px; border-radius:12px;">
+                ${esc(o.status_fa || o.status)}
+              </span>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <div>
+                <h4 style="font-size:15px; font-weight:800; margin-bottom:4px;">${esc(o.display_name || o.product_title || 'محصول')}</h4>
+                <div style="font-size:12px; color:var(--text-muted);">
+                  روش: ${esc(o.payment_method_fa || o.payment_method || 'تعیین نشده')} · تاریخ: ${esc(o.created_at || '')}
+                </div>
+              </div>
+              <b style="font-size:16px; color:var(--cyan);">${priceLabel(o.final_amount || o.price)}</b>
+            </div>
+
+            ${o.payment_note ? `
+              <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:10px; font-size:12px; margin-bottom:12px; color:var(--text-muted);">
+                💬 توضیحات/رسید کاربر: <span style="color:#fff;">${esc(o.payment_note)}</span>
+              </div>
+            ` : ''}
+
+            <!-- Status Action Buttons -->
+            <div style="display:flex; flex-wrap:wrap; gap:8px; border-top:1px solid var(--border-color); padding-top:12px;">
+              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="payment_confirmed" style="background:#22c55e; color:#000; font-size:11px; padding:6px 12px;">🟢 تایید پرداخت</button>
+              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="preparing" style="background:#3b82f6; color:#fff; font-size:11px; padding:6px 12px;">📦 آماده‌سازی</button>
+              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="delivered" style="background:var(--cyan); color:#000; font-size:11px; padding:6px 12px;">✅ ثبت تحویل</button>
+              <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="rejected" style="background:#ef4444; color:#fff; font-size:11px; padding:6px 12px;">❌ رد سفارش</button>
+              ${o.user_id ? `<button class="nav-link" data-admin-cust-id="${o.user_id}" style="font-size:11px; padding:6px 12px; background:rgba(255,255,255,0.06);">👤 پروفایل 360 کاربر</button>` : ''}
+            </div>
+          </div>
+        `).join('')}
       </div>
     `;
   }
 
-  /* ── Auth Modal (Login & Registration) ── */
+  /* ── Admin Products List Markup ── */
+  function renderAdminProductsList(products) {
+    if (!products.length) {
+      return `<p style="color:var(--text-muted); text-align:center; padding:30px;">محصولی ثبت نشده است.</p>`;
+    }
+
+    return `
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
+        ${products.map(p => `
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:16px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <b style="font-size:14px;">${esc(p.name)}</b>
+                <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:${p.is_active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${p.is_active ? '#22c55e' : '#ef4444'};">
+                  ${p.is_active ? 'فعال' : 'غیرفعال'}
+                </span>
+              </div>
+              <div style="color:var(--cyan); font-weight:800; font-size:15px; margin-bottom:8px;">${priceLabel(p.price)}</div>
+              <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:12px;">${esc(p.short_description || 'بدون توضیح')}</small>
+            </div>
+            <button class="nav-link" data-admin-toggle-pid="${p.id}" style="justify-content:center; font-size:12px; background:${p.is_active ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}; color:${p.is_active ? '#ef4444' : '#22c55e'};">
+              ${p.is_active ? '🚫 غیرفعال کردن' : '✅ فعال کردن'}
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  /* ── Admin Order Event Handlers ── */
+  function bindAdminOrderEvents(orders) {
+    document.querySelectorAll('[data-admin-status-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const order_id = btn.dataset.adminStatusId;
+        const status = btn.dataset.status;
+        const res = await api('admin_order_status', {}, 'POST', { order_id, status });
+        if (res && res.ok) {
+          showToast('وضعیت سفارش بروزرسانی شد! ⚡', 'success');
+          renderAdminView($('app'));
+        } else {
+          showToast(res.message || 'خطا در تغییر وضعیت.', 'error');
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-admin-cust-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const user_id = btn.dataset.adminCustId;
+        openCustomer360Modal(user_id);
+      });
+    });
+  }
+
+  /* ── Admin Product Event Handlers ── */
+  function bindAdminProductEvents(products) {
+    document.querySelectorAll('[data-admin-toggle-pid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pid = btn.dataset.adminTogglePid;
+        const res = await api('admin_toggle_product', {}, 'POST', { product_id: pid });
+        if (res && res.ok) {
+          showToast('وضعیت محصول بروزرسانی شد', 'success');
+          renderAdminView($('app'));
+        } else {
+          showToast(res.message || 'خطا در تغییر وضعیت محصول.', 'error');
+        }
+      });
+    });
+  }
+
+  /* ── Customer 360 View Modal ── */
+  async function openCustomer360Modal(userId) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:550px; text-align:center;">
+        <h3>⏳ در حال بارگذاری اطلاعات کاربر...</h3>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    const res = await api('admin_customer_view', {}, 'POST', { user_id: userId });
+    if (!res || !res.ok) {
+      showToast('خطا در دریافت پروفایل کاربر', 'error');
+      closeModal();
+      return;
+    }
+
+    const u = res.user || {};
+    const stats = res.customer_stats || {};
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:550px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">👤 پروفایل 360 کاربر</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:16px; border-radius:16px;">
+          <div style="width:50px; height:50px; border-radius:50%; background:var(--accent-grad); display:flex; align-items:center; justify-content:center; font-size:24px; color:#000;">👤</div>
+          <div>
+            <h4 style="font-size:16px; font-weight:800;">${esc(u.first_name || u.username || 'کاربر')}</h4>
+            <div style="color:var(--text-muted); font-size:12px;">ID: #${u.id} · ${u.username ? '@' + esc(u.username) : 'بدون یوزرنیم'}</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-bottom:20px;">
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); padding:14px; border-radius:14px;">
+            <small style="color:var(--text-muted); font-size:11px;">موجودی کیف پول</small>
+            <b style="display:block; font-size:16px; color:var(--cyan); margin-top:4px;">${priceLabel(u.balance || 0)}</b>
+          </div>
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); padding:14px; border-radius:14px;">
+            <small style="color:var(--text-muted); font-size:11px;">مجموع خریدها</small>
+            <b style="display:block; font-size:16px; color:#fff; margin-top:4px;">${priceLabel(res.total_spent || 0)}</b>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+  }
+
+  /* ── Auth Modal (Login, Registration & Telegram Widget) ── */
+  window.onTelegramAuth = async function (user) {
+    const res = await api('telegram_login', {}, 'POST', { auth_data: user });
+    if (res && res.ok) {
+      if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+      state.user = res.user;
+      showToast('ورود با تلگرام با موفقیت انجام شد! 🎉', 'success');
+      closeModal();
+      initApp();
+    } else {
+      showToast(res ? res.message : 'تایید هویت تلگرام ناموفق بود.', 'error');
+    }
+  };
+
   function openAuthModal() {
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
+
+    const botName = state.bot_username || 'BlueGateBot';
 
     modalContainer.innerHTML = `
       <div class="modal-card">
@@ -900,15 +1181,16 @@
           <button class="close-drawer-btn" id="close-modal-btn">✕</button>
         </div>
 
-        <div style="display:flex; gap:8px; margin-bottom:20px; background:rgba(255,255,255,0.04); padding:4px; border-radius:14px;">
-          <button id="tab-login-btn" class="nav-link active" style="flex:1; justify-content:center;">ورود به حساب</button>
-          <button id="tab-register-btn" class="nav-link" style="flex:1; justify-content:center;">ثبت‌نام جدید</button>
+        <div style="display:flex; gap:6px; margin-bottom:20px; background:rgba(255,255,255,0.04); padding:4px; border-radius:14px;">
+          <button id="tab-login-btn" class="nav-link active" style="flex:1; justify-content:center; font-size:12px; padding:6px 4px;">ورود</button>
+          <button id="tab-register-btn" class="nav-link" style="flex:1; justify-content:center; font-size:12px; padding:6px 4px;">ثبت‌نام</button>
+          <button id="tab-telegram-btn" class="nav-link" style="flex:1; justify-content:center; font-size:12px; padding:6px 4px; color:var(--cyan);">✈️ تلگرام</button>
         </div>
 
         <!-- Login Form -->
         <form id="login-form">
           <div style="margin-bottom:14px;">
-            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">نام کاربری</label>
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">نام کاربری یا ایمیل</label>
             <input type="text" id="login-username" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
           <div style="margin-bottom:20px;">
@@ -929,7 +1211,7 @@
             <input type="password" id="reg-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
           <div style="margin-bottom:12px;">
-            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">ایمیل (اختیاری)</label>
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">ایمیل (جهت ارسال کد OTP)</label>
             <input type="email" id="reg-email" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
           <div style="margin-bottom:18px;">
@@ -938,30 +1220,63 @@
           </div>
           <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">ثبت‌نام حساب جدید</button>
         </form>
+
+        <!-- Telegram Auth Container -->
+        <div id="telegram-form" class="hidden" style="text-align:center; padding:20px 0;">
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">جهت ورود آسان و سریع با حساب تلگرام خود، روی دکمه زیر کلیک کنید:</p>
+          <div id="telegram-widget-wrapper" style="display:flex; justify-content:center; min-height:48px;"></div>
+        </div>
       </div>
     `;
 
     modalContainer.classList.remove('hidden');
-
     $('close-modal-btn')?.addEventListener('click', closeModal);
 
     const loginTab = $('tab-login-btn');
     const regTab = $('tab-register-btn');
+    const tgTab = $('tab-telegram-btn');
     const loginForm = $('login-form');
     const regForm = $('register-form');
+    const tgForm = $('telegram-form');
 
     loginTab?.addEventListener('click', () => {
       loginTab.classList.add('active');
       regTab.classList.remove('active');
+      tgTab?.classList.remove('active');
       loginForm.classList.remove('hidden');
       regForm.classList.add('hidden');
+      tgForm.classList.add('hidden');
     });
 
     regTab?.addEventListener('click', () => {
       regTab.classList.add('active');
       loginTab.classList.remove('active');
+      tgTab?.classList.remove('active');
       regForm.classList.remove('hidden');
       loginForm.classList.add('hidden');
+      tgForm.classList.add('hidden');
+    });
+
+    tgTab?.addEventListener('click', () => {
+      tgTab.classList.add('active');
+      loginTab.classList.remove('active');
+      regTab.classList.remove('active');
+      tgForm.classList.remove('hidden');
+      loginForm.classList.add('hidden');
+      regForm.classList.add('hidden');
+
+      const wrapper = $('telegram-widget-wrapper');
+      if (wrapper && !wrapper.hasChildNodes()) {
+        const script = document.createElement('script');
+        script.src = 'https://telegram.org/js/telegram-widget.js?22';
+        script.setAttribute('data-telegram-login', botName);
+        script.setAttribute('data-size', 'large');
+        script.setAttribute('data-radius', '12');
+        script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+        script.setAttribute('data-request-access', 'write');
+        script.async = true;
+        wrapper.appendChild(script);
+      }
     });
 
     let pendingUserId = null;
