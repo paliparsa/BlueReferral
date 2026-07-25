@@ -944,7 +944,7 @@
     for (const item of state.cart) {
       for (let i = 0; i < (item.qty || 1); i++) {
         try {
-          const payload = { product_id: item.id, use_wallet: 0 };
+          const payload = { product_id: item.id, use_wallet: 0, is_web: 1 };
           if (item.vid) payload.variant_id = item.vid;
           const res = await api('create_order', {}, 'POST', payload);
           if (res && res.ok) okCount++;
