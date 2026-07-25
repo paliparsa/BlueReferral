@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlueGate Store — مرجع تخصصی اشتراک‌های دیجیتال &amp; هوش مصنوعی</title>
+  <meta name="description" content="خرید مستقیم انواع اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و اشتراک‌های پرکاربرد با تحویل فوری ۲۴ ساعته">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=v4.1">
+</head>
+<body>
+
+  <!-- Top Sticky Header -->
+  <header class="web-header">
+    <div class="header-container">
+      <a href="#" class="brand-logo" data-tab="shop">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">BlueGate <small>Store</small></span>
+      </a>
+
+      <div class="header-search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="جستجو در محصولات، اکانت‌ها، هوش مصنوعی..." autocomplete="off">
+      </div>
+
+      <nav class="header-nav">
+        <button class="nav-link active" data-tab="shop"><span>🛍️</span> فروشگاه</button>
+        <button class="nav-link" data-tab="orders"><span>📜</span> سفارش‌ها</button>
+        <button class="nav-link" data-tab="wallet"><span>💰</span> کیف پول</button>
+      </nav>
+
+      <div class="header-actions">
+        <button class="cart-trigger-btn" id="open-cart-btn">
+          <span>🛒</span>
+          <span class="cart-badge-count" id="cart-count">0</span>
+        </button>
+        <button class="user-account-btn" id="user-btn">
+          <span>👤</span> <b id="user-btn-text">ورود / حساب</b>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View Mount Shell -->
+  <main id="app" class="web-app-shell">
+    <!-- Views dynamically rendered by app.js -->
+  </main>
+
+  <!-- Slide-Over Cart Drawer -->
+  <aside id="cart-drawer" class="cart-drawer">
+    <div class="drawer-header">
+      <h3>🛒 سبد خرید شما</h3>
+      <button class="close-drawer-btn" id="close-cart-btn">✕</button>
+    </div>
+    <div class="drawer-body" id="cart-items-container">
+      <!-- Cart items rendered dynamically -->
+    </div>
+    <div class="drawer-footer" id="cart-footer-container">
+      <!-- Checkout summary rendered dynamically -->
+    </div>
+  </aside>
+  <div id="cart-backdrop" class="drawer-backdrop"></div>
+
+  <!-- Global Modal Dialog Backdrop -->
+  <div id="modal-container" class="modal-container hidden"></div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application Script -->
+  <script src="app.js?v=v5.0"></script>
+</body>
+</html>
