@@ -1222,9 +1222,19 @@
         </form>
 
         <!-- Telegram Auth Container -->
-        <div id="telegram-form" class="hidden" style="text-align:center; padding:20px 0;">
-          <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">جهت ورود آسان و سریع با حساب تلگرام خود، روی دکمه زیر کلیک کنید:</p>
-          <div id="telegram-widget-wrapper" style="display:flex; justify-content:center; min-height:48px;"></div>
+        <div id="telegram-form" class="hidden" style="text-align:center; padding:16px 0;">
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">جهت ورود با تلگرام، روی دکمه رسمی زیر کلیک کنید:</p>
+          <div id="telegram-widget-wrapper" style="display:flex; justify-content:center; min-height:48px; margin-bottom:16px;"></div>
+          
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; text-align:right;">
+            <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:8px;">⚠️ پیام «Bot domain invalid» دریافت می‌کنید؟</small>
+            <p style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">
+              مطمئن شوید در @BotFather با دستور <code>/setdomain</code> دامنه دقیق سایت را (بدون https://) برای ربات ثبت کرده‌اید.
+            </p>
+            <a id="tg-direct-bot-link" href="https://t.me/${botName}" target="_blank" class="user-account-btn" style="width:100%; justify-content:center; text-decoration:none; font-size:12px;">
+              ✈️ ورود مستقیم از طریق ربات تلگرام
+            </a>
+          </div>
         </div>
       </div>
     `;
