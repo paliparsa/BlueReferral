@@ -560,32 +560,43 @@
       }
 
       html += `
-        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:16px; padding:16px; margin-top:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <b style="font-size:14px; color:var(--cyan);">💳 اطلاعات شماره کارت</b>
-            <button class="ghost" id="btn-reset-method-${o.id}" style="font-size:11px; padding:4px 8px;">🔄 تغییر روش</button>
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <b style="font-size:15px; color:var(--cyan);">💳 اطلاعات شماره کارت</b>
+            <button class="btn-reset-method" id="btn-reset-method-${o.id}">🔄 تغییر روش</button>
           </div>
-          ${accounts.map(acc => `
-            <div class="luxury-bank-card">
-              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">
-                <span>${esc(acc.title || 'کارت بانکی')}</span>
-                <span>${esc(acc.owner || '')}</span>
+          ${accounts.map(acc => {
+            const rawCard = String(acc.card || '0000000000000000').replace(/\D/g, '');
+            const formattedCard = rawCard.length === 16 ? rawCard.match(/.{1,4}/g).join(' - ') : esc(acc.card || '');
+            return `
+              <div class="luxury-bank-card-v2">
+                <div class="bank-card-header">
+                  <span class="card-chip-icon">💳</span>
+                  <span class="bank-title">${esc(acc.title || 'کارت بانکی سفارشات')}</span>
+                </div>
+                <div class="bank-number-display">${formattedCard}</div>
+                <div class="bank-owner-row">
+                  <span>صاحب حساب: <b>${esc(acc.owner || 'پشتیبانی فروشگاه')}</b></span>
+                </div>
+                <button class="card-copy-btn" data-copy="${esc(acc.card || '')}">📋 کپی شماره کارت</button>
               </div>
-              <div class="bank-card-number">${esc(acc.card || '')}</div>
-              <button class="user-account-btn" data-copy="${esc(acc.card || '')}" style="margin:0 auto; font-size:12px; padding:6px 14px;">📋 کپی شماره کارت</button>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
 
-          <form id="receipt-upload-form-${o.id}" style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:14px;">
-            <div style="margin-bottom:12px;">
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">توضیحات / شماره پیگیری / ۴ رقم کارت</label>
-              <input type="text" id="receipt-note-${o.id}" required placeholder="مثلاً: واریز از کارت علی محمودی کد ۱۲۳۴" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; outline:none; font-size:13px;">
-            </div>
+          <form id="receipt-upload-form-${o.id}" style="margin-top:18px; border-top:1px solid var(--border-color); padding-top:16px;">
             <div style="margin-bottom:14px;">
-              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">تصویر رسید (اختیاری)</label>
-              <input type="file" id="receipt-file-${o.id}" accept="image/*" style="width:100%; font-size:12px; color:var(--text-muted);">
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">توضیحات / شماره پیگیری / ۴ رقم کارت</label>
+              <input type="text" id="receipt-note-${o.id}" required placeholder="مثلاً: واریز از کارت علی محمودی کد ۱۲۳۴" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; font-size:13px;">
             </div>
-            <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">📤 ثبت رسید و تایید پرداخت</button>
+            <div style="margin-bottom:16px;">
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">تصویر رسید (اختیاری)</label>
+              <label class="custom-file-upload">
+                <input type="file" id="receipt-file-${o.id}" accept="image/*" style="display:none;">
+                <span class="upload-icon">🖼️</span>
+                <span id="receipt-file-label-${o.id}" class="upload-label">انتخاب یا درگ تصویر رسید پرداخت...</span>
+              </label>
+            </div>
+            <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:linear-gradient(135deg, var(--cyan), #1d9bf0); color:#000; font-weight:900; padding:12px;">📤 ثبت رسید و تایید پرداخت</button>
           </form>
         </div>
       `;
@@ -597,32 +608,44 @@
       const cryptoCheck = o.crypto_check;
 
       html += `
-        <div class="crypto-invoice-panel">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <b style="font-size:14px; color:var(--cyan);">🪙 پرداخت رمزارز</b>
-            <button class="ghost" id="btn-reset-method-${o.id}" style="font-size:11px; padding:4px 8px;">🔄 تغییر روش</button>
+        <div class="crypto-invoice-panel" style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <b style="font-size:15px; color:var(--cyan);">🪙 پرداخت رمزارز (Crypto)</b>
+            <button class="btn-reset-method" id="btn-reset-method-${o.id}">🔄 تغییر روش</button>
           </div>
           ${!cryptoCheck ? `
-            <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">کیف پول شبکه مورد نظر خود را انتخاب کنید:</p>
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">کیف پول شبکه مورد نظر خود را برای پرداخت انتخاب کنید:</p>
+            <div class="crypto-wallet-list">
               ${wallets.map(w => `
-                <button class="user-account-btn" data-select-crypto-id="${w.id}" style="justify-content:space-between; background:rgba(255,255,255,0.04);">
-                  <span>${esc(w.title || 'USDT TRC20')}</span>
-                  <small style="color:var(--cyan);">${w.rate_toman ? `۱ USDT = ${priceLabel(w.rate_toman)}` : ''}</small>
+                <button class="crypto-wallet-item" data-select-crypto-id="${w.id}">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:22px;">🪙</span>
+                    <div>
+                      <b style="font-size:14px; color:#fff; display:block;">${esc(w.title || w.asset || 'USDT')}</b>
+                      <span style="font-size:11px; color:var(--text-muted);">${esc(w.network || 'TRC20')}</span>
+                    </div>
+                  </div>
+                  <small style="color:var(--cyan); font-weight:800; font-size:13px;">${w.rate_toman ? `۱ ${esc(w.asset || 'USDT')} = ${priceLabel(w.rate_toman)}` : ''}</small>
                 </button>
               `).join('')}
             </div>
           ` : `
-            <div style="background:rgba(0,0,0,0.3); border-radius:12px; padding:14px; margin-bottom:14px;">
-              <small style="color:var(--text-muted); font-size:12px; display:block;">آدرس کیف پول جهت واریز:</small>
-              <code style="font-size:14px; color:var(--cyan); word-break:break-all; display:block; margin:6px 0;">${esc(cryptoCheck.address)}</code>
-              <button class="user-account-btn" data-copy="${esc(cryptoCheck.address)}" style="font-size:11px; padding:4px 10px;">📋 کپی آدرس</button>
+            <div style="background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:16px; padding:16px; margin-bottom:16px;">
+              <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:6px;">آدرس کیف پول جهت واریز:</small>
+              <code style="font-size:14px; color:var(--cyan); word-break:break-all; display:block; margin-bottom:12px; background:rgba(0,0,0,0.4); padding:10px; border-radius:10px;">${esc(cryptoCheck.address)}</code>
+              <button class="user-account-btn" data-copy="${esc(cryptoCheck.address)}" style="font-size:12px; padding:8px 16px; background:var(--cyan); color:#000;">📋 کپی آدرس ولت</button>
             </div>
             <form id="crypto-hash-form-${o.id}">
-              <div style="margin-bottom:12px;">
-                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">کد هش تراکنش (TXID / Hash)</label>
-                <input type="text" id="crypto-txid-${o.id}" required placeholder="هش تراکنش شبکه..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; outline:none; font-size:13px;">
+              <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">کد هش تراکنش (TXID / Hash)</label>
+                <input type="text" id="crypto-txid-${o.id}" required placeholder="هش تراکنش شبکه..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; font-size:13px;">
               </div>
+              <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:linear-gradient(135deg, var(--cyan), #1d9bf0); color:#000; font-weight:900; padding:12px;">⚡ ثبت TXID جهت استعلام آنی</button>
+            </form>
+          `}
+        </div>
+      `;
+    }
               <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">⚡ ثبت TXID جهت استعلام آنی</button>
             </form>
           `}
@@ -718,6 +741,18 @@
       const res = await api('select_payment_method', {}, 'POST', { order_id: o.id, method: 'none' });
       if (res && res.ok) openOrderDetailModal(o.id);
     });
+
+    // File label change listener
+    const fileInput = $(`receipt-file-${o.id}`);
+    const fileLabel = $(`receipt-file-label-${o.id}`);
+    if (fileInput && fileLabel) {
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files && fileInput.files[0]) {
+          fileLabel.textContent = `📎 ${fileInput.files[0].name}`;
+          fileLabel.style.color = 'var(--cyan)';
+        }
+      });
+    }
 
     // Card Receipt Upload Submit
     $(`receipt-upload-form-${o.id}`)?.addEventListener('submit', async (e) => {
