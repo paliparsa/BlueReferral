@@ -13,8 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <!-- NO Telegram WebApp script - this is the web version -->
-  <link rel="stylesheet" href="style.css?v=web-1.0">
-  <link rel="stylesheet" href="web-overrides.css?v=web-1.0">
+  <link rel="stylesheet" href="style.css?v=web-1.2">
+  <link rel="stylesheet" href="web-overrides.css?v=web-1.2">
 </head>
 <body class="web-mode">
 
@@ -28,19 +28,25 @@
         <span class="web-logo-text" id="webBrandTitle">BlueGate</span>
       </a>
 
-      <div class="web-header-search">
+      <div class="web-header-search" id="webHeaderSearchBox" title="جستجو در محصولات و دستورات (⌘K)">
         <span class="web-search-icon">🔍</span>
-        <input type="text" id="searchInput" placeholder="جستجو (ChatGPT، Spotify، Telegram...)" autocomplete="off" />
+        <input type="text" id="searchInput" placeholder="جستجو در محصولات، هوش مصنوعی، اشتراک‌ها..." autocomplete="off" />
+        <kbd class="web-search-kbd">⌘K</kbd>
       </div>
 
       <div class="web-header-nav">
-        <button class="web-nav-btn" data-tab="shop">🛒 فروشگاه</button>
+        <button class="web-nav-btn active" data-tab="shop">🛒 فروشگاه</button>
         <button class="web-nav-btn" data-tab="orders">🧾 سفارش‌ها</button>
         <button class="web-nav-btn" data-tab="wallet">💰 کیف پول</button>
         <button class="web-nav-btn" data-tab="home">👤 حساب</button>
       </div>
 
       <div class="web-header-actions">
+        <button class="web-header-cart-btn" id="webHeaderCartBtn" title="سبد خرید">
+          <span>🛒</span>
+          <span class="web-cart-count" id="webCartCount">0</span>
+        </button>
+
         <button class="web-auth-btn" id="openAuthModalBtn">
           <span id="webAuthBtnIcon">🔑</span>
           <span id="webAuthBtnText">ورود / ثبت‌نام</span>
@@ -275,7 +281,7 @@
     window._webAdminMode = _urlParams.get('admin') === '1';
   </script>
 
-  <script src="app.js?v=web-1.0"></script>
-  <script src="web-init.js?v=web-1.0"></script>
+  <script src="app.js?v=web-1.2"></script>
+  <script src="web-init.js?v=web-1.2"></script>
 </body>
 </html>
