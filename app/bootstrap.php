@@ -77,6 +77,9 @@ function migrate(): void {
     add_column_if_missing('users', 'auth_token', 'VARCHAR(128) NULL AFTER password_hash');
     add_column_if_missing('users', 'web_username', 'VARCHAR(128) NULL AFTER auth_token');
     add_column_if_missing('users', 'email', 'VARCHAR(255) NULL AFTER web_username');
+    add_column_if_missing('users', 'email_verified_at', 'DATETIME NULL AFTER email');
+    add_column_if_missing('users', 'email_verification_token', 'VARCHAR(64) NULL AFTER email_verified_at');
+    add_column_if_missing('users', 'email_verification_expires_at', 'DATETIME NULL AFTER email_verification_token');
     try { db()->exec('ALTER TABLE users MODIFY COLUMN telegram_id BIGINT NULL'); } catch (Throwable $e) {}
     try { db()->exec('ALTER TABLE transactions MODIFY COLUMN type VARCHAR(64) NOT NULL'); } catch (Throwable $e) {}
     try { db()->exec("UPDATE users u SET ref_rewarded=1 WHERE referrer_id IS NOT NULL AND EXISTS (SELECT 1 FROM transactions t WHERE t.type='ref_start' AND t.related_user_id=u.id)"); } catch (Throwable $e) {}
@@ -100,6 +103,9 @@ function migrate(): void {
     seed_setting('require_contact_auth', '0');
     seed_setting('notify_new_user', '1');
     seed_setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
+    seed_setting('resend_api_key', app_config('RESEND_API_KEY', ''));
+    seed_setting('resend_from_email', app_config('RESEND_FROM_EMAIL', 'onboarding@resend.dev'));
+    seed_setting('require_email_verification', '1');
     seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً یکی از روش‌های پرداخت فعال را انتخاب کن. پرداخت کارت‌به‌کارت با ارسال رسید بررسی می‌شود.'));
     seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
     seed_setting('card_accounts', app_config('CARD_ACCOUNTS', []));
@@ -1354,6 +1360,95 @@ function create_web_user(string $username, string $password, ?string $firstName 
         try_reward_referrer($user);
     }
     return $user;
+}
+
+function send_email_via_resend(string $to, string $subject, string $htmlContent): array {
+    $apiKey = setting('resend_api_key', app_config('RESEND_API_KEY', ''));
+    $fromEmail = setting('resend_from_email', app_config('RESEND_FROM_EMAIL', 'onboarding@resend.dev'));
+    
+    if (empty($apiKey)) {
+        return ['ok' => false, 'error' => 'NO_API_KEY', 'message' => 'کلید Resend API تنظیم نشده است. لطفاً کلید API را در پنل ادمین یا تنظیمات وارد کنید.'];
+    }
+    
+    $payload = json_encode([
+        'from' => $fromEmail,
+        'to' => [$to],
+        'subject' => $subject,
+        'html' => $htmlContent
+    ], JSON_UNESCAPED_UNICODE);
+    
+    $ch = curl_init('https://api.resend.com/emails');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json'
+        ],
+        CURLOPT_TIMEOUT => 10
+    ]);
+    
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    
+    if ($err) {
+        return ['ok' => false, 'error' => 'CURL_ERROR', 'message' => $err];
+    }
+    
+    $json = json_decode($resp, true);
+    if ($code >= 200 && $code < 300) {
+        return ['ok' => true, 'id' => $json['id'] ?? null];
+    }
+    
+    return ['ok' => false, 'error' => 'RESEND_ERROR', 'message' => $json['message'] ?? $resp];
+}
+
+function send_email_otp(array $user): array {
+    if (empty($user['email'])) {
+        return ['ok' => false, 'error' => 'NO_EMAIL', 'message' => 'آدرس ایمیل وارد نشده است.'];
+    }
+    
+    $otp = (string)rand(100000, 999999);
+    $expiresAt = date('Y-m-d H:i:s', time() + 900);
+    
+    db()->prepare('UPDATE users SET email_verification_token=?, email_verification_expires_at=? WHERE id=?')
+        ->execute([$otp, $expiresAt, (int)$user['id']]);
+        
+    $brand = setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
+    $subject = "کد تایید حساب کاربری {$brand}";
+    
+    $html = '
+    <div style="font-family: Tahoma, Arial, sans-serif; direction: rtl; text-align: right; background-color: #08111f; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto; border: 1px solid #1d9bf044;">
+        <h2 style="color: #1d9bf0; margin-bottom: 20px;">' . htmlspecialchars($brand) . '</h2>
+        <p style="font-size: 16px; margin-bottom: 10px;">سلام ' . htmlspecialchars($user['first_name'] ?: $user['username'] ?: 'کاربر گرامی') . ' 👋</p>
+        <p style="font-size: 14px; color: #9fb0c8; line-height: 1.6;">برای تایید آدرس ایمیل خود در سامانه، کد ۶ رقمی زیر را وارد کنید:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 34px; font-weight: 900; letter-spacing: 8px; color: #1d9bf0; background: #ffffff10; padding: 12px 24px; border-radius: 14px; border: 1px solid #1d9bf055; display: inline-block;">' . $otp . '</span>
+        </div>
+        <p style="font-size: 12px; color: #9fb0c8; border-top: 1px solid #ffffff10; padding-top: 15px;">این کد تا ۱۵ دقیقه معتبر است. اگر شما این درخواست را نداده‌اید، نیازی به انجام کاری نیست.</p>
+    </div>
+    ';
+    
+    return send_email_via_resend($user['email'], $subject, $html);
+}
+
+function verify_email_otp(int $userId, string $otp): bool {
+    $user = get_user_by_id($userId);
+    if (!$user || empty($user['email_verification_token'])) return false;
+    
+    if (trim((string)$user['email_verification_token']) !== trim((string)$otp)) return false;
+    
+    if (!empty($user['email_verification_expires_at']) && strtotime($user['email_verification_expires_at']) < time()) {
+        return false;
+    }
+    
+    db()->prepare('UPDATE users SET email_verified_at=NOW(), email_verification_token=NULL, email_verification_expires_at=NULL WHERE id=?')
+        ->execute([$userId]);
+        
+    return true;
 }
 function create_or_update_user(array $from, ?string $ref = null) {
     $tid = (int)$from['id'];
