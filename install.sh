@@ -221,7 +221,8 @@ step_repo() {
   if [[ -d "$APP_DIR/.git" ]]; then
     info "Updating existing repository in $APP_DIR"
     git -C "$APP_DIR" fetch --all --prune || return 1
-    git -C "$APP_DIR" pull --ff-only || return 1
+    git -C "$APP_DIR" reset --hard HEAD 2>/dev/null || true
+    git -C "$APP_DIR" pull --ff-only || git -C "$APP_DIR" reset --hard origin/main || return 1
   else
     info "Cloning $REPO_URL into $APP_DIR"
     rm -rf "$APP_DIR"
