@@ -805,12 +805,15 @@
   function flashSaleActive(p) {
     if (!p.flash_sale_start || !p.flash_sale_end || !Number(p.flash_sale_discount)) return false;
     const now = Date.now();
-    return now >= new Date(p.flash_sale_start).getTime() && now <= new Date(p.flash_sale_end).getTime();
+    const start = String(p.flash_sale_start).replace(' ', 'T');
+    const end = String(p.flash_sale_end).replace(' ', 'T');
+    return now >= new Date(start).getTime() && now <= new Date(end).getTime();
   }
 
   function flashSaleCountdown(p) {
     if (!flashSaleActive(p)) return '';
-    const ms = new Date(p.flash_sale_end).getTime() - Date.now();
+    const end = String(p.flash_sale_end).replace(' ', 'T');
+    const ms = new Date(end).getTime() - Date.now();
     if (ms <= 0) return '';
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
@@ -890,7 +893,8 @@
   /* getFlashTimeRemaining kept for timer pill in banner only */
   function getFlashTimeRemaining(p = null) {
     if (p && p.flash_sale_end) {
-      const ms = new Date(p.flash_sale_end).getTime() - Date.now();
+      const end = String(p.flash_sale_end).replace(' ', 'T');
+      const ms = new Date(end).getTime() - Date.now();
       if (ms > 0) {
         const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
         const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
@@ -2196,6 +2200,7 @@
     const coupons = res.coupons || [];
     const activityLog = res.activity_log || [];
     const adminRoles = res.admin_roles || [];
+    const backups = res.backups || [];
 
     const lowStockProds = products.filter(p => Number(p.inventory_available || 0) < 3);
 
@@ -2234,6 +2239,7 @@
         <button class="nav-link ${adminActiveTab === 'coupons' ? 'active' : ''}" data-admin-subtab="coupons">🎟 کدهای تخفیف (${coupons.length})</button>
         <button class="nav-link ${adminActiveTab === 'activity' ? 'active' : ''}" data-admin-subtab="activity">📜 لاگ فعالیت (${activityLog.length})</button>
         <button class="nav-link ${adminActiveTab === 'roles' ? 'active' : ''}" data-admin-subtab="roles">👥 نقش‌های ادمین</button>
+        <button class="nav-link ${adminActiveTab === 'backups' ? 'active' : ''}" data-admin-subtab="backups">💾 بکاپ (${backups.length})</button>
       </div>
 
       <!-- Sub Content Area -->
@@ -2266,6 +2272,9 @@
         subContent.innerHTML = renderAdminActivityTabMarkup(activityLog);
       } else if (adminActiveTab === 'roles') {
         subContent.innerHTML = renderAdminRolesTabMarkup(adminRoles);
+      } else if (adminActiveTab === 'backups') {
+        subContent.innerHTML = renderAdminBackupsTabMarkup(backups);
+        bindAdminBackupsTabEvents(backups);
       }
     }
 
@@ -2292,6 +2301,119 @@
         renderAdminView(container);
       } else {
         showToast(rateRes ? rateRes.message : 'خطا در رفرش نرخ‌ها.', 'error');
+      }
+    });
+  }
+
+  function renderAdminBackupsTabMarkup(backups) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="font-size:18px; font-weight:800; margin:0;">💾 مرکز بکاپ و ریستور (${backups.length})</h3>
+        <button class="user-account-btn" id="btn-admin-backup-create" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">📦 ساخت بکاپ جدید</button>
+      </div>
+
+      <div style="background:var(--card-dark); border:1px solid rgba(239,68,68,0.3); border-radius:18px; padding:20px; margin-bottom:24px;">
+        <h4 style="color:#ef4444; margin-bottom:8px;">♻️ آپلود و ریستور بکاپ (Danger Zone)</h4>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">ریستور کردن فایل بکاپ، تمام اطلاعات فعلی دیتابیس را جایگزین خواهد کرد. لطفاً فایل .json.gz را انتخاب کنید.</p>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="file" id="backup-upload-input" accept=".json,.gz,.json.gz" style="background:rgba(255,255,255,0.05); padding:10px; border-radius:12px; font-size:13px; border:1px solid var(--border-color); flex:1;">
+          <button class="user-account-btn" id="btn-admin-backup-upload" style="background:#ef4444; color:#fff;">آپلود و ریستور</button>
+        </div>
+      </div>
+
+      ${!backups.length ? `
+        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
+          بکاپی در سرور وجود ندارد.
+        </div>
+      ` : `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${backups.map(b => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+              <div>
+                <b style="font-size:14px; color:#fff; display:block; margin-bottom:4px;">${esc(b.filename)}</b>
+                <span style="font-size:12px; color:var(--text-muted);">${nf(Math.round(b.size/1024))} KB · ایجاد: ${esc(b.created_at || '-')}</span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <a href="${esc(b.download_url)}" target="_blank" class="user-account-btn" style="background:rgba(255,255,255,0.08); font-size:12px; text-decoration:none;">📥 دانلود</a>
+                <button class="user-account-btn btn-admin-backup-restore" data-filename="${esc(b.filename)}" style="background:rgba(245,158,11,0.2); color:#f59e0b; font-size:12px;">♻️ ریستور</button>
+                <button class="user-account-btn btn-admin-backup-delete" data-filename="${esc(b.filename)}" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:12px;">🗑️ حذف</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function bindAdminBackupsTabEvents(backups) {
+    $('btn-admin-backup-create')?.addEventListener('click', async () => {
+      const res = await api('admin_backup_create', {}, 'POST');
+      if (res && res.ok) {
+        showToast('بکاپ جدید با موفقیت ساخته شد!', 'success');
+        const container = $('app');
+        if (container) renderAdminView(container);
+      } else {
+        showToast(res ? res.message : 'خطا در ساخت بکاپ', 'error');
+      }
+    });
+
+    document.querySelectorAll('.btn-admin-backup-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('آیا از حذف این فایل بکاپ مطمئن هستید؟ این عملیات غیرقابل بازگشت است.')) return;
+        const res = await api('admin_backup_delete', {}, 'POST', { filename: btn.dataset.filename });
+        if (res && res.ok) {
+          showToast('بکاپ حذف شد.', 'success');
+          const container = $('app');
+          if (container) renderAdminView(container);
+        } else {
+          showToast(res ? res.message : 'خطا در حذف بکاپ', 'error');
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-admin-backup-restore').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('توجه: ریستور کردن دیتابیس فعلی را جایگزین میکند. مطمئن هستید؟')) return;
+        showToast('در حال ریستور دیتابیس...', 'info');
+        const res = await api('admin_backup_restore_server', {}, 'POST', { filename: btn.dataset.filename, confirm: 'RESTORE' });
+        if (res && res.ok) {
+          showToast('دیتابیس با موفقیت ریستور شد! صفحه مجددا بارگذاری میشود...', 'success');
+          setTimeout(() => location.reload(), 2000);
+        } else {
+          showToast(res ? res.message : 'خطا در ریستور بکاپ', 'error');
+        }
+      });
+    });
+
+    $('btn-admin-backup-upload')?.addEventListener('click', async () => {
+      const fileInput = $('backup-upload-input');
+      if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        showToast('ابتدا یک فایل انتخاب کنید.', 'error');
+        return;
+      }
+      if (!confirm('هشدار: دیتابیس فعلی پاک شده و این فایل جایگزین آن می‌شود. ادامه میدهید؟')) return;
+      
+      const file = fileInput.files[0];
+      const fd = new FormData();
+      fd.append('confirm', 'RESTORE');
+      fd.append('backup', file);
+
+      if (state.user && state.user.token) {
+        fd.append('token', state.user.token);
+      }
+
+      showToast('در حال آپلود و ریستور...', 'info');
+      try {
+        const res = await fetch('/backup_upload.php', { method: 'POST', body: fd, headers: { 'Authorization': state.user?.token ? 'Bearer ' + state.user.token : '' }});
+        const data = await res.json();
+        if (data && data.ok) {
+          showToast('دیتابیس با موفقیت ریستور شد! ریلود در 2 ثانیه...', 'success');
+          setTimeout(() => location.reload(), 2000);
+        } else {
+          showToast(data.message || 'خطا در آپلود بکاپ', 'error');
+        }
+      } catch (e) {
+        showToast('خطا در ارتباط با سرور آپلود', 'error');
       }
     });
   }
