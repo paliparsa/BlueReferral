@@ -475,10 +475,11 @@ body.web-mode .cat-pill img {
    Inspired by marketplace-style: large image, name + price below
    ═══════════════════════════════════════════════════════ */
 
-/* ── Grid: full grid on desktop, no horizontal scroll strip ── */
+/* ── Grid: full grid on desktop, capped card width (never expands to 100% giant image) ── */
 body.web-mode .product-grid-wrap {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 260px)) !important;
+  justify-content: start !important;
   gap: 22px !important;
   overflow: visible !important;
   width: 100% !important;
@@ -503,17 +504,19 @@ body.web-mode .section-title h2 {
 body.web-mode .product-tile,
 body.web-mode .product-tile.compact-tile {
   background: rgba(14, 27, 50, 0.9) !important;
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 18px !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
   position: relative !important;
   cursor: pointer !important;
+  width: 100% !important;
+  max-width: 260px !important;
   transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.28s ease,
               border-color 0.2s ease !important;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
 }
 body.web-mode .product-tile:hover,
 body.web-mode .product-tile.compact-tile:hover {
