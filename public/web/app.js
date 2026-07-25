@@ -2758,17 +2758,95 @@
   let webAdminCards = [];
   let webAdminWallets = [];
   let webAdminRates = [];
+  let webAdminSpinRewards = [];
+
+  function parseWebCardAccounts(raw) {
+    if (Array.isArray(raw) && raw.length) return raw;
+    const str = String(raw || '').trim();
+    if (!str) return [];
+    try {
+      const j = JSON.parse(str);
+      if (Array.isArray(j) && j.length) return j;
+    } catch (e) {}
+    return str.split(/\r?\n/).map(line => {
+      const parts = line.split('|').map(s => s.trim());
+      return { title: parts[0] || 'کارت بانکی', card: parts[1] || '', owner: parts[2] || '', sheba: parts[3] || '' };
+    }).filter(c => c.card || c.owner || c.sheba);
+  }
+
+  function parseWebCryptoWallets(raw) {
+    if (Array.isArray(raw) && raw.length) return raw;
+    const str = String(raw || '').trim();
+    if (!str) return [];
+    try {
+      const j = JSON.parse(str);
+      if (Array.isArray(j) && j.length) return j;
+    } catch (e) {}
+    return str.split(/\r?\n/).map(line => {
+      const parts = line.split('|').map(s => s.trim());
+      return { asset: parts[0] || 'USDT', network: parts[1] || 'TRC20', address: parts[2] || '', title: parts[3] || '', rate_symbol: parts[4] || parts[0] || 'USDT', is_active: parts[5] ?? '1' };
+    }).filter(w => w.address);
+  }
+
+  function parseWebCryptoRates(raw) {
+    if (Array.isArray(raw) && raw.length) return raw;
+    const str = String(raw || '').trim();
+    if (!str) return [];
+    try {
+      const j = JSON.parse(str);
+      if (Array.isArray(j) && j.length) return j;
+    } catch (e) {}
+    return str.split(/\r?\n/).map(line => {
+      const parts = line.split('|').map(s => s.trim());
+      return { asset: (parts[0] || 'USDT').toUpperCase(), rate_toman: Number(parts[1] || 0) };
+    }).filter(r => r.asset && r.rate_toman > 0);
+  }
+
+  function parseWebSpinRewards(raw) {
+    if (Array.isArray(raw) && raw.length) return raw;
+    const str = String(raw || '').trim();
+    if (!str) return [];
+    try {
+      const j = JSON.parse(str);
+      if (Array.isArray(j) && j.length) return j;
+    } catch (e) {}
+    return str.split(/\r?\n/).map(line => {
+      const parts = line.split('|').map(s => s.trim());
+      return {
+        title: parts[0] || 'پاداش',
+        amount: Number(parts[1] || 0),
+        weight: Number(parts[2] || 10),
+        notify_admin: parts[3] === '1' || parts[3] === 'true'
+      };
+    }).filter(r => r.title);
+  }
+
+  function cryptoRateCacheText(settings) {
+    const cache = settings.crypto_rate_cache || {};
+    const rows = Object.entries(cache);
+    const lastRes = settings.crypto_rate_last_result || {};
+    let lines = [];
+    if (rows.length > 0) {
+      lines = rows.map(([symbol, info]) => {
+        const r = typeof info === 'object' ? info.rate : info;
+        const src = typeof info === 'object' ? (info.source || info.provider || 'Live') : 'Live';
+        const time = typeof info === 'object' ? (info.updated_at || '') : '';
+        return `📈 1 ${symbol.toUpperCase()} = ${nf(r)} تومان · منبع: ${src}${time ? ' (' + time + ')' : ''}`;
+      });
+    } else {
+      lines.push('⚠️ هنوز نرخ آنلاین از صرافی‌های والکس/رمزینکس/نوبیتکس کش نشده است.');
+    }
+    if (lastRes.providers && lastRes.providers.length) {
+      lines.push(`🔍 اولویت صرافی‌ها: ${lastRes.providers.join(' ← ')}`);
+    }
+    return lines.join('\n');
+  }
 
   function initSettingsStateFromObj(settings) {
-    webAdminCards = Array.isArray(settings.card_accounts) ? settings.card_accounts : (function(){
-      try { return JSON.parse(settings.card_accounts_text || '[]'); } catch(e){ return []; }
-    })();
-    webAdminWallets = Array.isArray(settings.crypto_wallets) ? settings.crypto_wallets : (function(){
-      try { return JSON.parse(settings.crypto_wallets_text || '[]'); } catch(e){ return []; }
-    })();
-    webAdminRates = Array.isArray(settings.crypto_manual_rates) ? settings.crypto_manual_rates : (function(){
-      try { return JSON.parse(settings.crypto_manual_rates_text || '[]'); } catch(e){ return []; }
-    })();
+    webAdminCards = parseWebCardAccounts(settings.card_accounts || settings.card_accounts_text);
+    webAdminWallets = parseWebCryptoWallets(settings.crypto_wallets || settings.crypto_wallets_text);
+    webAdminRates = parseWebCryptoRates(settings.crypto_manual_rates || settings.crypto_manual_rates_text);
+    webAdminSpinRewards = parseWebSpinRewards(settings.spin_rewards || settings.spin_rewards_text);
   }
 
   function renderAdminSettingsTabMarkup(settings) {
@@ -2878,7 +2956,7 @@
             <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <div>
-                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">💳 مدیریت حساب‌های کارت به کارت</h3>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">💳 مدیریت حساب‌های کارت به کارت (${webAdminCards.length})</h3>
                   <small style="color:var(--text-muted);">کارت‌های بانکی برای واریز مستقیم کاربران</small>
                 </div>
                 <button type="button" class="user-account-btn" id="btn-add-bank-card" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">➕ افزودن کارت جدید</button>
@@ -2904,6 +2982,15 @@
 
           <!-- PANE 3: CRYPTO MANAGER -->
           <div style="display:${isCry ? 'block' : 'none'};">
+            <!-- Live Crypto Price Log Box -->
+            <div style="background:rgba(29,155,240,0.06); border:1px solid rgba(29,155,240,0.3); border-radius:20px; padding:20px; margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="font-size:15px; font-weight:800; margin:0; color:var(--cyan);">📊 وضعیت نرخ آنلاین صرافی‌ها (Live Crypto Rates Log)</h3>
+                <button type="button" class="user-account-btn" id="btn-refresh-rates-live" style="background:var(--cyan); color:#000; font-size:11px; padding:6px 12px;">🔄 رفرش فوری نرخ‌ها</button>
+              </div>
+              <pre style="background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:12px; padding:12px; color:var(--text-color); font-size:12px; font-family:monospace; white-space:pre-wrap; margin:0; direction:rtl; text-align:right;">${esc(cryptoRateCacheText(settings))}</pre>
+            </div>
+
             <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
               <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">🪙 تنظیمات منبع نرخ رمزارز</h3>
               
@@ -2929,7 +3016,7 @@
             <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <div>
-                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">👛 کیف پول‌های دریافت رمزارز</h3>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">👛 کیف پول‌های دریافت رمزارز (${webAdminWallets.length})</h3>
                   <small style="color:var(--text-muted);">آدرس‌های ولت جهت دریافت USDT, TRX, TON</small>
                 </div>
                 <button type="button" class="user-account-btn" id="btn-add-crypto-wallet" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">➕ افزودن ولت رمزارز</button>
@@ -2956,7 +3043,7 @@
             <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <div>
-                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">📈 نرخ دستی رمزارزها (Fallback Rates)</h3>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">📈 نرخ دستی رمزارزها (${webAdminRates.length})</h3>
                   <small style="color:var(--text-muted);">در صورت قطعی صرافی‌های آنلاین استفاده می‌شود</small>
                 </div>
                 <button type="button" class="user-account-btn" id="btn-add-crypto-rate" style="background:rgba(255,255,255,0.1); color:#fff; font-size:12px; padding:8px 14px;">➕ افزودن نرخ دستی</button>
@@ -2990,19 +3077,44 @@
             </div>
           </div>
 
-          <!-- PANE 5: GAMIFICATION -->
+          <!-- PANE 5: GAMIFICATION & SPIN REWARDS BUILDER -->
           <div style="display:${isGam ? 'block' : 'none'};">
             <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
-              <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0; color:#fff;">🎡 تنظیمات گردونه شانس</h3>
-              
-              <div style="margin-bottom:16px;">
-                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">تعداد زیرمجموعه برای دریافت ۱ شانس گردونه:</label>
-                <input type="number" id="set-spin-every" value="${settings.spin_referrals_per_chance || 5}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <div>
+                  <h3 style="font-size:16px; font-weight:800; margin:0; color:#fff;">🎡 مدیریت پاداش‌های گردونه شانس (${webAdminSpinRewards.length})</h3>
+                  <small style="color:var(--text-muted);">تعریف جوایز، شانس احتمال و اعلان ادمین</small>
+                </div>
+                <button type="button" class="user-account-btn" id="btn-add-spin-reward" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">➕ افزودن جایزه جدید</button>
               </div>
 
-              <div>
-                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">تعریف جوایز گردونه (هر خط: عنوان|مبلغ|وزن):</label>
-                <textarea id="set-spin-rewards" rows="4" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; direction:ltr; text-align:left;">${esc(settings.spin_rewards_text || '')}</textarea>
+              <div style="margin-bottom:20px;">
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">تعداد زیرمجموعه برای دریافت ۱ شانس گردونه:</label>
+                <input type="number" id="set-spin-every" value="${settings.spin_referrals_per_chance || 5}" style="width:100%; max-width:240px; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+              </div>
+
+              <!-- Visual Spin Rewards Grid -->
+              <div id="web-spin-rewards-builder-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                ${!webAdminSpinRewards.length ? `<p style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px; grid-column:1/-1;">هیچ جایزه‌ای برای گردونه ثبت نشده است.</p>` : webAdminSpinRewards.map((sr, idx) => `
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; flex-direction:column; justify-content:space-between; gap:10px;">
+                    <div>
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b style="font-size:14px; color:#fff;">${esc(sr.title)}</b>
+                        ${sr.notify_admin ? `<span style="font-size:10px; padding:2px 6px; border-radius:6px; background:rgba(245,158,11,0.2); color:#f59e0b;">🔔 اعلان ادمین</span>` : ''}
+                      </div>
+                      <div style="font-size:13px; color:var(--cyan); margin-top:6px;">
+                        💰 مبلغ: <b>${sr.amount > 0 ? fmt(sr.amount) : 'بدون مبلغ (پاداش غیرنقدی)'}</b>
+                      </div>
+                      <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                        🎲 وزن شانس: <b>${sr.weight}</b>
+                      </div>
+                    </div>
+                    <div style="display:flex; gap:6px; justify-content:flex-end;">
+                      <button type="button" class="user-account-btn" data-edit-spin-idx="${idx}" style="background:rgba(255,255,255,0.1); color:#fff; font-size:11px; padding:4px 10px;">✏️ ویرایش</button>
+                      <button type="button" class="user-account-btn" data-del-spin-idx="${idx}" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:4px 10px;">🗑️ حذف</button>
+                    </div>
+                  </div>
+                `).join('')}
               </div>
             </div>
           </div>
@@ -3011,298 +3123,6 @@
         </form>
       </div>
     `;
-  }
-
-  function renderAdminInventoryTabMarkup(inventory, products) {
-    return `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h3 style="font-size:18px; font-weight:800; margin:0;">📦 انبار موجودی اکانت‌ها/کدها (${inventory.length})</h3>
-        <button class="user-account-btn" id="btn-add-inventory" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">📦 افزودن موجودی جدید</button>
-      </div>
-
-      ${!inventory.length ? `
-        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
-          موجودی در انبار ثبت نشده است.
-        </div>
-      ` : `
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          ${inventory.map(item => `
-            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <b style="font-size:14px; color:#fff; display:block;">محصول ID: #${item.product_id}</b>
-                <code style="font-size:12px; color:var(--cyan); background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px; display:inline-block; margin-top:4px;">${esc(item.content)}</code>
-              </div>
-              <div style="display:flex; align-items:center; gap:10px;">
-                <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:${item.status === 'available' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${item.status === 'available' ? '#22c55e' : '#ef4444'};">
-                  ${item.status === 'available' ? 'آماده تحویل' : 'تحویل داده‌شده'}
-                </span>
-                <button class="nav-link" data-delete-inv-id="${item.id}" style="background:rgba(239,68,68,0.15); color:#ef4444; font-size:11px; padding:6px 10px;">🗑️ حذف</button>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `}
-    `;
-  }
-
-  function renderAdminCouponsTabMarkup(coupons) {
-    return `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h3 style="font-size:18px; font-weight:800; margin:0;">🎟 کدهای تخفیف (${coupons.length})</h3>
-        <button class="user-account-btn" id="btn-add-coupon" style="background:#22c55e; color:#000; font-size:12px; padding:8px 14px;">🎟 افزودن کد تخفیف جدید</button>
-      </div>
-
-      ${!coupons.length ? `
-        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
-          کد تخفیفی تعریف نشده است.
-        </div>
-      ` : `
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px;">
-          ${coupons.map(c => `
-            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:16px; padding:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <b style="font-size:16px; color:var(--cyan); letter-spacing:1px;">${esc(c.code)}</b>
-                <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:rgba(255,255,255,0.06); color:var(--text-muted);">
-                  ${c.discount_type === 'percent' ? 'درصدی' : 'مبلغ ثابت'}
-                </span>
-              </div>
-              <div style="font-size:14px; font-weight:800; margin-bottom:8px;">
-                مقدار: ${c.discount_type === 'percent' ? `${c.discount_value}٪` : priceLabel(c.discount_value)}
-              </div>
-              <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:12px;">
-                استفاده: ${nf(c.used_count || 0)} از ${c.max_uses ? nf(c.max_uses) : 'نامحدود'}
-              </small>
-            </div>
-          `).join('')}
-        </div>
-      `}
-    `;
-  }
-
-  function renderAdminActivityTabMarkup(log) {
-    if (!log || !log.length) return `<p style="color:var(--text-muted); text-align:center; padding:30px;">لاگ فعالیتی ثبت نشده است.</p>`;
-    return `
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        ${log.map(a => `
-          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; font-size:13px;">
-            <div>
-              <b style="color:#fff;">${esc(a.title || a.action || 'فعالیت')}</b>
-              <small style="display:block; color:var(--text-muted); margin-top:2px;">${esc(a.description || a.details || '')}</small>
-            </div>
-            <small style="color:var(--text-muted);">${esc(a.created_at || '')}</small>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  function renderAdminRolesTabMarkup(roles) {
-    if (!roles || !roles.length) return `<p style="color:var(--text-muted); text-align:center; padding:30px;">نقش جدیدی تعریف نشده است.</p>`;
-    return `
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        ${roles.map(r => `
-          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <b style="color:#fff; font-size:14px;">${esc(r.role_name || r.name || 'نقش ادمین')}</b>
-              <small style="display:block; color:var(--text-muted); margin-top:2px;">سطح دسترسی: ${esc(r.permissions || 'کامل')}</small>
-            </div>
-            <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:rgba(0,242,254,0.15); color:var(--cyan);">فعال</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  function bindAdminOrdersTabEvents(orders) {
-    document.querySelectorAll('[data-admin-filter]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        adminOrderStatusFilter = btn.dataset.adminFilter;
-        const subContent = $('admin-sub-content');
-        if (subContent) {
-          subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
-          bindAdminOrdersTabEvents(orders);
-        }
-      });
-    });
-
-    const searchInput = $('admin-order-search-input');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        adminOrderSearch = e.target.value;
-        const subContent = $('admin-sub-content');
-        if (subContent) {
-          subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
-          bindAdminOrdersTabEvents(orders);
-        }
-      });
-    }
-
-    document.querySelectorAll('.admin-order-chk').forEach(chk => {
-      chk.addEventListener('change', () => {
-        const oid = Number(chk.dataset.orderId);
-        if (chk.checked) selectedAdminOrderIds.add(oid);
-        else selectedAdminOrderIds.delete(oid);
-
-        const bar = $('admin-bulk-actions-bar');
-        if (bar) bar.style.display = selectedAdminOrderIds.size > 0 ? 'flex' : 'none';
-      });
-    });
-
-    $('bulk-confirm-btn')?.addEventListener('click', () => executeBulkOrders('payment_confirmed'));
-    $('bulk-prepare-btn')?.addEventListener('click', () => executeBulkOrders('preparing'));
-    $('bulk-reject-btn')?.addEventListener('click', () => executeBulkOrders('rejected'));
-
-    async function executeBulkOrders(status) {
-      if (!selectedAdminOrderIds.size) return;
-      const count = selectedAdminOrderIds.size;
-      showToast(`در حال انجام ${count} تغییر وضعیت...`, 'info');
-      for (const oid of selectedAdminOrderIds) {
-        await api('admin_order_status', {}, 'POST', { order_id: oid, status });
-      }
-      selectedAdminOrderIds.clear();
-      showToast(`✅ ${count} سفارش تغییر وضعیت داده شدند!`, 'success');
-      renderAdminView($('app'));
-    }
-
-    document.querySelectorAll('[data-admin-status-id]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const order_id = btn.dataset.adminStatusId;
-        const status = btn.dataset.status;
-        const res = await api('admin_order_status', {}, 'POST', { order_id, status });
-        if (res && res.ok) {
-          showToast('وضعیت سفارش بروزرسانی شد! ⚡', 'success');
-          renderAdminView($('app'));
-        } else {
-          showToast(res ? res.message : 'خطا در تغییر وضعیت.', 'error');
-        }
-      });
-    });
-
-    document.querySelectorAll('[data-admin-cust-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        openCustomer360Modal(btn.dataset.adminCustId);
-      });
-    });
-
-    document.querySelectorAll('.data-admin-edit-user-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const uid = Number(btn.dataset.adminEditUserId);
-        showToast('در حال دریافت اطلاعات کاربر...', 'info');
-        const res = await api('admin_get_user', { user_id: uid });
-        if (res && res.ok && res.user) {
-          openAdminEditUserModal(res.user);
-        } else {
-          // Fallback user object if admin_get_user API isn't built yet
-          openAdminEditUserModal({ id: uid });
-        }
-      });
-    });
-  }
-
-  function bindAdminProductsTabEvents(products, categories) {
-    $('btn-add-product')?.addEventListener('click', () => openAddProductModal(categories));
-
-    document.querySelectorAll('[data-admin-edit-pid]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const pid = Number(btn.dataset.adminEditPid);
-        const p = products.find(x => Number(x.id) === pid);
-        if (p) openAddProductModal(categories, p);
-      });
-    });
-
-    document.querySelectorAll('[data-admin-toggle-pid]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const pid = btn.dataset.adminTogglePid;
-        const res = await api('admin_toggle_product', {}, 'POST', { product_id: pid });
-        if (res && res.ok) {
-          showToast('وضعیت محصول بروزرسانی شد', 'success');
-          renderAdminView($('app'));
-        } else {
-          showToast(res ? res.message : 'خطا در تغییر وضعیت محصول.', 'error');
-        }
-      });
-    });
-
-    document.querySelectorAll('[data-admin-delete-pid]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('آیا از غیرفعال‌سازی این محصول اطمینان دارید؟')) return;
-        const pid = btn.dataset.adminDeletePid;
-        const res = await api('admin_delete_product', {}, 'POST', { product_id: pid });
-        if (res && res.ok) {
-          showToast('محصول غیرفعال شد', 'info');
-          renderAdminView($('app'));
-        } else {
-          showToast(res ? res.message : 'خطا در حذف محصول.', 'error');
-        }
-      });
-    });
-  }
-
-  function bindAdminCategoriesTabEvents(categories) {
-    $('btn-add-category')?.addEventListener('click', () => openAddCategoryModal());
-
-    document.querySelectorAll('[data-admin-edit-cid]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const cid = Number(btn.dataset.adminEditCid);
-        const c = categories.find(x => Number(x.id) === cid);
-        if (c) openAddCategoryModal(c);
-      });
-    });
-
-    document.querySelectorAll('[data-admin-delete-cid]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('آیا از غیرفعال‌سازی این دسته‌بندی اطمینان دارید؟')) return;
-        const cid = btn.dataset.adminDeleteCid;
-        const res = await api('admin_delete_category', {}, 'POST', { category_id: cid });
-        if (res && res.ok) {
-          showToast('دسته‌بندی غیرفعال شد', 'info');
-          renderAdminView($('app'));
-        } else {
-          showToast(res ? res.message : 'خطا در حذف دسته‌بندی.', 'error');
-        }
-      });
-    });
-  }
-
-  function bindAdminVariantsTabEvents(variants, products) {
-    $('btn-add-variant')?.addEventListener('click', () => openAddVariantModal(products));
-
-    document.querySelectorAll('[data-admin-edit-vid]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const vid = Number(btn.dataset.adminEditVid);
-        const v = variants.find(x => Number(x.id) === vid);
-        if (v) openAddVariantModal(products, v);
-      });
-    });
-
-    document.querySelectorAll('[data-admin-delete-vid]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('آیا از غیرفعال‌سازی این پلن اطمینان دارید؟')) return;
-        const vid = btn.dataset.adminDeleteVid;
-        const res = await api('admin_delete_variant', {}, 'POST', { variant_id: vid });
-        if (res && res.ok) {
-          showToast('پلن غیرفعال شد', 'info');
-          renderAdminView($('app'));
-        } else {
-          showToast(res ? res.message : 'خطا در حذف پلن.', 'error');
-        }
-      });
-    });
-  }
-
-  function bindAdminWithdrawalsTabEvents(withdrawals) {
-    document.querySelectorAll('[data-admin-withdraw-act]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const [wid, act] = btn.dataset.adminWithdrawAct.split(':');
-        const res = await api('admin_withdraw_action', {}, 'POST', { withdrawal_id: wid, action_type: act });
-        if (res && res.ok) {
-          showToast(act === 'paid' ? 'برداشت تایید و پرداخت شد' : 'برداشت رد شد', 'success');
-          renderAdminView($('app'));
-        } else {
-          showToast(res ? res.message : 'خطا در ثبت اقدام برداشت.', 'error');
-        }
-      });
-    });
   }
 
   function openWebCardBuilderModal(settings, index = null) {
@@ -3493,6 +3313,73 @@
     });
   }
 
+  function openWebSpinRewardModal(settings, index = null) {
+    const sr = index === null ? {} : (webAdminSpinRewards[index] || {});
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:16px; font-weight:800; margin:0;">${index === null ? '🎁 افزودن جایزه گردونه جدید' : '✏️ ویرایش جایزه گردونه'}</h3>
+          <button class="ghost" id="modal-close-btn" style="border:0; background:transparent; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        <form id="spin-reward-form">
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">عنوان جایزه:</label>
+            <input type="text" id="sr-title" value="${esc(sr.title || '')}" placeholder="مثلاً ۵,۰۰۰ تومان اعتبار کیف پول" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">مبلغ اعتبار کیف پول (تومان):</label>
+            <input type="number" id="sr-amount" value="${sr.amount || 0}" placeholder="5000" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            <small style="color:var(--text-muted); font-size:11px;">عدد ۰ یعنی جایزه غیرنقدی است و کیف پول شارژ نمی‌شود.</small>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">وزن شانس (Probability Weight):</label>
+            <input type="number" id="sr-weight" value="${sr.weight || 10}" placeholder="10" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px;">
+            <small style="color:var(--text-muted); font-size:11px;">هرچه این عدد بالاتر باشد، احتمال برنده شدن این جایزه بیشتر است.</small>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="sr-notify" ${sr.notify_admin ? 'checked' : ''}>
+              <span style="font-size:13px; font-weight:700; color:#fff;">🔔 ارسال پیام به ادمین هنگام برنده شدن</span>
+            </label>
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000; font-weight:800; padding:12px;">💾 ذخیره جایزه</button>
+        </form>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    const closeModal = () => {
+      modalContainer.classList.add('hidden');
+      modalContainer.innerHTML = '';
+      if (document.body) {
+        document.body.style.overflow = '';
+        document.body.classList.remove('has-open-popup');
+      }
+    };
+
+    $('modal-close-btn')?.addEventListener('click', closeModal);
+    $('spin-reward-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const obj = {
+        title: $('sr-title').value.trim(),
+        amount: Number($('sr-amount').value || 0),
+        weight: Number($('sr-weight').value || 1),
+        notify_admin: $('sr-notify').checked
+      };
+      if (index === null) webAdminSpinRewards.push(obj);
+      else webAdminSpinRewards[index] = obj;
+      closeModal();
+      renderAdminView($('app'));
+    });
+  }
+
   function bindAdminSettingsTabEvents(settings) {
     // Sub-tab switching
     document.querySelectorAll('[data-set-subtab]').forEach(btn => {
@@ -3526,7 +3413,7 @@
       });
     });
 
-    // Crypto Rates builder handlers
+    // Crypto Rates builder handlers & live refresh button
     $('btn-add-crypto-rate')?.addEventListener('click', () => openWebRateBuilderModal(settings));
     document.querySelectorAll('[data-del-rate-idx]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3535,9 +3422,36 @@
       });
     });
 
+    $('btn-refresh-rates-live')?.addEventListener('click', async () => {
+      showToast('در حال دریافت آخرین نرخ‌های آنلاین...', 'info');
+      const rateRes = await api('admin_refresh_crypto_rates');
+      if (rateRes && rateRes.ok) {
+        showToast('نرخ‌ها با موفقیت رفرش شدند! ⚡', 'success');
+        renderAdminView($('app'));
+      } else {
+        showToast(rateRes ? rateRes.message : 'خطا در رفرش نرخ‌ها.', 'error');
+      }
+    });
+
+    // Spin Rewards builder handlers
+    $('btn-add-spin-reward')?.addEventListener('click', () => openWebSpinRewardModal(settings));
+    document.querySelectorAll('[data-edit-spin-idx]').forEach(btn => {
+      btn.addEventListener('click', () => openWebSpinRewardModal(settings, Number(btn.dataset.editSpinIdx)));
+    });
+    document.querySelectorAll('[data-del-spin-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        webAdminSpinRewards.splice(Number(btn.dataset.delSpinIdx), 1);
+        renderAdminView($('app'));
+      });
+    });
+
     // Admin settings form submit
     $('admin-settings-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      // Serialize spin rewards into pipe-separated string lines
+      const spinRewardsText = webAdminSpinRewards.map(r => `${r.title}|${r.amount}|${r.weight}|${r.notify_admin ? 1 : 0}`).join('\n');
+
       const payload = {
         brand_name: $('set-brand-name')?.value.trim() || settings.brand_name || 'BlueGate',
         support_username: $('set-support-username')?.value.trim() || settings.support_username || 'BlueGateSupport',
@@ -3560,7 +3474,7 @@
         crypto_rate_markup_percent: Number($('set-crypto-markup')?.value || 1),
         theme_color: $('set-theme-color')?.value || '#1d9bf0',
         spin_referrals_per_chance: Number($('set-spin-every')?.value || 5),
-        spin_rewards_text: $('set-spin-rewards')?.value || ''
+        spin_rewards_text: spinRewardsText
       };
 
       const res = await api('admin_save_settings', {}, 'POST', payload);
