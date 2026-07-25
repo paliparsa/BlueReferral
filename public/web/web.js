@@ -51,12 +51,11 @@
   function showModal(id) {
     const m = typeof id === 'string' ? $(id) : id;
     if (!m) return;
-    try {
-      if (typeof m.showModal === 'function') m.showModal();
-      else { m.setAttribute('open', ''); m.classList.add('open'); }
-    } catch (e) {
-      m.setAttribute('open', '');
-      m.classList.add('open');
+    m.classList.remove('hidden');
+    m.setAttribute('open', '');
+    m.classList.add('open');
+    if (typeof m.showModal === 'function') {
+      try { m.showModal(); } catch (e) {}
     }
   }
 
@@ -374,88 +373,96 @@
   }
 
   function openAccountModal(initialTab = 'subs') {
+    showModal('accountModal');
+    switchAccTab(initialTab);
+
     try {
       const u = state?.user;
       if (!u || u.is_guest) {
+        hideModal('accountModal');
         switchAuthTab('login');
         showModal('authModal');
         return;
       }
 
-      $('accUserName').textContent = u.first_name || u.username || 'حساب کاربری';
-      $('accUserEmail').textContent = u.email || `@${u.username || ''}`;
+      if ($('accUserName')) $('accUserName').textContent = u.first_name || u.username || 'حساب کاربری';
+      if ($('accUserEmail')) $('accUserEmail').textContent = u.email || `@${u.username || ''}`;
 
       const orders = state?.orders || [];
       const activeSubs = orders.filter(o => o.status === 'delivered' || o.status === 'preparing' || o.status === 'payment_confirmed');
       const subsContainer = $('activeSubsList');
-      if (activeSubs.length > 0) {
-        subsContainer.innerHTML = activeSubs.map(o => {
-          const creds = o.item_details || o.license_code || o.delivery_note || o.delivered_item || '';
-          let expiryText = '';
-          if (o.expires_at) {
-            const diffDays = Math.ceil((new Date(o.expires_at).getTime() - Date.now()) / (1000 * 3600 * 24));
-            expiryText = diffDays > 0 ? `⏳ ${diffDays} روز باقی مانده` : '⚠️ منقضی شده';
-          }
-          return `
-            <div class="active-sub-card">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <h4 style="font-size:15px; font-weight:800;">${o.product_name || 'اشتراک'} ${o.variant_title ? `- ${o.variant_title}` : ''}</h4>
-                ${expiryText ? `<span class="expiry-badge">${expiryText}</span>` : ''}
-              </div>
-              ${creds ? `
-                <div class="card-number-display" style="margin-top:8px; margin-bottom:0;">
-                  <span style="font-size:13px;">${creds}</span>
-                  <button type="button" class="copy-btn" data-copy="${creds}">کپی 📋</button>
+      if (subsContainer) {
+        if (activeSubs.length > 0) {
+          subsContainer.innerHTML = activeSubs.map(o => {
+            const creds = o.item_details || o.license_code || o.delivery_note || o.delivered_item || '';
+            let expiryText = '';
+            if (o.expires_at) {
+              const diffDays = Math.ceil((new Date(o.expires_at).getTime() - Date.now()) / (1000 * 3600 * 24));
+              expiryText = diffDays > 0 ? `⏳ ${diffDays} روز باقی مانده` : '⚠️ منقضی شده';
+            }
+            return `
+              <div class="active-sub-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <h4 style="font-size:15px; font-weight:800;">${o.product_name || 'اشتراک'} ${o.variant_title ? `- ${o.variant_title}` : ''}</h4>
+                  ${expiryText ? `<span class="expiry-badge">${expiryText}</span>` : ''}
                 </div>
-              ` : `<small style="color:var(--text-muted);">در حال آماده‌سازی و ارسال...</small>`}
-            </div>
-          `;
-        }).join('');
-      } else {
-        subsContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">هنوز اشتراک فعالی ندارید.</div>`;
+                ${creds ? `
+                  <div class="card-number-display" style="margin-top:8px; margin-bottom:0;">
+                    <span style="font-size:13px;">${creds}</span>
+                    <button type="button" class="copy-btn" data-copy="${creds}">کپی 📋</button>
+                  </div>
+                ` : `<small style="color:var(--text-muted);">در حال آماده‌سازی و ارسال...</small>`}
+              </div>
+            `;
+          }).join('');
+        } else {
+          subsContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">هنوز اشتراک فعالی ندارید.</div>`;
+        }
       }
 
       const ordersContainer = $('accOrdersList');
-      if (orders.length > 0) {
-        ordersContainer.innerHTML = orders.map(o => `
-          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:10px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <b style="font-size:13px;">#${o.id} - ${o.product_name || 'سفارش'}</b>
-              <span class="price-tag">${nf(o.final_amount || o.total_amount)} تومان</span>
+      if (ordersContainer) {
+        if (orders.length > 0) {
+          ordersContainer.innerHTML = orders.map(o => `
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <b style="font-size:13px;">#${o.id} - ${o.product_name || 'سفارش'}</b>
+                <span class="price-tag">${nf(o.final_amount || o.total_amount)} تومان</span>
+              </div>
+              ${buildOrderStepper(o.status)}
+              <small style="color:var(--text-muted);">${o.created_at || ''}</small>
             </div>
-            ${buildOrderStepper(o.status)}
-            <small style="color:var(--text-muted);">${o.created_at || ''}</small>
-          </div>
-        `).join('');
-      } else {
-        ordersContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">سفارشی ثبت نشده است.</div>`;
+          `).join('');
+        } else {
+          ordersContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">سفارشی ثبت نشده است.</div>`;
+        }
       }
 
-      $('walletBalanceText').textContent = `${nf(u.balance)} تومان`;
+      if ($('walletBalanceText')) $('walletBalanceText').textContent = `${nf(u.balance)} تومان`;
       const txs = state?.transactions || [];
       const txContainer = $('walletTxList');
-      if (txs.length > 0) {
-        txContainer.innerHTML = txs.map(t => `
-          <div class="tx-item-row">
-            <span>${t.description || t.type}</span>
-            <b style="color:${Number(t.amount) >= 0 ? '#22c55e' : '#ef4444'};">${Number(t.amount) >= 0 ? '+' : ''}${nf(t.amount)} تومان</b>
-          </div>
-        `).join('');
-      } else {
-        txContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12px;">تراکنشی ثبت نشده است.</div>`;
+      if (txContainer) {
+        if (txs.length > 0) {
+          txContainer.innerHTML = txs.map(t => `
+            <div class="tx-item-row">
+              <span>${t.description || t.type}</span>
+              <b style="color:${Number(t.amount) >= 0 ? '#22c55e' : '#ef4444'};">${Number(t.amount) >= 0 ? '+' : ''}${nf(t.amount)} تومان</b>
+            </div>
+          `).join('');
+        } else {
+          txContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12px;">تراکنشی ثبت نشده است.</div>`;
+        }
       }
 
-      $('refTotalEarned').textContent = `${nf(u.total_earned)} تومان`;
-      $('refCount').textContent = `${nf(u.referrals_count)} نفر`;
+      if ($('refTotalEarned')) $('refTotalEarned').textContent = `${nf(u.total_earned)} تومان`;
+      if ($('refCount')) $('refCount').textContent = `${nf(u.referrals_count)} نفر`;
       const refCode = u.ref_code || '';
       const refLink = `${location.origin}/?ref=${refCode}`;
-      $('refLinkInput').value = refLink;
+      if ($('refLinkInput')) $('refLinkInput').value = refLink;
 
-      switchAccTab(initialTab);
     } catch (err) {
       console.error('Account modal error:', err);
     }
-    showModal('accountModal');
   }
 
   function switchAccTab(tab) {
