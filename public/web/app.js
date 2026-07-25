@@ -3084,6 +3084,147 @@
     $('close-modal-btn')?.addEventListener('click', closeModal);
   }
 
+  /* Admin Edit User Modal */
+  function openAdminEditUserModal(user) {
+    if (!user) return;
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:520px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+          <h3 style="font-size:18px; font-weight:900;">✏️ ویرایش اطلاعات کاربر #${user.id}</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نام:</label>
+            <input type="text" id="admin-edit-fname" value="${esc(user.first_name || '')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نام خانوادگی:</label>
+            <input type="text" id="admin-edit-lname" value="${esc(user.last_name || '')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">ایمیل:</label>
+            <input type="email" id="admin-edit-email" value="${esc(user.email || '')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">شماره تماس / موبایل:</label>
+            <input type="text" id="admin-edit-phone" value="${esc(user.phone || user.phone_number || '')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">نام کاربری وب:</label>
+            <input type="text" id="admin-edit-web-username" value="${esc(user.web_username || user.username || '')}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">موجودی کیف پول (تومان):</label>
+            <input type="number" id="admin-edit-balance" value="${Number(user.balance || 0)}" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; outline:none;">
+          </div>
+        </div>
+
+        <button id="btn-submit-admin-edit-user" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000;">💾 ذخیره تغییرات کاربر</button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-submit-admin-edit-user')?.addEventListener('click', async () => {
+      const first_name = $('admin-edit-fname').value.trim();
+      const last_name = $('admin-edit-lname').value.trim();
+      const email = $('admin-edit-email').value.trim();
+      const phone = $('admin-edit-phone').value.trim();
+      const web_username = $('admin-edit-web-username').value.trim();
+      const balance = Number($('admin-edit-balance').value || 0);
+
+      const res = await api('admin_edit_user', {}, 'POST', {
+        user_id: user.id,
+        first_name,
+        last_name,
+        email,
+        phone,
+        web_username,
+        balance
+      });
+
+      if (res && res.ok) {
+        showToast('اطلاعات کاربر با موفقیت ویرایش شد! ⚡', 'success');
+        closeModal();
+        renderAdminView($('app'));
+      } else {
+        showToast(res ? res.message : 'خطا در ویرایش اطلاعات کاربر.', 'error');
+      }
+    });
+  }
+
+  /* Delete Account Confirmation Modal */
+  function openDeleteAccountModal() {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px; border:1px solid rgba(239,68,68,0.4);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(239,68,68,0.3); padding-bottom:12px;">
+          <h3 style="font-size:18px; font-weight:900; color:#ef4444;">⚠️ حذف کامل حساب کاربری</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        
+        <div style="background:rgba(239,68,68,0.1); border-radius:14px; padding:16px; margin-bottom:16px; border:1px solid rgba(239,68,68,0.2);">
+          <strong style="color:#ef4444; display:block; font-size:14px; margin-bottom:8px;">عواقب حذف حساب کاربری:</strong>
+          <ul style="color:var(--text-muted); font-size:12px; line-height:1.8; margin-right:16px; margin-bottom:0;">
+            <li>تمام اطلاعات شخصی (ایمیل، نام کاربری، شماره تماس) پاک خواهد شد.</li>
+            <li>موجودی کیف پول و پورسانت‌های شما صفر و غیرقابل بازگشت می‌شود.</li>
+            <li>نشست‌های فعال شما در تمام دستگاه‌ها بلافاصله مسدود می‌گردد.</li>
+            <li>لینک دعوت شما غیرفعال شده و دیگر پورسانت جدید دریافت نخواهید کرد.</li>
+          </ul>
+        </div>
+
+        <p style="font-size:13px; color:#fff; margin-bottom:12px;">
+          جهت تایید نهایی عبارت <b>DELETE</b> را در کادر زیر تایپ کنید:
+        </p>
+        <input type="text" id="confirm-delete-text" placeholder="DELETE" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.4); color:#ef4444; padding:12px; border-radius:12px; font-family:monospace; outline:none; text-align:center; font-size:16px; margin-bottom:16px;">
+
+        <button id="btn-submit-delete-account" class="user-account-btn" style="width:100%; justify-content:center; background:#ef4444; color:#fff;">🗑️ تایید نهایی و حذف دائم حساب</button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-submit-delete-account')?.addEventListener('click', async () => {
+      const typed = $('confirm-delete-text').value.trim();
+      if (typed !== 'DELETE' && typed !== 'حذف') {
+        showToast('لطفاً عبارت DELETE را به درستی وارد کنید.', 'error');
+        return;
+      }
+      showToast('در حال حذف حساب کاربری...', 'info');
+      const res = await api('delete_my_account', {}, 'POST');
+      if (res && res.ok) {
+        localStorage.removeItem('bg_web_token');
+        state.user = null;
+        showToast('حساب شما پاک شد.', 'success');
+        closeModal();
+        initApp();
+      } else {
+        showToast(res ? res.message : 'خطا در حذف حساب.', 'error');
+      }
+    });
+  }
+
   /* ── Auth Modal (Login, Registration & Telegram Widget) ── */
   window.onTelegramAuth = async function (user) {
     const res = await api('telegram_login', {}, 'POST', { auth_data: user });
