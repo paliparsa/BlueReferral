@@ -311,6 +311,80 @@
     </div>
   </dialog>
 
+  <!-- Dedicated My Account & Subscriptions Dashboard Modal -->
+  <dialog id="accountModal" class="modal-dialog" style="width: 640px !important;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:22px;">👤</span>
+          <div>
+            <h3 id="accUserName">حساب کاربری</h3>
+            <small style="color:var(--text-muted);" id="accUserEmail">...</small>
+          </div>
+        </div>
+        <button type="button" class="modal-close" id="closeAccountModal">✕</button>
+      </div>
+
+      <!-- Account Navigation Sub-Tabs -->
+      <div class="account-nav-tabs" id="accountNavTabs">
+        <button type="button" class="acc-tab active" data-acc-tab="subs">📦 اشتراک‌های فعال</button>
+        <button type="button" class="acc-tab" data-acc-tab="orders">🧾 سفارشات</button>
+        <button type="button" class="acc-tab" data-acc-tab="wallet">💰 کیف پول</button>
+        <button type="button" class="acc-tab" data-acc-tab="referral">🎁 کسب درآمد</button>
+      </div>
+
+      <!-- Tab 1: Active Subscriptions -->
+      <div id="accSubsSection" class="acc-section">
+        <div id="activeSubsList"></div>
+      </div>
+
+      <!-- Tab 2: Orders History -->
+      <div id="accOrdersSection" class="acc-section hidden">
+        <div id="accOrdersList"></div>
+      </div>
+
+      <!-- Tab 3: Wallet Transactions -->
+      <div id="accWalletSection" class="acc-section hidden">
+        <div class="wallet-balance-card">
+          <div>
+            <small style="color:var(--text-muted);">موجودی حساب شما:</small>
+            <h2 id="walletBalanceText" style="color:var(--accent); font-size:24px; font-weight:900;">۰ تومان</h2>
+          </div>
+          <button type="button" class="btn-primary" id="accDepositBtn" style="width:auto; padding:8px 18px;">➕ شارژ حساب</button>
+        </div>
+        <h4 style="margin:16px 0 10px 0; font-size:14px;">تراکنش‌های اخیر:</h4>
+        <div id="walletTxList"></div>
+      </div>
+
+      <!-- Tab 4: Referral & Rewards -->
+      <div id="accRefSection" class="acc-section hidden">
+        <div class="ref-stats-grid">
+          <div class="stat-card">
+            <small>کل درآمد دعوت</small>
+            <strong id="refTotalEarned">۰ تومان</strong>
+          </div>
+          <div class="stat-card">
+            <small>کل زیرمجموعه‌ها</small>
+            <strong id="refCount">۰ نفر</strong>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:16px;">
+          <label for="refLinkInput">لینک اختصاصی دعوت شما:</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="refLinkInput" readonly style="direction:ltr; font-family:monospace; flex:1;" />
+            <button type="button" class="copy-btn" id="copyRefLinkBtn" style="padding:0 16px; border-radius:14px;">کپی لینک 📋</button>
+          </div>
+          <small class="muted" style="margin-top:6px; display:block;">با اشتراک‌گذاری این لینک، از هر سفارش دوستان خود پاداش نقدی دریافت کنید!</small>
+        </div>
+      </div>
+
+      <div style="margin-top:20px; text-align:left; border-top:1px solid var(--border); padding-top:12px;">
+        <button type="button" class="btn-secondary" id="logoutBtn" style="width:auto; color:#ef4444; font-size:12px;">خروج از حساب کاربری 🚪</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="web.js"></script>
 </body>
 </html>

@@ -850,6 +850,94 @@ body {
   z-index: 0;
 }
 
+/* Account Dashboard Drawer Styles */
+.account-nav-tabs {
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+}
+.acc-tab {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.acc-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.wallet-balance-card {
+  background: linear-gradient(135deg, rgba(29, 155, 240, 0.15), rgba(37, 99, 235, 0.08));
+  border: 1px solid rgba(29, 155, 240, 0.3);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ref-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.stat-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-card small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.stat-card strong {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.active-sub-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.expiry-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.tx-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+
 .hidden {
   display: none !important;
 }
