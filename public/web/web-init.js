@@ -441,11 +441,15 @@
     }
   });
 
-  // Clicking kbd badge opens Command Palette
-  document.querySelector('.web-search-kbd')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.openWebCommandPalette();
-  });
+  // Connect topbar search input to instant catalog filtering
+  const topSearchInput = document.getElementById('searchInput');
+  if (topSearchInput) {
+    topSearchInput.addEventListener('input', (e) => {
+      window.searchTerm = e.target.value.trim();
+      if (typeof window.renderShopSections === 'function') window.renderShopSections();
+      else if (typeof window.renderShop === 'function') window.renderShop();
+    });
+  }
 
   /* ── Desktop Tab Sync & Navigation Patch ── */
   function syncAllWebNavs() {
@@ -489,53 +493,60 @@
     syncAllWebNavs();
   };
 
-  /* ── Phase 2: Enhanced Desktop Shop & Hero ──
-   *  Strategy: call the ORIGINAL app.js renderShop first, then inject
-   *  the desktop hero section and view-mode toggle ON TOP of the result.
-   *  This avoids duplicating product-render logic and keeps search/filters working.
-   */
-  const _origRenderShop = window.renderShop;
+  /* ── Ground-Up Web Shop Layout Engine ── */
   window.renderShop = function () {
-    // 1. Let app.js do the full shop render (products, filters, search, categories)
-    if (typeof _origRenderShop === 'function') _origRenderShop.apply(this, arguments);
-
     const shopPage = document.getElementById('shopPage');
     if (!shopPage) return;
 
+    const cats = window.state?.shop_categories || [];
+    const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const mode = window.productCardMode || localStorage.getItem('blue_ref_card_mode') || 'compact';
-    window.productCardMode = mode; // ensure mode is set
 
-    // 2. Prepend desktop hero if not already present
-    if (!shopPage.querySelector('#webDesktopHero')) {
-      const heroDiv = document.createElement('div');
-      heroDiv.innerHTML = `
-        <section class="web-desktop-hero" id="webDesktopHero">
-          <div class="web-hero-content">
-            <div class="web-hero-badge">⚡ مرجع تخصصی اشتراک‌های دیجیتال &amp; هوش مصنوعی</div>
-            <h1 class="web-hero-title">دسترسی فوری به <span class="hero-highlight">بهترین سرویس‌های دنیا</span></h1>
-            <p class="web-hero-subtitle">خرید مستقیم و بدون واسطه اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و سرویس‌های پرکاربرد با تحویل خودکار ۲۴ ساعته.</p>
-            <div class="web-hero-trust">
-              <div class="trust-item"><span>⚡</span><b>تحویل خودکار و آنی</b></div>
-              <div class="trust-item"><span>🛡️</span><b>ضمانت ۱۰۰٪ کارکرد</b></div>
-              <div class="trust-item"><span>💬</span><b>پشتیبانی زنده تلگرام</b></div>
-            </div>
+    const heroHtml = `
+      <section class="web-desktop-hero" id="webDesktopHero">
+        <div class="web-hero-content">
+          <div class="web-hero-badge">⚡ مرجع تخصصی اشتراک‌های دیجیتال &amp; هوش مصنوعی</div>
+          <h1 class="web-hero-title">دسترسی فوری به <span class="hero-highlight">بهترین سرویس‌های دنیا</span></h1>
+          <p class="web-hero-subtitle">خرید مستقیم و بدون واسطه اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و سرویس‌های پرکاربرد با تحویل خودکار ۲۴ ساعته.</p>
+          <div class="web-hero-trust">
+            <div class="trust-item"><span>⚡</span><b>تحویل خودکار و آنی</b></div>
+            <div class="trust-item"><span>🛡️</span><b>ضمانت ۱۰۰٪ کارکرد</b></div>
+            <div class="trust-item"><span>💬</span><b>پشتیبانی زنده تلگرام</b></div>
           </div>
-        </section>
-      `;
-      shopPage.insertBefore(heroDiv.firstElementChild, shopPage.firstChild);
-    }
+        </div>
+      </section>
+    `;
 
-    // 3. Inject view-mode toggle into shop-controls-row if not already there
-    const controlsRow = shopPage.querySelector('.shop-controls-row');
-    if (controlsRow && !controlsRow.querySelector('.web-view-mode-toggle')) {
-      const toggle = document.createElement('div');
-      toggle.className = 'web-view-mode-toggle';
-      toggle.innerHTML = `
+    const viewModeToggleHtml = `
+      <div class="web-view-mode-toggle">
         <button class="view-btn ${mode !== 'detailed' ? 'active' : ''}" data-card-mode="compact" title="نمایش شبکه‌ای">🔲 <b>گرید</b></button>
         <button class="view-btn ${mode === 'detailed' ? 'active' : ''}" data-card-mode="detailed" title="نمایش لیستی">≡ <b>لیست</b></button>
-      `;
-      controlsRow.appendChild(toggle);
-    }
+      </div>
+    `;
+
+    const activeCat = window.activeCategory || 'all';
+    const sort = window.shopSort || 'newest';
+
+    shopPage.innerHTML = `
+      ${heroHtml}
+      <div class="shop-header-sticky web-shop-controls">
+        <div class="shop-controls-row">
+          <div class="segmented-control">
+            <button class="${sort === 'newest' ? 'active' : ''}" data-shop-sort="newest">جدیدترین</button>
+            <button class="${sort === 'price_low' ? 'active' : ''}" data-shop-sort="price_low">ارزان‌ترین</button>
+            <button class="${sort === 'price_high' ? 'active' : ''}" data-shop-sort="price_high">گران‌ترین</button>
+          </div>
+          ${viewModeToggleHtml}
+        </div>
+
+        <div class="category-strip modern-cats">
+          <button class="cat-pill ${activeCat === 'all' ? 'active' : ''}" data-cat="all"><span>✨</span><b>همه</b></button>
+          <button class="cat-pill ${activeCat === 'featured' ? 'active' : ''}" data-cat="featured"><span>⭐</span><b>ویژه</b></button>
+          ${cats.map(c => `<button class="cat-pill ${Number(activeCat) === Number(c.id) ? 'active' : ''}" data-cat="${c.id}">${c.image_url ? `<img src="${esc(c.image_url)}">` : `<span>${esc(c.emoji || '🛒')}</span>`}<b>${esc(c.title)}</b></button>`).join('')}
+        </div>
+      </div>
+      <div id="shopSections">${typeof window.shopSectionsHtml === 'function' ? window.shopSectionsHtml() : ''}</div>
+    `;
   };
 
   // Card view mode toggle listener (Grid vs List)
