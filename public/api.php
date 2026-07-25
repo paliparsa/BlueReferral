@@ -297,6 +297,7 @@ if ($action === 'verify_email_otp') {
     $user = get_user_by_id($userId);
     $token = issue_user_auth_token((int)$user['id']);
     $user['auth_token'] = $token;
+    notify_new_user_signup($user, '🌐 وب‌سایت (ایمیل تایید شد)');
     api_out(dashboard_payload($user) + ['auth_token' => $token, 'message' => 'ایمیل شما با موفقیت تایید شد! 🎉']);
 }
 
