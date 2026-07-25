@@ -186,6 +186,7 @@ $authToken = $input['authToken'] ?? ($_GET['authToken'] ?? ($_SERVER['HTTP_X_WEB
 
 if ($action === 'register') {
     $username = trim((string)($input['username'] ?? ''));
+    $email = trim((string)($input['email'] ?? ''));
     $password = (string)($input['password'] ?? '');
     $firstName = trim((string)($input['first_name'] ?? ''));
     $refCode = trim((string)($input['ref_code'] ?? ''));
@@ -193,23 +194,29 @@ if ($action === 'register') {
     if (mb_strlen($username) < 3 || mb_strlen($username) > 30 || !preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
         api_out(['ok'=>false, 'error'=>'INVALID_USERNAME', 'message'=>'نام کاربری باید ۳ تا ۳۰ کاراکتر انگلیسی باشد.'], 400);
     }
+    if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        api_out(['ok'=>false, 'error'=>'INVALID_EMAIL', 'message'=>'آدرس ایمیل معتبر نیست.'], 400);
+    }
     if (mb_strlen($password) < 6) {
         api_out(['ok'=>false, 'error'=>'INVALID_PASSWORD', 'message'=>'رمز عبور باید حداقل ۶ کاراکتر باشد.'], 400);
     }
     if (get_user_by_web_username($username)) {
         api_out(['ok'=>false, 'error'=>'USERNAME_TAKEN', 'message'=>'این نام کاربری قبلاً ثبت شده است.'], 400);
     }
-    $user = create_web_user($username, $password, $firstName, $refCode);
+    if (!empty($email) && get_user_by_email($email)) {
+        api_out(['ok'=>false, 'error'=>'EMAIL_TAKEN', 'message'=>'این ایمیل قبلاً ثبت شده است.'], 400);
+    }
+    $user = create_web_user($username, $password, $firstName, $refCode, $email ?: null);
     api_out(dashboard_payload($user) + ['auth_token' => $user['auth_token']]);
 }
 
 if ($action === 'login') {
-    $username = trim((string)($input['username'] ?? ''));
+    $identifier = trim((string)($input['username'] ?? ($input['identifier'] ?? '')));
     $password = (string)($input['password'] ?? '');
 
-    $user = get_user_by_web_username($username);
+    $user = get_user_by_email_or_username($identifier);
     if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
-        api_out(['ok'=>false, 'error'=>'INVALID_CREDENTIALS', 'message'=>'نام کاربری یا رمز عبور اشتباه است.'], 400);
+        api_out(['ok'=>false, 'error'=>'INVALID_CREDENTIALS', 'message'=>'ایمیل/نام کاربری یا رمز عبور اشتباه است.'], 400);
     }
     $token = issue_user_auth_token((int)$user['id']);
     $user['auth_token'] = $token;
