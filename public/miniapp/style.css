@@ -497,6 +497,27 @@ html,body{
 :root.device-ios .profile-photo{background:linear-gradient(145deg,rgba(255,255,255,.22),color-mix(in srgb,var(--accent) 28%,rgba(255,255,255,.08)))!important;-webkit-backdrop-filter:blur(22px) saturate(1.75)!important;backdrop-filter:blur(22px) saturate(1.75)!important;}
 :root.device-android .tile-img img,
 :root.device-other .tile-img img{background:#ffffff08!important;}
+/* Hide bottom navigation bar when user opens ANY popup, modal, sheet, or dialog */
+body:has(#modal-container:not(.hidden)) .bottom-nav,
+body:has(#cart-drawer.open) .bottom-nav,
+body:has(#cart-backdrop.open) .bottom-nav,
+body:has(.presentation-sheet.open) .bottom-nav,
+body:has(.preview-sheet.open) .bottom-nav,
+body:has(.wallet-confirm-sheet.open) .bottom-nav,
+body:has(#walletConfirmSheet) .bottom-nav,
+body:has(dialog[open]) .bottom-nav,
+body:has(.modal-card) .bottom-nav,
+body:has(.dialog-card) .bottom-nav,
+body[style*="overflow: hidden"] .bottom-nav,
+body[style*="overflow:hidden"] .bottom-nav,
+body.has-open-popup .bottom-nav,
+body.modal-open .bottom-nav {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  transform: translateY(100%) !important;
+}
 
 
 /* USD/Toman Dynamic Pricing + soft liquid toggle redesign */
