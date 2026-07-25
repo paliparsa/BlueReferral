@@ -38,7 +38,12 @@ function get_authenticated_user(string $initData, ?string $authToken = null): ar
     }
     if (!empty($authToken)) {
         $user = get_user_by_token($authToken);
-        if ($user) return $user;
+        if ($user) {
+            if (setting_bool('require_email_verification', true) && !empty($user['email']) && empty($user['email_verified_at'])) {
+                return false;
+            }
+            return $user;
+        }
     }
     return false;
 }
@@ -260,6 +265,20 @@ if ($action === 'login') {
     if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
         api_out(['ok'=>false, 'error'=>'INVALID_CREDENTIALS', 'message'=>'ایمیل/نام کاربری یا رمز عبور اشتباه است.'], 400);
     }
+    
+    $requireEmailVerif = setting_bool('require_email_verification', true) && !empty($user['email']) && empty($user['email_verified_at']);
+    if ($requireEmailVerif) {
+        send_email_otp($user);
+        api_out([
+            'ok' => false,
+            'error' => 'EMAIL_VERIFICATION_REQUIRED',
+            'requires_email_verification' => true,
+            'user_id' => (int)$user['id'],
+            'email' => $user['email'],
+            'message' => 'ایمیل شما هنوز تایید نشده است. کد تایید ۶ رقمی جدید به ایمیل شما ارسال شد.'
+        ], 403);
+    }
+
     $token = issue_user_auth_token((int)$user['id']);
     $user['auth_token'] = $token;
     api_out(dashboard_payload($user) + ['auth_token' => $token]);
