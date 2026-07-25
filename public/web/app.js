@@ -426,7 +426,7 @@
       }
 
       modalContainer.innerHTML = `
-        <div class="modal-card" style="max-width:600px;">
+        <div class="modal-card" style="max-width:620px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:16px;">
             <div>
               <small style="color:var(--text-muted);">سفارش #${nf(o.id)}</small>
@@ -437,28 +437,53 @@
 
           ${orderStepperHtml(o)}
 
-          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:16px; padding:20px; margin-bottom:20px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:16px; padding:20px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
               <span style="color:var(--text-muted); font-size:14px;">مبلغ نهایی پرداخت</span>
               <b style="color:var(--cyan); font-size:16px;">${priceLabel(o.final_amount || o.price)}</b>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
               <span style="color:var(--text-muted); font-size:14px;">روش پرداخت</span>
               <b style="font-size:14px;">${esc(o.payment_method_fa || 'انتخاب نشده')}</b>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between;">
               <span style="color:var(--text-muted); font-size:14px;">تاریخ ثبت</span>
               <b style="font-size:14px;">${esc(o.created_at || '-')}</b>
             </div>
           </div>
 
           ${o.license_key ? `
-            <div style="background:rgba(34, 197, 94, 0.1); border:1px solid rgba(34, 197, 94, 0.3); border-radius:16px; padding:20px; margin-bottom:20px; text-align:center;">
+            <div style="background:rgba(34, 197, 94, 0.1); border:1px solid rgba(34, 197, 94, 0.3); border-radius:16px; padding:20px; margin-bottom:16px; text-align:center;">
               <p style="color:#4ade80; font-size:13px; margin-bottom:8px;">✅ کد لایسنس / اطلاعات تحویل:</p>
               <code style="display:block; font-size:18px; font-weight:900; background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; margin-bottom:12px;">${esc(o.license_key)}</code>
               <button class="user-account-btn" data-copy="${esc(o.license_key)}" style="background:#22c55e; color:#000; margin:0 auto;">📋 کپی اطلاعات</button>
             </div>
           ` : ''}
+
+          ${o.payment_note ? `<div class="note-box"><b>رسید / توضیحات پرداخت:</b><br>${esc(o.payment_note)}</div>` : ''}
+          ${o.customer_note ? `<div class="note-box customer"><b>یادداشت اکانت / توضیحات شما:</b><br>${esc(o.customer_note)}</div>` : ''}
+          ${o.delivery_text ? `<div class="note-box" style="border-color:#22c55e; background:rgba(34,197,94,0.06);"><b style="color:#4ade80;">اطلاعات تحویل سفارش:</b><br>${esc(o.delivery_text)}</div>` : ''}
+
+          ${o.timeline && o.timeline.length ? `
+            <details class="timeline-details">
+              <summary>🗓 تاریخچه کامل تغییرات سفارش (${o.timeline.length})</summary>
+              <div class="timeline">
+                ${o.timeline.map(t => `<div><b>${esc(t.title)}</b><small>${esc(t.created_at || '')}</small></div>`).join('')}
+              </div>
+            </details>
+          ` : ''}
+
+          <!-- Action Buttons Bar -->
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
+            <button class="user-account-btn" id="btn-order-note-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(255,255,255,0.06);">📝 یادداشت اکانت</button>
+            ${o.status === 'pending_payment' ? `
+              <button class="user-account-btn" id="btn-order-coupon-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(0,242,254,0.1); color:var(--cyan);">🎟 کد تخفیف</button>
+              <button class="user-account-btn" id="btn-order-cancel-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(239,68,68,0.15); color:#ef4444;">❌ لغو سفارش</button>
+            ` : ''}
+            ${['rejected', 'canceled', 'refunded'].includes(o.status) ? `
+              <button class="user-account-btn" id="btn-order-hide-${o.id}" style="font-size:12px; padding:6px 12px; background:rgba(239,68,68,0.15); color:#ef4444;">🗑️ حذف از لیست من</button>
+            ` : ''}
+          </div>
 
           ${paymentMethodsHtml(o)}
         </div>
@@ -597,18 +622,59 @@
 
   /* ── Order Payment Event Binding ── */
   function bindOrderPaymentEvents(o) {
-    // Wallet Payment Action
-    $(`btn-pay-wallet-${o.id}`)?.addEventListener('click', async () => {
-      const bal = Number(state.user?.balance || 0);
-      if (bal < Number(o.final_amount || 0)) {
-        if (!confirm(`موجودی کیف پول شما (${priceLabel(bal)}) از مبلغ سفارش کمتر است. آیا مایلید موجودی موجود کسر شود؟`)) return;
-      }
-      const res = await api('apply_wallet', {}, 'POST', { order_id: o.id });
+    // Wallet Payment Action -> Open Confirmation Sheet
+    $(`btn-pay-wallet-${o.id}`)?.addEventListener('click', () => {
+      openWalletConfirmSheet(o.id);
+    });
+
+    // Customer Note Action
+    $(`btn-order-note-${o.id}`)?.addEventListener('click', async () => {
+      const note = prompt('یادداشت جدید برای این سفارش (مثلاً نام کاربری/توضیحات اکانت):', o.customer_note || '');
+      if (note === null) return;
+      const res = await api('customer_order_note', {}, 'POST', { order_id: o.id, customer_note: note });
       if (res && res.ok) {
-        showToast('پرداخت از کیف پول انجام شد! 🎉', 'success');
+        showToast('یادداشت سفارش ذخیره شد 📝', 'success');
         openOrderDetailModal(o.id);
       } else {
-        showToast(res.message || 'خطا در پرداخت کیف پول.', 'error');
+        showToast(res.message || 'خطا در ذخیره یادداشت.', 'error');
+      }
+    });
+
+    // Coupon Code Action
+    $(`btn-order-coupon-${o.id}`)?.addEventListener('click', async () => {
+      const coupon = prompt('کد تخفیف خود را وارد کنید:');
+      if (!coupon) return;
+      const res = await api('apply_coupon', {}, 'POST', { order_id: o.id, coupon_code: coupon });
+      if (res && res.ok) {
+        showToast('کد تخفیف اعمال شد! 🎉', 'success');
+        openOrderDetailModal(o.id);
+      } else {
+        showToast(res.message || 'کد تخفیف نامعتبر یا منقضی است.', 'error');
+      }
+    });
+
+    // Cancel Order Action
+    $(`btn-order-cancel-${o.id}`)?.addEventListener('click', async () => {
+      if (!confirm(`آیا از لغو سفارش #${o.id} اطمینان دارید؟`)) return;
+      const res = await api('cancel_order', {}, 'POST', { order_id: o.id });
+      if (res && res.ok) {
+        showToast('سفارش لغو شد', 'info');
+        openOrderDetailModal(o.id);
+      } else {
+        showToast(res.message || 'خطا در لغو سفارش.', 'error');
+      }
+    });
+
+    // Hide Order Action
+    $(`btn-order-hide-${o.id}`)?.addEventListener('click', async () => {
+      if (!confirm(`آیا این سفارش از لیست شما حذف شود؟`)) return;
+      const res = await api('hide_order', {}, 'POST', { order_id: o.id });
+      if (res && res.ok) {
+        showToast('سفارش از لیست حذف شد', 'info');
+        closeModal();
+        renderApp();
+      } else {
+        showToast(res.message || 'خطا در حذف سفارش.', 'error');
       }
     });
 
@@ -622,6 +688,15 @@
     $(`btn-pay-crypto-${o.id}`)?.addEventListener('click', async () => {
       const res = await api('select_payment_method', {}, 'POST', { order_id: o.id, method: 'crypto' });
       if (res && res.ok) openOrderDetailModal(o.id);
+    });
+
+    // Select Crypto Wallet Asset
+    document.querySelectorAll(`[data-select-crypto-id]`).forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const wallet_id = e.currentTarget.dataset.selectCryptoId;
+        const res = await api('select_crypto_wallet', {}, 'POST', { order_id: o.id, wallet_id });
+        if (res && res.ok) openOrderDetailModal(o.id);
+      });
     });
 
     // Reset Payment Method Action
@@ -655,14 +730,65 @@
       }
     });
 
-    // Crypto Wallet Selection
-    document.querySelectorAll(`[data-select-crypto-id]`).forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const wallet_id = btn.dataset.selectCryptoId;
-        const res = await api('select_crypto_wallet', {}, 'POST', { order_id: o.id, wallet_id });
-        if (res && res.ok) openOrderDetailModal(o.id);
+    // Crypto Hash TXID Submit
+    $(`crypto-hash-form-${o.id}`)?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const tx_hash = $(`crypto-txid-${o.id}`).value.trim();
+      const res = await api('submit_crypto_hash', {}, 'POST', { order_id: o.id, tx_hash });
+      if (res && res.ok) {
+        showToast('کد TXID ثبت شد و سیستم شبکه در حال بررسی است ⚡', 'success');
+        openOrderDetailModal(o.id);
+      } else {
+        showToast(res.message || 'خطا در ثبت کد Hash.', 'error');
+      }
+    });
+  }
+
+  function openWalletConfirmSheet(orderId) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+
+    api('my_orders').then(res => {
+      const orders = (res && res.ok) ? (res.orders || []) : [];
+      const o = orders.find(x => Number(x.id) === Number(orderId));
+      if (!o) return;
+      const bal = Number(state.user?.balance || 0);
+
+      modalContainer.innerHTML = `
+        <div class="modal-card" style="max-width:480px; text-align:center;">
+          <div style="font-size:42px; margin-bottom:8px;">💰</div>
+          <h3 style="font-size:18px; font-weight:900; margin-bottom:8px;">پرداخت از موجودی کیف پول</h3>
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+            آیا از کسر مبلغ <b>${priceLabel(o.final_amount || o.price)}</b> بابت سفارش <b>#${nf(o.id)}</b> اطمینان دارید؟<br>
+            موجودی کیف پول شما: <b style="color:#4ade80;">${priceLabel(bal)}</b>
+          </p>
+
+          <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); border-radius:14px; padding:12px; font-size:12px; color:#fde68a; margin-bottom:20px; text-align:right;">
+            ⚠️ <b>توجه:</b> موجودی کسرشده تنها در صورت لغو سفارش به کیف پول شما بازگردانده می‌شود.
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button class="user-account-btn" id="btn-confirm-wallet-pay" style="flex:1; justify-content:center; background:#22c55e; color:#000;">تایید و کسر از کیف پول</button>
+            <button class="nav-link" id="close-modal-btn" style="flex:1; justify-content:center;">انصراف</button>
+          </div>
+        </div>
+      `;
+
+      modalContainer.classList.remove('hidden');
+      $('close-modal-btn')?.addEventListener('click', closeModal);
+
+      $('btn-confirm-wallet-pay')?.addEventListener('click', async () => {
+        const res = await api('apply_wallet', {}, 'POST', { order_id: o.id });
+        if (res && res.ok) {
+          showToast('پرداخت با موفقیت انجام شد! 🎉', 'success');
+          closeModal();
+          openOrderDetailModal(o.id);
+        } else {
+          showToast(res.message || 'خطا در پرداخت با کیف پول.', 'error');
+        }
       });
     });
+  }
 
     // Submit Crypto TXID Hash
     $(`crypto-hash-form-${o.id}`)?.addEventListener('submit', async (e) => {
