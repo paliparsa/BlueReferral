@@ -120,8 +120,11 @@
 
   function applyResponsiveLayout() {
     const d = detectDevice();
-    document.body.classList.toggle('is-mobile-view', d.isMobile);
-    document.body.classList.toggle('is-desktop-view', d.isDesktop);
+    const target = document.body || document.documentElement;
+    if (target) {
+      target.classList.toggle('is-mobile-view', d.isMobile);
+      target.classList.toggle('is-desktop-view', d.isDesktop);
+    }
     renderMobileBottomNav(d.isMobile);
   }
 
@@ -132,11 +135,14 @@
       return;
     }
 
+    const mount = document.body || document.documentElement;
+    if (!mount) return;
+
     if (!container) {
       container = document.createElement('nav');
       container.id = 'mobile-bottom-nav';
       container.className = 'mobile-bottom-nav';
-      document.body.appendChild(container);
+      mount.appendChild(container);
     }
 
     container.style.display = 'flex';
@@ -2029,6 +2035,21 @@
     document.addEventListener('click', (e) => {
       // User Account Button -> Open Auth or Profile
       if (e.target.closest('#user-btn')) {
+        if (state.user && !state.user.is_guest) {
+          state.currentTab = 'profile';
+          renderApp();
+        } else {
+          openAuthModal();
+        }
+        return;
+      }
+
+      if (e.target.closest('#mobile-cart-trigger')) {
+        openCartDrawer(true);
+        return;
+      }
+
+      if (e.target.closest('#mobile-user-trigger')) {
         if (state.user && !state.user.is_guest) {
           state.currentTab = 'profile';
           renderApp();
