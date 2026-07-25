@@ -93,7 +93,7 @@ save_env() {
   umask 077
   {
     echo "# BlueReferral manager state - generated automatically"
-    for var in DOMAIN BOT_TOKEN BOT_USERNAME ADMIN_IDS SUPPORT_USERNAME REPO_URL APP_DIR DB_NAME DB_USER DB_PASS WEBHOOK_SECRET THEME_COLOR BRAND_NAME FORCE_JOIN_CHANNEL ENABLE_SSL; do
+    for var in DOMAIN BOT_TOKEN BOT_USERNAME ADMIN_IDS SUPPORT_USERNAME REPO_URL APP_DIR DB_NAME DB_USER DB_PASS WEBHOOK_SECRET THEME_COLOR BRAND_NAME FORCE_JOIN_CHANNEL ENABLE_SSL RESEND_API_KEY RESEND_FROM_EMAIL; do
       printf '%s=%q\n' "$var" "${!var:-}"
     done
   } > "$ENV_FILE"
@@ -154,6 +154,8 @@ collect_settings() {
   ask_value BRAND_NAME "Brand name" "BlueGate"
   ask_value THEME_COLOR "Mini App default theme color" "#1d9bf0"
   ask_optional FORCE_JOIN_CHANNEL "Force join channel, example @BllueGate"
+  ask_optional RESEND_API_KEY "Resend API Key for Email Confirmation (optional)"
+  ask_optional RESEND_FROM_EMAIL "Resend Sender Email (default: onboarding@resend.dev)"
   ask_value ENABLE_SSL "Enable SSL with certbot? yes/no" "yes"
   save_env
 }
@@ -283,6 +285,8 @@ step_config() {
 \$CRYPTO_MANUAL_RATES = ['USDT'=>0,'TRX'=>0,'TON'=>0];
 \$TRONSCAN_API_KEY = '';
 \$TONCENTER_API_KEY = '';
+\$RESEND_API_KEY = '$(php_escape "$RESEND_API_KEY")';
+\$RESEND_FROM_EMAIL = '$(php_escape "${RESEND_FROM_EMAIL:-onboarding@resend.dev}")';
 PHP
   php -l "$APP_DIR/config.php" || return 1
   chmod 640 "$APP_DIR/config.php"
