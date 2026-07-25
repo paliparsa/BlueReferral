@@ -790,20 +790,6 @@
     });
   }
 
-    // Submit Crypto TXID Hash
-    $(`crypto-hash-form-${o.id}`)?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const tx_hash = $(`crypto-txid-${o.id}`).value.trim();
-      const res = await api('submit_crypto_hash', {}, 'POST', { order_id: o.id, tx_hash });
-      if (res && res.ok) {
-        showToast('کد TXID ثبت شد و سیستم شبکه در حال بررسی است ⚡', 'success');
-        openOrderDetailModal(o.id);
-      } else {
-        showToast(res.message || 'خطا در ثبت کد Hash.', 'error');
-      }
-    });
-  }
-
   /* ── Wallet View Renderer ── */
   async function renderWalletView(container) {
     const user = state.user || {};
@@ -2138,6 +2124,10 @@
   }
 
   /* ── Boot Web Engine ── */
-  document.addEventListener('DOMContentLoaded', initApp);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else {
+    initApp();
+  }
 
 })();
