@@ -1382,4 +1382,112 @@ body {
   }
 }
 
+/* ── Phase 4 — Product Experience Styles ── */
+
+/* Flash Sale Badge */
+.flash-sale-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: pulse-flash 2s infinite;
+}
+@keyframes pulse-flash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); box-shadow: 0 4px 18px rgba(239, 68, 68, 0.7); }
+}
+
+/* Wishlist Button on Card */
+.card-wishlist-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(13, 21, 39, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+.card-wishlist-btn:hover {
+  transform: scale(1.15);
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Recently Viewed Products Horizontal Section */
+.recently-viewed-section {
+  margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 16px;
+}
+.recent-products-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.recent-product-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 8px 12px;
+  min-width: 170px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.recent-product-card:hover {
+  background: rgba(0, 242, 254, 0.08);
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+}
+.recent-card-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+.recent-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.recent-card-info b {
+  font-size: 12px;
+  color: #fff;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
 

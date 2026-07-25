@@ -14,6 +14,7 @@
     products: [],
     cart: JSON.parse(localStorage.getItem('bg_web_cart') || '[]'),
     wishlist: JSON.parse(localStorage.getItem('bg_web_wishlist') || '[]'),
+    recent: JSON.parse(localStorage.getItem('bg_web_recent') || '[]'),
     currentTab: 'shop',
     searchTerm: '',
     activeCategory: 'all',
@@ -318,6 +319,7 @@
       <div class="storefront-layout">
         ${sidebarHtml}
         <section class="catalog-area">
+          ${recentProductsHtml()}
           <div class="catalog-toolbar">
             <span style="font-size:13.5px; font-weight:700; color:var(--text-muted);">
               نمایش <b>${filtered.length}</b> محصول
@@ -376,12 +378,19 @@
   function renderProductCard(p) {
     const title = p.title || p.name || 'محصول بدون عنوان';
     const isWished = state.wishlist.includes(Number(p.id));
-    const discount = p.discount_percent ? `<span class="card-discount-badge">${p.discount_percent}% تخفیف</span>` : '';
+    const isFlash = Number(p.is_featured || 0) === 1 || Number(p.discount_percent || 0) >= 15;
+    
+    const flashBadge = isFlash ? `
+      <div class="flash-sale-badge">
+        <span>🔥</span>
+        <b class="flash-sale-timer">${getFlashTimeRemaining()}</b>
+      </div>
+    ` : (p.discount_percent ? `<span class="card-discount-badge">${p.discount_percent}% تخفیف</span>` : '');
 
     return `
       <div class="product-card" data-pid="${p.id}">
         <div class="card-img-wrap">
-          ${discount}
+          ${flashBadge}
           <button class="card-wishlist-btn" data-wishlist="${p.id}">${isWished ? '❤️' : '🤍'}</button>
           ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(title)}">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:56px;">🛒</span>`}
         </div>
@@ -392,12 +401,133 @@
               ${priceLabel(p.price)}
               ${p.old_price ? `<s>${priceLabel(p.old_price)}</s>` : ''}
             </div>
-            <button class="card-quick-buy-btn" data-buy="${p.id}">⚡ خرید آنی</button>
+            <div style="display:flex; gap:6px;">
+              <button class="user-account-btn" data-share="${p.id}" style="padding:6px 10px; font-size:12px;" title="اشتراک‌گذاری">🔗</button>
+              <button class="card-quick-buy-btn" data-buy="${p.id}">⚡ خرید آنی</button>
+            </div>
           </div>
         </div>
       </div>
     `;
   }
+
+  /* ── Phase 4 — Product Experience Helpers ── */
+  function pushRecent(pid) {
+    const id = Number(pid);
+    if (!id) return;
+    state.recent = [id, ...state.recent.filter(x => Number(x) !== id)].slice(0, 8);
+    localStorage.setItem('bg_web_recent', JSON.stringify(state.recent));
+  }
+
+  function getFlashTimeRemaining() {
+    const now = new Date();
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const diff = Math.max(0, Math.floor((endOfDay - now) / 1000));
+    const h = String(Math.floor(diff / 3600)).padStart(2, '0');
+    const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
+    const s = String(diff % 60).padStart(2, '0');
+    return `${nf(h)}:${nf(m)}:${nf(s)}`;
+  }
+
+  function recentProductsHtml() {
+    if (!state.recent || !state.recent.length) return '';
+    const recentProds = state.recent.map(id => state.products.find(p => Number(p.id) === Number(id))).filter(Boolean);
+    if (!recentProds.length) return '';
+
+    return `
+      <div class="recently-viewed-section">
+        <h3 class="sidebar-title" style="margin-bottom:12px; font-size:14px; color:var(--cyan);">👁️ آخرین بازدیدهای شما</h3>
+        <div class="recent-products-row">
+          ${recentProds.map(p => `
+            <div class="recent-product-card" data-pid="${p.id}">
+              <div class="recent-card-img">
+                ${p.image_url ? `<img src="${esc(p.image_url)}">` : `<span>🛒</span>`}
+              </div>
+              <div class="recent-card-info">
+                <b>${esc(p.title || p.name)}</b>
+                <small style="color:var(--cyan); font-weight:800; font-size:11px;">${priceLabel(p.price)}</small>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleWishlist(pid) {
+    const id = Number(pid);
+    if (!id) return;
+    const idx = state.wishlist.indexOf(id);
+    if (idx > -1) {
+      state.wishlist.splice(idx, 1);
+      showToast('از لیست نشان‌شده‌ها حذف شد', 'info');
+    } else {
+      state.wishlist.push(id);
+      showToast('به لیست نشان‌شده‌ها اضافه شد! ❤️', 'success');
+    }
+    localStorage.setItem('bg_web_wishlist', JSON.stringify(state.wishlist));
+    renderApp();
+  }
+
+  function openShareSheet(pid) {
+    const p = state.products.find(x => Number(x.id) === Number(pid));
+    if (!p) return;
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+    if (document.body) document.body.style.overflow = 'hidden';
+
+    const shareUrl = `${window.location.origin}/web/#product-${p.id}`;
+    const shareTitle = p.title || p.name || 'محصول BlueGate';
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:460px; text-align:center;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:18px; font-weight:900;">🔗 اشتراک‌گذاری محصول</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:16px; padding:16px; margin-bottom:16px; display:flex; align-items:center; gap:12px; text-align:right;">
+          ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:50px; height:50px; border-radius:10px; object-fit:cover;">` : '<span style="font-size:32px;">🛍️</span>'}
+          <div>
+            <b style="font-size:14px; color:#fff; display:block;">${esc(shareTitle)}</b>
+            <small style="color:var(--cyan); font-weight:800;">${priceLabel(p.price)}</small>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <a href="https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}" target="_blank" class="user-account-btn" style="width:100%; justify-content:center; background:#229ED9; color:#fff; font-weight:800; text-decoration:none;">
+            ✈️ ارسال مستقیم در تلگرام
+          </a>
+          <button class="user-account-btn" id="btn-copy-share-link" style="width:100%; justify-content:center;">
+            📋 کپی لینک مستقیم
+          </button>
+          ${navigator.share ? `
+            <button class="user-account-btn" id="btn-native-share" style="width:100%; justify-content:center; background:rgba(255,255,255,0.08);">
+              📱 اشتراک‌گذاری بومی
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+    $('btn-copy-share-link')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(shareUrl);
+      showToast('لینک محصول کپی شد! 📋', 'success');
+    });
+    $('btn-native-share')?.addEventListener('click', () => {
+      navigator.share({ title: shareTitle, url: shareUrl }).catch(() => {});
+    });
+  }
+
+  setInterval(() => {
+    const timerEls = document.querySelectorAll('.flash-sale-timer');
+    if (timerEls.length) {
+      const tStr = getFlashTimeRemaining();
+      timerEls.forEach(el => el.textContent = tStr);
+    }
+  }, 1000);
 
   /* ── Orders View Renderer ── */
   async function renderOrdersView(container) {
@@ -1957,6 +2087,7 @@
   function openProductModal(pid) {
     const p = state.products.find(item => Number(item.id) === Number(pid));
     if (!p) return;
+    pushRecent(pid);
 
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
@@ -2097,13 +2228,26 @@
         toggleWishlist(wishBtn.dataset.wishlist);
       }
 
+      // Share sheet
+      const shareBtn = e.target.closest('[data-share]');
+      if (shareBtn && shareBtn.dataset.share) {
+        e.stopPropagation();
+        openShareSheet(shareBtn.dataset.share);
+      }
+
+      // Recently viewed item click
+      const recentCard = e.target.closest('.recent-product-card');
+      if (recentCard && recentCard.dataset.pid) {
+        openProductModal(recentCard.dataset.pid);
+      }
+
       // Order Detail
       const orderCard = e.target.closest('[data-order-open]');
       if (orderCard && orderCard.dataset.orderOpen) {
         openOrderDetailModal(orderCard.dataset.orderOpen);
       }
       const card = e.target.closest('.product-card');
-      if (card && card.dataset.pid && !e.target.closest('[data-buy]') && !e.target.closest('[data-wishlist]')) {
+      if (card && card.dataset.pid && !e.target.closest('[data-buy]') && !e.target.closest('[data-wishlist]') && !e.target.closest('[data-share]')) {
         openProductModal(card.dataset.pid);
       }
 
