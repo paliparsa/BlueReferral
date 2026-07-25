@@ -137,6 +137,15 @@
           </div>
         </div>
 
+        <div class="field">
+          <label for="couponCode">کد تخفیف (اختیاری):</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="couponCode" placeholder="مثلاً: OFF50" style="flex:1;" />
+            <button type="button" class="btn-secondary" id="applyCouponBtn" style="width:auto; padding:0 16px;">اعمال</button>
+          </div>
+          <small id="couponMessage" class="hidden" style="margin-top:4px; font-weight:700;"></small>
+        </div>
+
         <div id="checkoutError" class="modal-error hidden"></div>
         <button type="button" class="btn-primary" id="confirmBuyBtn">پرداخت و تکمیل سفارش 🚀</button>
       </div>
@@ -267,6 +276,37 @@
             <button type="submit" class="btn-primary">ثبت کد تراکنش رمزارز 🚀</button>
           </form>
         </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Deposit / Top-up Wallet Modal -->
+  <dialog id="depositModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>شارژ حساب / کیف پول 💰</h3>
+        <button type="button" class="modal-close" id="closeDepositModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="depositAmount">مبلغ افزایش موجودی (تومان):</label>
+          <input type="number" id="depositAmount" placeholder="50000" min="1000" step="5000" />
+        </div>
+        <div class="field">
+          <label>روش واریز:</label>
+          <div class="pay-options">
+            <label class="pay-radio">
+              <input type="radio" name="depositPayMethod" value="card" checked />
+              <span>💳 کارت به کارت</span>
+            </label>
+            <label class="pay-radio">
+              <input type="radio" name="depositPayMethod" value="crypto" />
+              <span>🪙 رمزارز / تتر</span>
+            </label>
+          </div>
+        </div>
+        <div id="depositError" class="modal-error hidden"></div>
+        <button type="button" class="btn-primary" id="confirmDepositBtn">ادامه و دریافت اطلاعات واریز 🚀</button>
       </div>
     </div>
   </dialog>

@@ -177,9 +177,18 @@
     $('payAmountText').textContent = `${nf(order.final_amount || order.total_amount)} تومان`;
 
     const pm = state?.payment_methods || {};
-    const cards = pm.card_accounts || [];
+    let cards = pm.card_accounts || [];
     const cardContainer = $('cardListDisplay');
-    if (cards.length > 0) {
+
+    if (!cards || cards.length === 0) {
+      const rawText = pm.card_accounts_text || state?.payment_instructions || state?.settings?.payment_instructions || '';
+      const matches = rawText.match(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g) || [];
+      if (matches.length > 0) {
+        cards = matches.map(num => ({ card_number: num.replace(/\s+/g, '-'), holder_name: 'شماره کارت جهت واریز', bank_name: 'کارت بانکی' }));
+      }
+    }
+
+    if (cards && cards.length > 0) {
       cardContainer.innerHTML = cards.map(c => `
         <div class="card-item-box">
           <div style="font-size:12px; color:var(--text-muted);">${c.bank_name || 'کارت بانکی'} - به نام <b>${c.holder_name || ''}</b></div>
@@ -190,7 +199,8 @@
         </div>
       `).join('');
     } else {
-      cardContainer.innerHTML = `<div style="font-size:13px; color:var(--text-muted); text-align:center; padding:10px;">شماره کارتی ثبت نشده است. لطفاً با پشتیبانی تماس بگیرید.</div>`;
+      const instructions = state?.payment_instructions || 'لطفاً مبلغ را به شماره کارت واریز کرده و کد ارجاع را ثبت کنید.';
+      cardContainer.innerHTML = `<div style="font-size:13px; color:var(--text); padding:10px; background:rgba(255,255,255,0.05); border-radius:12px;">${instructions}</div>`;
     }
 
     const cryptoWallets = pm.crypto_wallets || [];
@@ -303,10 +313,15 @@
       openCheckout(t.dataset.buyId);
     }
 
-    // Auth Modal
-    if (t.id === 'openAuthModalBtn') {
-      switchAuthTab('login');
-      $('authModal').showModal?.();
+    // Auth / User Deposit Modal
+    if (t.id === 'openAuthModalBtn' || t.closest('#openAuthModalBtn')) {
+      const u = state?.user;
+      if (u && !u.is_guest) {
+        $('depositModal').showModal?.();
+      } else {
+        switchAuthTab('login');
+        $('authModal').showModal?.();
+      }
     }
     if (t.id === 'closeAuthModal') $('authModal').close?.();
     if (t.dataset?.tab && t.classList.contains('auth-tab')) switchAuthTab(t.dataset.tab);
@@ -338,16 +353,55 @@
       const resEl = $('trackResult');
       resEl.classList.remove('hidden');
       if (match) {
+        let credsHtml = '';
+        const creds = match.item_details || match.license_code || match.delivery_note || match.delivered_item;
+        if (creds) {
+          credsHtml = `
+            <div style="margin-top:10px; padding:10px; background:rgba(34,197,94,0.15); border:1px solid #22c55e; border-radius:12px;">
+              <b style="color:#22c55e; font-size:12px;">🔑 اکانت / کد تحویلی:</b>
+              <div class="card-num" style="margin-top:6px;">
+                <span style="font-size:13px;">${creds}</span>
+                <button type="button" class="copy-btn" data-copy="${creds}">کپی 📋</button>
+              </div>
+            </div>
+          `;
+        }
         resEl.innerHTML = `
           <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-top: 10px;">
             <h4>سفارش #${match.id} - ${match.product_name}</h4>
             <p>وضعیت: <strong style="color:var(--accent);">${match.status_fa || match.status}</strong></p>
-            <small>تاریخ: ${match.created_at || ''}</small>
+            <small>مبلغ: ${nf(match.final_amount || match.total_amount)} تومان | تاریخ: ${match.created_at || ''}</small>
+            ${credsHtml}
           </div>
         `;
       } else {
         resEl.innerHTML = `<p style="color:#f87171; margin-top:10px;">سفارشی با این شناسه در حساب شما یافت نشد. لطفاً وارد حساب خود شوید.</p>`;
       }
+    }
+  });
+
+  // Deposit Modal Handlers
+  $('closeDepositModal')?.addEventListener('click', () => $('depositModal').close?.());
+  $('confirmDepositBtn')?.addEventListener('click', async () => {
+    const amount = Number($('depositAmount').value);
+    const payMethod = document.querySelector('input[name="depositPayMethod"]:checked')?.value || 'card';
+    const errEl = $('depositError');
+    errEl.classList.add('hidden');
+
+    if (!amount || amount < 1000) {
+      errEl.textContent = 'لطفاً مبلغ معتبر وارد کنید.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      const res = await api('deposit', { amount, method: payMethod });
+      $('depositModal').close?.();
+      if (res.order) openPaymentModal(res.order);
+      else showToast('درخواست شارژ حساب ثبت شد');
+    } catch (err) {
+      errEl.textContent = err.message || 'خطا در ثبت درخواست شارژ';
+      errEl.classList.remove('hidden');
     }
   });
 
