@@ -1902,6 +1902,7 @@ function initAuthHandlers() {
   $('registerForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = $('regUsername').value;
+    const email = $('regEmail')?.value || '';
     const first_name = $('regFirstName').value;
     const password = $('regPassword').value;
     const ref_code = $('regRefCode').value;
@@ -1909,7 +1910,7 @@ function initAuthHandlers() {
     if (errEl) errEl.classList.add('hidden');
 
     try {
-      const res = await api('register', { username, first_name, password, ref_code });
+      const res = await api('register', { username, email, first_name, password, ref_code });
       if (res.auth_token) {
         localStorage.setItem('web_token', res.auth_token);
         showStatus('حساب کاربری با موفقیت ساخته شد 🎉');

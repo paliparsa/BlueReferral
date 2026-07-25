@@ -125,8 +125,8 @@
 
       <form id="loginForm" class="auth-form">
         <div class="field">
-          <label for="loginUsername">نام کاربری</label>
-          <input type="text" id="loginUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
+          <label for="loginUsername">ایمیل یا نام کاربری</label>
+          <input type="text" id="loginUsername" placeholder="مثلاً: user@example.com یا john_doe" required autocomplete="username" />
         </div>
         <div class="field">
           <label for="loginPassword">رمز عبور</label>
@@ -140,6 +140,10 @@
         <div class="field">
           <label for="regUsername">نام کاربری (انگلیسی)</label>
           <input type="text" id="regUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="regEmail">ایمیل (جهت ورود و بازیابی)</label>
+          <input type="email" id="regEmail" placeholder="مثلاً: user@example.com" autocomplete="email" />
         </div>
         <div class="field">
           <label for="regFirstName">نام شما</label>
