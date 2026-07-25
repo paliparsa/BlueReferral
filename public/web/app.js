@@ -2754,6 +2754,291 @@
     `;
   }
 
+  function renderAdminInventoryTabMarkup(inventory, products) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="font-size:18px; font-weight:800; margin:0;">📦 انبار موجودی اکانت‌ها/کدها (${inventory.length})</h3>
+        <button class="user-account-btn" id="btn-add-inventory" style="background:var(--cyan); color:#000; font-size:12px; padding:8px 14px;">📦 افزودن موجودی جدید</button>
+      </div>
+
+      ${!inventory.length ? `
+        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
+          موجودی در انبار ثبت نشده است.
+        </div>
+      ` : `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${inventory.map(item => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b style="font-size:14px; color:#fff; display:block;">محصول ID: #${item.product_id}</b>
+                <code style="font-size:12px; color:var(--cyan); background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px; display:inline-block; margin-top:4px;">${esc(item.content)}</code>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:${item.status === 'available' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${item.status === 'available' ? '#22c55e' : '#ef4444'};">
+                  ${item.status === 'available' ? 'آماده تحویل' : 'تحویل داده‌شده'}
+                </span>
+                <button class="nav-link" data-delete-inv-id="${item.id}" style="background:rgba(239,68,68,0.15); color:#ef4444; font-size:11px; padding:6px 10px;">🗑️ حذف</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminCouponsTabMarkup(coupons) {
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="font-size:18px; font-weight:800; margin:0;">🎟 کدهای تخفیف (${coupons.length})</h3>
+        <button class="user-account-btn" id="btn-add-coupon" style="background:#22c55e; color:#000; font-size:12px; padding:8px 14px;">🎟 افزودن کد تخفیف جدید</button>
+      </div>
+
+      ${!coupons.length ? `
+        <div style="text-align:center; padding:40px; background:var(--card-dark); border-radius:20px; color:var(--text-muted);">
+          کد تخفیفی تعریف نشده است.
+        </div>
+      ` : `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px;">
+          ${coupons.map(c => `
+            <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:16px; padding:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <b style="font-size:16px; color:var(--cyan); letter-spacing:1px;">${esc(c.code)}</b>
+                <span style="font-size:11px; padding:2px 8px; border-radius:8px; background:rgba(255,255,255,0.06); color:var(--text-muted);">
+                  ${c.discount_type === 'percent' ? 'درصدی' : 'مبلغ ثابت'}
+                </span>
+              </div>
+              <div style="font-size:14px; font-weight:800; margin-bottom:8px;">
+                مقدار: ${c.discount_type === 'percent' ? `${c.discount_value}٪` : priceLabel(c.discount_value)}
+              </div>
+              <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:12px;">
+                استفاده: ${nf(c.used_count || 0)} از ${c.max_uses ? nf(c.max_uses) : 'نامحدود'}
+              </small>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function renderAdminActivityTabMarkup(log) {
+    if (!log || !log.length) return `<p style="color:var(--text-muted); text-align:center; padding:30px;">لاگ فعالیتی ثبت نشده است.</p>`;
+    return `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        ${log.map(a => `
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; font-size:13px;">
+            <div>
+              <b style="color:#fff;">${esc(a.title || a.action || 'فعالیت')}</b>
+              <small style="display:block; color:var(--text-muted); margin-top:2px;">${esc(a.description || a.details || '')}</small>
+            </div>
+            <small style="color:var(--text-muted);">${esc(a.created_at || '')}</small>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderAdminRolesTabMarkup(roles) {
+    if (!roles || !roles.length) return `<p style="color:var(--text-muted); text-align:center; padding:30px;">نقش جدیدی تعریف نشده است.</p>`;
+    return `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        ${roles.map(r => `
+          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <b style="color:#fff; font-size:14px;">${esc(r.role_name || r.name || 'نقش ادمین')}</b>
+              <small style="display:block; color:var(--text-muted); margin-top:2px;">سطح دسترسی: ${esc(r.permissions || 'کامل')}</small>
+            </div>
+            <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:rgba(0,242,254,0.15); color:var(--cyan);">فعال</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function bindAdminOrdersTabEvents(orders) {
+    document.querySelectorAll('[data-admin-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        adminOrderStatusFilter = btn.dataset.adminFilter;
+        const subContent = $('admin-sub-content');
+        if (subContent) {
+          subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
+          bindAdminOrdersTabEvents(orders);
+        }
+      });
+    });
+
+    const searchInput = $('admin-order-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        adminOrderSearch = e.target.value;
+        const subContent = $('admin-sub-content');
+        if (subContent) {
+          subContent.innerHTML = renderAdminOrdersTabMarkup(orders);
+          bindAdminOrdersTabEvents(orders);
+        }
+      });
+    }
+
+    document.querySelectorAll('.admin-order-chk').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const oid = Number(chk.dataset.orderId);
+        if (chk.checked) selectedAdminOrderIds.add(oid);
+        else selectedAdminOrderIds.delete(oid);
+
+        const bar = $('admin-bulk-actions-bar');
+        if (bar) bar.style.display = selectedAdminOrderIds.size > 0 ? 'flex' : 'none';
+      });
+    });
+
+    $('bulk-confirm-btn')?.addEventListener('click', () => executeBulkOrders('payment_confirmed'));
+    $('bulk-prepare-btn')?.addEventListener('click', () => executeBulkOrders('preparing'));
+    $('bulk-reject-btn')?.addEventListener('click', () => executeBulkOrders('rejected'));
+
+    async function executeBulkOrders(status) {
+      if (!selectedAdminOrderIds.size) return;
+      const count = selectedAdminOrderIds.size;
+      showToast(`در حال انجام ${count} تغییر وضعیت...`, 'info');
+      for (const oid of selectedAdminOrderIds) {
+        await api('admin_order_status', {}, 'POST', { order_id: oid, status });
+      }
+      selectedAdminOrderIds.clear();
+      showToast(`✅ ${count} سفارش تغییر وضعیت داده شدند!`, 'success');
+      renderAdminView($('app'));
+    }
+
+    document.querySelectorAll('[data-admin-status-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const order_id = btn.dataset.adminStatusId;
+        const status = btn.dataset.status;
+        const res = await api('admin_order_status', {}, 'POST', { order_id, status });
+        if (res && res.ok) {
+          showToast('وضعیت سفارش بروزرسانی شد! ⚡', 'success');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در تغییر وضعیت.', 'error');
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-admin-cust-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openCustomer360Modal(btn.dataset.adminCustId);
+      });
+    });
+
+    document.querySelectorAll('.data-admin-edit-user-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = Number(btn.dataset.adminEditUserId);
+        showToast('در حال دریافت اطلاعات کاربر...', 'info');
+        const res = await api('admin_get_user', { user_id: uid });
+        if (res && res.ok && res.user) {
+          openAdminEditUserModal(res.user);
+        } else {
+          openAdminEditUserModal({ id: uid });
+        }
+      });
+    });
+  }
+
+  function bindAdminProductsTabEvents(products) {
+    document.querySelectorAll('[data-admin-toggle-pid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pid = btn.dataset.adminTogglePid;
+        const res = await api('admin_toggle_product', {}, 'POST', { product_id: pid });
+        if (res && res.ok) {
+          showToast('وضعیت محصول بروزرسانی شد', 'success');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در تغییر وضعیت محصول.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminInventoryTabEvents(inventory) {
+    $('btn-add-inventory')?.addEventListener('click', () => openAddInventoryModal(state.products));
+    document.querySelectorAll('[data-delete-inv-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.deleteInvId;
+        const res = await api('admin_delete_inventory', {}, 'POST', { inventory_id: id });
+        if (res && res.ok) {
+          showToast('آیتم از انبار حذف شد', 'info');
+          renderAdminView($('app'));
+        }
+      });
+    });
+  }
+
+  function bindAdminCouponsTabEvents(coupons) {
+    $('btn-add-coupon')?.addEventListener('click', openAddCouponModal);
+  }
+
+  function bindAdminCategoriesTabEvents(categories) {
+    $('btn-add-category')?.addEventListener('click', () => openAddCategoryModal());
+
+    document.querySelectorAll('[data-admin-edit-cid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cid = Number(btn.dataset.adminEditCid);
+        const c = categories.find(x => Number(x.id) === cid);
+        if (c) openAddCategoryModal(c);
+      });
+    });
+
+    document.querySelectorAll('[data-admin-delete-cid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('آیا از غیرفعال‌سازی این دسته‌بندی اطمینان دارید؟')) return;
+        const cid = btn.dataset.adminDeleteCid;
+        const res = await api('admin_delete_category', {}, 'POST', { category_id: cid });
+        if (res && res.ok) {
+          showToast('دسته‌بندی غیرفعال شد', 'info');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در حذف دسته‌بندی.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminVariantsTabEvents(variants, products) {
+    $('btn-add-variant')?.addEventListener('click', () => openAddVariantModal(products));
+
+    document.querySelectorAll('[data-admin-edit-vid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const vid = Number(btn.dataset.adminEditVid);
+        const v = variants.find(x => Number(x.id) === vid);
+        if (v) openAddVariantModal(products, v);
+      });
+    });
+
+    document.querySelectorAll('[data-admin-delete-vid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('آیا از غیرفعال‌سازی این پلن اطمینان دارید؟')) return;
+        const vid = btn.dataset.adminDeleteVid;
+        const res = await api('admin_delete_variant', {}, 'POST', { variant_id: vid });
+        if (res && res.ok) {
+          showToast('پلن غیرفعال شد', 'info');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در حذف پلن.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindAdminWithdrawalsTabEvents(withdrawals) {
+    document.querySelectorAll('[data-admin-withdraw-act]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const [wid, act] = btn.dataset.adminWithdrawAct.split(':');
+        const res = await api('admin_withdraw_action', {}, 'POST', { withdrawal_id: wid, action_type: act });
+        if (res && res.ok) {
+          showToast(act === 'paid' ? 'برداشت تایید و پرداخت شد' : 'برداشت رد شد', 'success');
+          renderAdminView($('app'));
+        } else {
+          showToast(res ? res.message : 'خطا در ثبت اقدام برداشت.', 'error');
+        }
+      });
+    });
+  }
+
   let webSettingsSubTab = 'general';
   let webAdminCards = [];
   let webAdminWallets = [];
