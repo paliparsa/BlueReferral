@@ -1579,10 +1579,26 @@ function is_joined_channel(int $telegram_id): bool {
     return !in_array($status, ['left', 'kicked'], true);
 }
 function notify_admins(string $text): void {
-    foreach (app_config('ADMIN_IDS', []) as $aid) send_msg($aid, $text);
+    $ids = array_map('intval', app_config('ADMIN_IDS', []));
+    try {
+        $dbAdmins = db()->query("SELECT telegram_id FROM users WHERE (is_admin=1 OR role='admin') AND telegram_id IS NOT NULL AND telegram_id > 0 AND telegram_id < 9000000000")->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($dbAdmins as $aid) {
+            $aid = (int)$aid;
+            if ($aid > 0 && !in_array($aid, $ids, true)) $ids[] = $aid;
+        }
+    } catch (Throwable $e) {}
+
+    foreach ($ids as $aid) {
+        if ($aid > 0) {
+            try {
+                send_msg($aid, $text);
+            } catch (Throwable $e) {
+                error_log('[Notify Admin Error] ' . $e->getMessage());
+            }
+        }
+    }
 }
 function notify_new_user_signup(array $user, string $sourceStr = '🌐 وب‌سایت'): void {
-    if (!setting_bool('notify_new_user', true)) return;
     
     $uid = (int)($user['id'] ?? 0);
     $uname = !empty($user['username']) ? '@' . h($user['username']) : (!empty($user['web_username']) ? h($user['web_username']) : 'ثبت نشده');
