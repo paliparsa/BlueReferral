@@ -166,16 +166,7 @@
         const actions = document.querySelector('.web-header-actions');
         if (actions) actions.insertBefore(adminHeaderBtn, actions.firstChild);
       }
-      if (window.state.is_admin && !$('webAdminNavBtn')) {
-        const adminNavBtn = document.createElement('a');
-        adminNavBtn.id = 'webAdminNavBtn';
-        adminNavBtn.href = '?admin=1';
-        adminNavBtn.className = 'web-nav-btn';
-        adminNavBtn.style.cssText = 'color:#f59e0b;font-weight:bold;';
-        adminNavBtn.textContent = '👑 مدیریت';
-        const nav = document.querySelector('.web-header-nav');
-        if (nav) nav.appendChild(adminNavBtn);
-      }
+
       if (window.state.is_admin && !$('webAdminSidebarBtn')) {
         const adminSidebarBtn = document.createElement('a');
         adminSidebarBtn.id = 'webAdminSidebarBtn';
