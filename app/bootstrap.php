@@ -1338,7 +1338,9 @@ function create_web_user(string $username, string $password, ?string $firstName 
     $cleanUsername = strtolower(trim($username));
     $cleanEmail = !empty($email) ? strtolower(trim($email)) : null;
     $hash = password_hash($password, PASSWORD_DEFAULT);
-    $token = generate_auth_token();
+    
+    $requireVerif = setting_bool('require_email_verification', true) && !empty($cleanEmail);
+    $token = $requireVerif ? null : generate_auth_token();
     $firstName = trim($firstName ?: $cleanUsername);
     
     $referrerId = null;
