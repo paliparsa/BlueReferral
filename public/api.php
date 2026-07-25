@@ -59,8 +59,17 @@ function webapp_auth_user(string $initData): array {
     return $u;
 }
 function guest_dashboard_payload(): array {
+    $dir = __DIR__ . '/../storage/cache';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $cacheFile = $dir . '/guest_payload.json';
+    if (is_file($cacheFile) && (time() - filemtime($cacheFile) < 30)) {
+        $content = @file_get_contents($cacheFile);
+        $json = json_decode($content ?: '', true);
+        if (is_array($json)) return $json;
+    }
+
     $products = array_map(fn($p)=>product_payload($p, true), shop_products(null, true));
-    return [
+    $payload = [
         'ok' => true,
         'is_guest' => true,
         'bot_username' => app_config('BOT_USERNAME',''),
@@ -105,6 +114,8 @@ function guest_dashboard_payload(): array {
         'payment_instructions' => setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'),
         'achievements' => []
     ];
+    @file_put_contents($cacheFile, json_encode($payload, JSON_UNESCAPED_UNICODE));
+    return $payload;
 }
 function product_payload(array $p, bool $activeVariants=true): array {
     $variants = array_map(function($v){
