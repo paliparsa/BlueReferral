@@ -430,10 +430,18 @@ CRON
 step_update() {
   require_root
   [[ -d "$APP_DIR/.git" ]] || { fail "No git repository found in $APP_DIR"; return 1; }
-  git -C "$APP_DIR" pull --ff-only || return 1
+  info "Fetching latest updates from GitHub..."
+  git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+  git -C "$APP_DIR" fetch --all --prune || return 1
+  git -C "$APP_DIR" reset --hard origin/main 2>/dev/null || git -C "$APP_DIR" pull --ff-only || return 1
+  chmod +x "$APP_DIR/install.sh" "$APP_DIR/update.sh" "$APP_DIR/uninstall.sh" 2>/dev/null || true
   chown -R www-data:www-data "$APP_DIR" 2>/dev/null || true
+  chmod -R 755 "$APP_DIR/public" 2>/dev/null || true
   step_migrate || return 1
+  # Reload PHP-FPM and Nginx to clear opcode cache and serve updated web assets
+  pkill -f "php-fpm" -HUP 2>/dev/null || systemctl reload php*-fpm 2>/dev/null || true
   nginx -t && timeout 60 systemctl reload nginx || true
+  ok "Web application updated to latest commit successfully!"
 }
 
 step_status() {
