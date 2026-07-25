@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BlueGate | فروشگاه تخصصی اشتراک‌های دیجیتال</title>
+  <meta name="description" content="خرید مستقیم و فوری انواع سرویس‌های هوش مصنوعی، پرمیوم تلگرام، استریم موسیقی و اکانت‌های کاربردی با تحویل خودکار." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Toast Notifications -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- Web Header Topbar -->
+  <header class="web-header">
+    <div class="header-container">
+      <div class="brand">
+        <a href="/" class="logo-link">
+          <span class="logo-icon">⚡</span>
+          <span class="logo-text" id="brandTitle">BlueGate</span>
+        </a>
+      </div>
+
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="جستجوی سرویس (ChatGPT, Telegram, Spotify...)..." autocomplete="off" />
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="nav-btn" id="trackOrderBtn">
+          <span>🧾</span> پیگیری سفارش
+        </button>
+        <button type="button" class="auth-btn" id="openAuthModalBtn">
+          <span>🔑</span> <span id="authBtnText">ورود / ثبت‌نام</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Web Content Shell -->
+  <main class="web-shell">
+
+    <!-- Minimal Hero Banner -->
+    <section class="web-hero">
+      <div class="hero-content">
+        <span class="hero-badge">⚡ تحویل خودکار و فوری ۲۴/۷</span>
+        <h1 id="heroHeading">فروشگاه تخصصی اشتراک‌های دیجیتال</h1>
+        <p id="heroSubheading">خرید مستقیم و بدون واسطه انواع اشتراک‌های هوش مصنوعی، پرمیوم تلگرام، استریم موسیقی و اکانت‌های کاربردی با پشتیبانی تضمینی.</p>
+        <div class="hero-trust-bar">
+          <div class="trust-item"><span>🚀</span> تحویل آنی خودکار</div>
+          <div class="trust-item"><span>🛡️</span> گارانتی ۱۰۰٪ کیفیت</div>
+          <div class="trust-item"><span>💳</span> پرداخت ایمن کارت و رمزارز</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Filter Bar -->
+    <section class="filter-section">
+      <div class="category-pills" id="categoryPills">
+        <button class="cat-pill active" data-cat="all">⚡ همه خدمات</button>
+      </div>
+    </section>
+
+    <!-- Product Cards Catalog Grid -->
+    <section class="catalog-section">
+      <div class="product-grid" id="productGrid">
+        <div class="card-skeleton"></div>
+        <div class="card-skeleton"></div>
+        <div class="card-skeleton"></div>
+        <div class="card-skeleton"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Web Footer -->
+  <footer class="web-footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <h3>BlueGate Store</h3>
+        <p>مرجع معتبر خرید اشتراک‌های سرویس‌های خارجی و هوش مصنوعی با پشتیبانی ۲۴ ساعته.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://t.me/BlueGateSupport" target="_blank" rel="noopener">💬 پشتیبانی تلگرام</a>
+        <button type="button" class="btn-link" id="footerTrackBtn">🧾 پیگیری سفارشات</button>
+      </div>
+      <div class="footer-copy">
+        <small>© تمامی حقوق برای BlueGate محفوظ است.</small>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Checkout & Product Purchase Modal -->
+  <dialog id="checkoutModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="checkoutTitle">ثبت سفارش</h3>
+        <button type="button" class="modal-close" id="closeCheckoutModal">✕</button>
+      </div>
+
+      <div class="modal-body" id="checkoutBody">
+        <div class="checkout-product-summary">
+          <img id="checkoutImg" src="" alt="Product" class="checkout-img" />
+          <div>
+            <h4 id="checkoutName">...</h4>
+            <span class="price-tag" id="checkoutPrice">...</span>
+          </div>
+        </div>
+
+        <div class="field" id="variantSelectorWrap">
+          <label for="variantSelect">انتخاب پلن / مدت زمان:</label>
+          <select id="variantSelect" class="web-select"></select>
+        </div>
+
+        <div class="field" id="customerEmailWrap">
+          <label for="customerEmail">ایمیل شما (جهت ارسال اطلاعات حساب):</label>
+          <input type="email" id="customerEmail" placeholder="user@example.com" />
+        </div>
+
+        <div class="field">
+          <label>روش پرداخت:</label>
+          <div class="pay-options">
+            <label class="pay-radio">
+              <input type="radio" name="payMethod" value="card" checked />
+              <span>💳 کارت به کارت</span>
+            </label>
+            <label class="pay-radio" id="payWalletOption">
+              <input type="radio" name="payMethod" value="wallet" />
+              <span>💰 موجودی کیف پول</span>
+            </label>
+            <label class="pay-radio">
+              <input type="radio" name="payMethod" value="crypto" />
+              <span>🪙 رمزارز / تتر (USDT)</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="checkoutError" class="modal-error hidden"></div>
+        <button type="button" class="btn-primary" id="confirmBuyBtn">پرداخت و تکمیل سفارش 🚀</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Auth & OTP Modal -->
+  <dialog id="authModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="authTitle">ورود / ثبت‌نام</h3>
+        <button type="button" class="modal-close" id="closeAuthModal">✕</button>
+      </div>
+
+      <div class="auth-tabs" id="authTabs">
+        <button type="button" class="auth-tab active" data-tab="login">ورود</button>
+        <button type="button" class="auth-tab" data-tab="register">ثبت‌نام</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" class="auth-form">
+        <div class="field">
+          <label for="loginUsername">ایمیل یا نام کاربری</label>
+          <input type="text" id="loginUsername" placeholder="user@example.com یا john_doe" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">رمز عبور</label>
+          <input type="password" id="loginPassword" placeholder="******" required autocomplete="current-password" />
+        </div>
+        <div id="loginError" class="modal-error hidden"></div>
+        <button type="submit" class="btn-primary">ورود به حساب</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="registerForm" class="auth-form hidden">
+        <div class="field">
+          <label for="regUsername">نام کاربری (انگلیسی)</label>
+          <input type="text" id="regUsername" placeholder="john_doe" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="regEmail">آدرس ایمیل</label>
+          <input type="email" id="regEmail" placeholder="user@example.com" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="regPassword">رمز عبور (حداقل ۶ کاراکتر)</label>
+          <input type="password" id="regPassword" placeholder="******" required autocomplete="new-password" />
+        </div>
+        <div id="regError" class="modal-error hidden"></div>
+        <button type="submit" class="btn-primary">ایجاد حساب کاربری</button>
+      </form>
+
+      <!-- OTP Form -->
+      <form id="otpForm" class="auth-form hidden">
+        <div class="otp-notice">
+          <h4>کد تایید ایمیل 📩</h4>
+          <p>کد ۶ رقمی به ایمیل <strong id="otpEmailTarget"></strong> ارسال شد.<br>
+            <span class="warning-text">⚠️ (لطفاً پوشه اسپم / Spam خود را نیز بررسی کنید)</span>
+          </p>
+        </div>
+        <div class="field">
+          <input type="text" id="otpInput" placeholder="1 2 3 4 5 6" maxlength="6" inputmode="numeric" class="otp-input" required />
+        </div>
+        <div id="otpError" class="modal-error hidden"></div>
+        <button type="submit" class="btn-primary">تایید و ورود به حساب</button>
+        <button type="button" id="resendOtpBtn" class="btn-secondary">ارسال مجدد کد تایید</button>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Order Tracker Modal -->
+  <dialog id="trackerModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>پیگیری سریع سفارش 🧾</h3>
+        <button type="button" class="modal-close" id="closeTrackerModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="trackOrderId">شناسه سفارش (Order ID):</label>
+          <input type="number" id="trackOrderId" placeholder="مثلاً: 1042" />
+        </div>
+        <button type="button" class="btn-primary" id="searchOrderBtn">بررسی وضعیت سفارش</button>
+        <div id="trackResult" class="track-result-box hidden"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="web.js"></script>
+</body>
+</html>
