@@ -518,6 +518,89 @@
     syncAllWebNavs();
   };
 
+  /* ── Phase 2: Enhanced Desktop Shop & Hero ── */
+  window.renderShop = function () {
+    const cats = window.state?.shop_categories || [];
+    const prods = window.state?.shop_products || window.state?.products || [];
+    const brand = window.state?.brand || 'BlueGate';
+    const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const mode = window.productCardMode || 'compact';
+
+    const heroHtml = `
+      <section class="web-desktop-hero" id="webDesktopHero">
+        <div class="web-hero-content">
+          <div class="web-hero-badge">⚡ مرجع تخصصی اشتراک‌های دیجیتال & هوش مصنوعی</div>
+          <h1 class="web-hero-title">دسترسی فوری به <span class="hero-highlight">بهترین سرویس‌های دنیا</span></h1>
+          <p class="web-hero-subtitle">خرید مستقیم و بدون واسطه اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و سرویس‌های پرکاربرد با تحویل خودکار ۲۴ ساعته.</p>
+          <div class="web-hero-trust">
+            <div class="trust-item"><span>⚡</span><b>تحویل خودکار و آنی</b></div>
+            <div class="trust-item"><span>🛡️</span><b>ضمانت ۱۰۰٪ کارکرد</b></div>
+            <div class="trust-item"><span>💬</span><b>پشتیبانی زنده تلگرام</b></div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const viewModeToggleHtml = `
+      <div class="web-view-mode-toggle">
+        <button class="view-btn ${mode !== 'detailed' ? 'active' : ''}" data-card-mode="compact" title="نمایش شبکه‌ای (Grid)">
+          <span>🔲</span> <b>گرید</b>
+        </button>
+        <button class="view-btn ${mode === 'detailed' ? 'active' : ''}" data-card-mode="detailed" title="نمایش لیستی (List)">
+          <span>≡</span> <b>لیست</b>
+        </button>
+      </div>
+    `;
+
+    const shopHtml = `
+      ${heroHtml}
+      <div class="shop-header-sticky">
+        <div class="searchbar-modern">
+          <span class="search-icon">🔍</span>
+          <input id="searchInput" autocomplete="off" inputmode="search" placeholder="جستجوی محصول، اشتراک (ChatGPT، Telegram...)" value="${esc(window.searchTerm || '')}">
+          <div class="quick-toggles">
+            <button class="icon-toggle ${window.shopFilterWishlist ? 'active' : ''}" data-shop-toggle="wishlist" title="نشان‌شده">${window.shopFilterWishlist ? '❤️' : '🤍'}</button>
+            <button class="icon-toggle ${window.shopFilterInStock ? 'active' : ''}" data-shop-toggle="instock" title="فقط آنی">${window.shopFilterInStock ? '⚡' : '📦'}</button>
+          </div>
+        </div>
+
+        <div class="shop-controls-row">
+          <div class="segmented-control">
+            <button class="${window.shopSort === 'newest' ? 'active' : ''}" data-shop-sort="newest">جدیدترین</button>
+            <button class="${window.shopSort === 'price_low' ? 'active' : ''}" data-shop-sort="price_low">ارزان‌ترین</button>
+            <button class="${window.shopSort === 'price_high' ? 'active' : ''}" data-shop-sort="price_high">گران‌ترین</button>
+          </div>
+          ${viewModeToggleHtml}
+        </div>
+
+        <div class="category-strip modern-cats">
+          <button class="cat-pill ${window.activeCategory === 'all' ? 'active' : ''}" data-cat="all"><span>✨</span><b>همه</b></button>
+          <button class="cat-pill ${window.activeCategory === 'featured' ? 'active' : ''}" data-cat="featured"><span>⭐</span><b>ویژه</b></button>
+          ${cats.map(c => `<button class="cat-pill ${Number(window.activeCategory) === Number(c.id) ? 'active' : ''}" data-cat="${c.id}">${c.image_url ? `<img src="${esc(c.image_url)}">` : `<span>${esc(c.emoji || '🛒')}</span>`}<b>${esc(c.title)}</b></button>`).join('')}
+        </div>
+      </div>
+      <div id="shopSections">${typeof window.shopSectionsHtml === 'function' ? window.shopSectionsHtml() : ''}</div>
+    `;
+
+    const shopPage = document.getElementById('shopPage');
+    if (shopPage) shopPage.innerHTML = shopHtml;
+  };
+
+  // Card view mode toggle listener (Grid vs List)
+  document.addEventListener('click', (e) => {
+    const modeBtn = e.target.closest('[data-card-mode]');
+    if (modeBtn && modeBtn.dataset.cardMode) {
+      const mode = modeBtn.dataset.cardMode;
+      if (typeof window.setProductCardMode === 'function') {
+        window.setProductCardMode(mode);
+      } else {
+        window.productCardMode = mode;
+        localStorage.setItem('blue_ref_card_mode', mode);
+        if (typeof window.renderShop === 'function') window.renderShop();
+      }
+    }
+  });
+
   /* ── Poll to initialize topbar & auth state on load ── */
   const _patchTimer = setInterval(() => {
     if (typeof window.openAuthModal === 'undefined') {
@@ -545,5 +628,5 @@
     setTimeout(() => location.reload(), 700);
   };
 
-  console.log('[WebInit] BlueGate Web Mode Phase 1 Fixed & Operational ✅');
+  console.log('[WebInit] BlueGate Web Mode Phase 2 Fixed & Operational ✅');
 })();
