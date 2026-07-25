@@ -1634,7 +1634,20 @@
 
         ${vipProgressHtml()}
         ${achievementsHtml()}
+
+        ${!isGuest ? `
+          <!-- Danger Zone: Delete Account -->
+          <div style="background:var(--card-dark); border:1px solid rgba(239,68,68,0.3); border-radius:24px; padding:24px; margin-top:24px;">
+            <h4 style="color:#ef4444; font-size:16px; font-weight:800; margin-bottom:8px;">⚠️ تنظیمات حساب کاربری (Danger Zone)</h4>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">
+              در صورت تمایل می‌توانید حساب کاربری خود را به همراه تمام اطلاعات شخصی و موجودی پاک کنید.
+            </p>
+            <button class="user-account-btn" id="btn-open-delete-account" style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.4);">🗑️ حذف کامل حساب کاربری</button>
+          </div>
+        ` : ''}
       `;
+
+      $('btn-open-delete-account')?.addEventListener('click', openDeleteAccountModal);
 
       $('btn-qr-modal')?.addEventListener('click', openQrSheetModal);
       $('btn-promo-modal')?.addEventListener('click', openPromoSheetModal);
@@ -2415,7 +2428,14 @@
 
       showToast('در حال آپلود و ریستور...', 'info');
       try {
-        const res = await fetch('/backup_upload.php', { method: 'POST', body: fd });
+        const token = localStorage.getItem('bg_web_token');
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+          headers['X-Web-Token'] = token;
+        }
+        
+        const res = await fetch('/backup_upload.php', { method: 'POST', body: fd, headers });
         const data = await res.json();
         if (data && data.ok) {
           showToast('دیتابیس با موفقیت ریستور شد! ریلود در 2 ثانیه...', 'success');
@@ -2555,7 +2575,10 @@
                   <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="preparing" style="background:#3b82f6; color:#fff; font-size:11px; padding:6px 12px;">📦 آماده‌سازی</button>
                   <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="delivered" style="background:var(--cyan); color:#000; font-size:11px; padding:6px 12px;">✅ ثبت تحویل</button>
                   <button class="user-account-btn" data-admin-status-id="${o.id}" data-status="rejected" style="background:#ef4444; color:#fff; font-size:11px; padding:6px 12px;">❌ رد سفارش</button>
-                  ${o.user_id ? `<button class="nav-link" data-admin-cust-id="${o.user_id}" style="font-size:11px; padding:6px 12px; background:rgba(255,255,255,0.06);">👤 پروفایل 360 کاربر</button>` : ''}
+                  ${o.user_id ? `
+                    <button class="nav-link" data-admin-cust-id="${o.user_id}" style="font-size:11px; padding:6px 12px; background:rgba(255,255,255,0.06);">👤 پروفایل 360 کاربر</button>
+                    <button class="user-account-btn data-admin-edit-user-btn" data-admin-edit-user-id="${o.user_id}" style="font-size:11px; padding:6px 12px; background:rgba(245,158,11,0.2); color:#f59e0b;">✏️ ویرایش کاربر</button>
+                  ` : ''}
                 </div>
               </div>
             `;
@@ -2761,6 +2784,20 @@
     document.querySelectorAll('[data-admin-cust-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         openCustomer360Modal(btn.dataset.adminCustId);
+      });
+    });
+
+    document.querySelectorAll('.data-admin-edit-user-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = Number(btn.dataset.adminEditUserId);
+        showToast('در حال دریافت اطلاعات کاربر...', 'info');
+        const res = await api('admin_get_user', { user_id: uid });
+        if (res && res.ok && res.user) {
+          openAdminEditUserModal(res.user);
+        } else {
+          // Fallback user object if admin_get_user API isn't built yet
+          openAdminEditUserModal({ id: uid });
+        }
       });
     });
   }
@@ -3086,11 +3123,25 @@
             <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">نام کاربری یا ایمیل</label>
             <input type="text" id="login-username" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <div style="margin-bottom:20px;">
-            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">رمز عبور</label>
+          <div style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label style="font-size:13px; color:var(--text-muted);">رمز عبور</label>
+              <a id="btn-show-forgot-pass" style="font-size:12px; color:var(--cyan); text-decoration:none; cursor:pointer;">فراموشی رمز عبور؟</a>
+            </div>
             <input type="password" id="login-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
           <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">ورود به حساب</button>
+        </form>
+
+        <!-- Forgot Password Form (Initial Step) -->
+        <form id="forgot-pass-form" class="hidden">
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">ایمیل یا نام کاربری حساب خود را وارد کنید تا کد ۶ رقمی بازیابی ارسال شود:</p>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">ایمیل یا نام کاربری</label>
+            <input type="text" id="forgot-email-input" required placeholder="example@mail.com" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000;">📧 ارسال کد بازیابی به ایمیل</button>
+          <button type="button" id="btn-back-to-login" class="nav-link" style="width:100%; justify-content:center; margin-top:10px;">بازگشت به فرم ورود</button>
         </form>
 
         <!-- Register Form -->
@@ -3230,48 +3281,70 @@
       });
     }
 
-    // Form Submissions
-    loginForm?.addEventListener('submit', async (e) => {
+    // Forgot Password Events
+    const forgotForm = $('forgot-pass-form');
+    $('btn-show-forgot-pass')?.addEventListener('click', () => {
+      loginForm?.classList.add('hidden');
+      regForm?.classList.add('hidden');
+      tgForm?.classList.add('hidden');
+      forgotForm?.classList.remove('hidden');
+    });
+
+    $('btn-back-to-login')?.addEventListener('click', () => {
+      forgotForm?.classList.add('hidden');
+      loginForm?.classList.remove('hidden');
+    });
+
+    forgotForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const username = $('login-username').value.trim();
-      const password = $('login-password').value;
-      const res = await api('login', {}, 'POST', { username, password });
-      
+      const email = $('forgot-email-input').value.trim();
+      showToast('در حال ارسال کد بازیابی...', 'info');
+      const res = await api('forgot_password_request', {}, 'POST', { email });
       if (res && res.ok) {
-        if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
-        state.user = res.user;
-        showToast('با موفقیت وارد شدید! 🎉', 'success');
-        closeModal();
-        initApp();
-      } else if (res && res.error === 'EMAIL_VERIFICATION_REQUIRED') {
-        showOtpForm(res.user_id, res.message);
+        showResetPasswordOtpForm(res.user_id, res.email, res.message);
       } else {
-        showToast(res ? res.message : 'نام کاربری یا رمز عبور اشتباه است.', 'error');
+        showToast(res ? res.message : 'خطا در ارسال کد بازیابی.', 'error');
       }
     });
 
-    regForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const username = $('reg-username').value.trim();
-      const password = $('reg-password').value;
-      const email = $('reg-email').value.trim();
-      const first_name = $('reg-firstname').value.trim();
-      const res = await api('register', {}, 'POST', { username, password, email, first_name });
-      
-      if (res && res.ok) {
-        if (res.requires_email_verification) {
-          showOtpForm(res.user_id, res.message);
-        } else {
+    function showResetPasswordOtpForm(userId, email, message) {
+      modalContainer.innerHTML = `
+        <div class="modal-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+            <h3 style="font-size:18px; font-weight:900;">🔑 تنظیم رمز عبور جدید</h3>
+            <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+          </div>
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px; text-align:center;">${esc(message)}</p>
+          <form id="reset-pass-otp-form">
+            <div style="margin-bottom:14px;">
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">کد ۶ رقمی ارسال شده به ${esc(email)}</label>
+              <input type="text" id="reset-otp-code" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none; text-align:center; font-size:22px; letter-spacing:4px;">
+            </div>
+            <div style="margin-bottom:20px;">
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">رمز عبور جدید (حداقل ۶ کاراکتر)</label>
+              <input type="password" id="reset-new-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
+            </div>
+            <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:#22c55e; color:#000;">✅ ثبت رمز عبور جدید &amp; ورود</button>
+          </form>
+        </div>
+      `;
+      $('close-modal-btn')?.addEventListener('click', closeModal);
+      $('reset-pass-otp-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const otp = $('reset-otp-code').value.trim();
+        const new_password = $('reset-new-password').value;
+        const res = await api('reset_password_submit', {}, 'POST', { user_id: userId, otp, new_password });
+        if (res && res.ok) {
           if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
           state.user = res.user;
-          showToast('ثبت‌نام با موفقیت انجام شد! 🎉', 'success');
+          showToast(res.message || 'رمز عبور تغییر یافت!', 'success');
           closeModal();
           initApp();
+        } else {
+          showToast(res ? res.message : 'خطا در ثبت رمز عبور جدید.', 'error');
         }
-      } else {
-        showToast(res ? res.message : 'خطا در ثبت‌نام.', 'error');
-      }
-    });
+      });
+    }
   }
 
   function closeModal() {
