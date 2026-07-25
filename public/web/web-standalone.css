@@ -1,14 +1,13 @@
 /* =========================================================
    web-standalone.css — Dedicated Web Storefront Design System
-   Built from scratch for desktop & mobile web browsers
+   Built for desktop & mobile web browsers
    ========================================================= */
 
-/* ── Reset & Color Tokens ── */
 :root {
-  --web-bg: #0b0f19;
-  --web-panel: #131b2e;
-  --web-panel-hover: #18243c;
-  --web-card: rgba(19, 27, 46, 0.9);
+  --web-bg: #070b14;
+  --web-panel: #0f172a;
+  --web-panel-hover: #131e36;
+  --web-card: rgba(15, 23, 42, 0.95);
   --web-border: rgba(255, 255, 255, 0.08);
   --web-border-glow: rgba(0, 242, 254, 0.35);
   
@@ -28,7 +27,7 @@
   --web-sidebar-w: 230px;
   --web-content-max: 1280px;
   --web-radius: 18px;
-  --web-shadow: 0 10px 35px rgba(0, 0, 0, 0.45);
+  --web-shadow: 0 10px 35px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -134,12 +133,12 @@ button:active, .btn:active {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--web-header-h);
-  background: rgba(11, 15, 25, 0.85);
+  background: rgba(7, 11, 20, 0.92);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--web-border);
   z-index: 9000;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
 .web-site-header::before {
   content: '';
@@ -215,47 +214,11 @@ button:active, .btn:active {
   font-size: 14px;
   font-family: inherit;
   direction: rtl;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .web-header-search input::placeholder { color: var(--web-text-subtle); }
-.web-search-kbd {
-  font-family: system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--web-text-muted);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 2px 7px;
-  user-select: none;
-  cursor: pointer;
-}
-
-/* Header Navigation */
-.web-header-nav {
-  display: flex;
-  gap: 6px;
-}
-.web-nav-btn {
-  background: none;
-  border: 1px solid transparent;
-  color: var(--web-text-muted);
-  font-size: 14px;
-  font-family: inherit;
-  padding: 8px 14px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.web-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-}
-.web-nav-btn.active {
-  background: rgba(0, 242, 254, 0.12);
-  color: var(--web-cyan);
-  border-color: rgba(0, 242, 254, 0.3);
-  font-weight: 800;
-}
 
 /* Header Actions */
 .web-header-actions {
@@ -330,7 +293,7 @@ button:active, .btn:active {
   right: 20px;
   width: var(--web-sidebar-w);
   height: calc(100vh - var(--web-header-h) - 36px);
-  background: rgba(14, 24, 44, 0.96);
+  background: rgba(15, 24, 42, 0.96);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(0, 242, 254, 0.2);
@@ -398,8 +361,8 @@ button:active, .btn:active {
 /* ── Desktop Hero Section ── */
 .web-desktop-hero {
   position: relative;
-  background: linear-gradient(135deg, rgba(19, 35, 65, 0.9) 0%, rgba(11, 20, 36, 0.95) 100%);
-  border: 1px solid rgba(0, 242, 254, 0.2);
+  background: linear-gradient(135deg, rgba(15, 26, 48, 0.95) 0%, rgba(7, 12, 24, 0.98) 100%);
+  border: 1px solid rgba(0, 242, 254, 0.25);
   border-radius: 24px;
   padding: 36px 32px;
   margin-bottom: 24px;
@@ -467,10 +430,11 @@ button:active, .btn:active {
   font-size: 12.5px;
 }
 
-/* ── Product Cards (Square 1:1 Image Marketplace Style) ── */
+/* ── Product Cards Grid ── */
 .product-grid-wrap {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 260px)) !important;
+  justify-content: start !important;
   gap: 22px !important;
   width: 100% !important;
   overflow: visible !important;
@@ -486,10 +450,12 @@ button:active, .btn:active {
   flex-direction: column !important;
   position: relative !important;
   cursor: pointer !important;
+  width: 100% !important;
+  max-width: 260px !important;
   transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.28s ease,
               border-color 0.2s ease !important;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
 }
 .product-tile:hover, .product-tile.compact-tile:hover {
   transform: translateY(-7px) !important;
@@ -601,7 +567,7 @@ button:active, .btn:active {
   bottom: 0;
   width: 400px;
   height: 100vh;
-  background: linear-gradient(180deg, rgba(14, 26, 48, 0.98), rgba(8, 17, 31, 0.99));
+  background: linear-gradient(180deg, rgba(15, 24, 44, 0.98), rgba(7, 12, 24, 0.99));
   border-left: 1px solid var(--web-border-glow);
   box-shadow: -10px 0 50px rgba(0, 0, 0, 0.7);
   transform: translateX(120%);
@@ -623,51 +589,6 @@ button:active, .btn:active {
   margin: 16px 0;
 }
 
-/* ── ⌘K Command Palette ── */
-.cmd-palette {
-  position: fixed;
-  inset: 0;
-  background: rgba(4, 9, 18, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  z-index: 10000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 12vh;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-.cmd-palette.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-.cmd-palette .cmd-inner {
-  width: 90%;
-  max-width: 600px;
-  background: linear-gradient(145deg, rgba(16, 30, 56, 0.96), rgba(8, 17, 31, 0.98));
-  border: 1px solid var(--web-border-glow);
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-.cmd-palette #cmdInput {
-  width: 100%;
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border: none;
-  border-bottom: 1px solid var(--web-border);
-  color: #fff;
-  font-size: 15px;
-  outline: none;
-}
-.cmd-palette .cmd-list {
-  max-height: 380px;
-  overflow-y: auto;
-  padding: 8px;
-}
-
 /* ── Web Footer ── */
 .web-site-footer {
   background: rgba(6, 12, 24, 0.96);
@@ -686,6 +607,6 @@ button:active, .btn:active {
 }
 
 @media (max-width: 959px) {
-  .web-site-footer, .web-header-nav, .web-sidebar { display: none; }
+  .web-site-footer, .web-sidebar { display: none; }
   #cartSheet.cart-sheet { right: 0; width: 100%; }
 }
