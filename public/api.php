@@ -525,6 +525,9 @@ if ($action === 'admin_save_settings') {
     if(isset($input['crypto_rate_provider_priority'])) set_setting('crypto_rate_provider_priority', preg_replace('/[^a-z,]/', '', strtolower((string)$input['crypto_rate_provider_priority'])) ?: 'wallex,ramzinex,nobitex');
     if(isset($input['require_contact_auth'])) set_setting('require_contact_auth', bool_input($input['require_contact_auth'])?'1':'0');
     if(isset($input['notify_new_user'])) set_setting('notify_new_user', bool_input($input['notify_new_user'])?'1':'0');
+    if(isset($input['resend_api_key'])) set_setting('resend_api_key', trim((string)$input['resend_api_key']));
+    if(isset($input['resend_from_email'])) set_setting('resend_from_email', trim((string)$input['resend_from_email']));
+    if(isset($input['require_email_verification'])) set_setting('require_email_verification', bool_input($input['require_email_verification'])?'1':'0');
     if(isset($input['spin_referrals_per_chance'])) set_setting('spin_referrals_per_chance', max(1,(int)$input['spin_referrals_per_chance']));
     if(isset($input['spin_rewards_text'])) set_setting('spin_rewards', parse_spin_rewards_lines((string)$input['spin_rewards_text']));
     if(isset($input['default_base_currency'])) set_setting('default_base_currency', strtoupper(trim((string)$input['default_base_currency'])));
