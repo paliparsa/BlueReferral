@@ -357,33 +357,176 @@
     }
   });
 
-  /* ── Web sidebar & footer navigation ── */
-  document.querySelectorAll('[data-tab]').forEach(btn => {
-    if (btn.closest('.web-sidebar, .web-site-footer, .web-header-nav')) {
-      btn.addEventListener('click', () => {
-        const tab = btn.dataset.tab;
-        if (tab && typeof window.setTab === 'function') {
-          window.setTab(tab);
-        } else if (tab) {
-          window.currentTab = tab;
-          if (typeof renderUser === 'function') renderUser();
+  /* ── Enhanced Global Command Palette (⌘K) ── */
+  window.openCommandPalette = window.openWebCommandPalette = function () {
+    const cp = $('cmdPalette');
+    if (!cp) return;
+
+    const q = (cp.querySelector('#cmdInput')?.value || '').trim().toLowerCase();
+
+    // 1. Navigation items
+    let commands = [
+      { label: 'فروشگاه و محصولات', icon: '🛒', badge: 'صفحه اصلی', action: () => window.setTab?.('shop') },
+      { label: 'سفارش‌های من', icon: '🧾', badge: 'پیگیری سفارشات', action: () => window.setTab?.('orders') },
+      { label: 'کیف پول و شارژ حساب', icon: '💰', badge: 'موجودی', action: () => window.setTab?.('wallet') },
+      { label: 'پروفایل و حساب کاربری', icon: '👤', badge: 'تنظیمات', action: () => window.setTab?.('home') },
+      { label: 'پشتیبانی تلگرام', icon: '💬', badge: 'پاسخگویی ۲۴/۷', action: () => window.open('https://t.me/BlueGateSupport', '_blank') }
+    ];
+
+    // 2. Search products in catalog if state is available
+    const prods = window.state?.shop_products || window.state?.products || [];
+    if (Array.isArray(prods) && prods.length) {
+      const prodCmds = prods.map(p => ({
+        label: p.name || p.title || 'محصول',
+        icon: '⚡',
+        badge: (p.price ? Number(p.price).toLocaleString('fa-IR') + ' تومان' : 'محصول'),
+        action: () => {
+          if (typeof window.showProduct === 'function') {
+            window.showProduct(p.id);
+          } else {
+            window.setTab?.('shop');
+            const searchInp = $('searchInput');
+            if (searchInp) {
+              searchInp.value = p.name || p.title;
+              searchInp.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
         }
-      });
+      }));
+      commands = [...commands, ...prodCmds];
+    }
+
+    // 3. Admin options if user is admin
+    if (window.state?.is_admin) {
+      commands.push(
+        { label: 'پنل مدیریت (داشبورد)', icon: '👑', badge: 'مدیریت', action: () => location.href = '?admin=1' },
+        { label: 'مدیریت محصولات', icon: '📦', badge: 'ادمین', action: () => location.href = '?admin=1#products' },
+        { label: 'مدیریت سفارش‌ها', icon: '🧾', badge: 'ادمین', action: () => location.href = '?admin=1#orders' }
+      );
+    }
+
+    // Filter by search query
+    const filtered = q
+      ? commands.filter(c => c.label.toLowerCase().includes(q) || (c.badge && c.badge.toLowerCase().includes(q)))
+      : commands;
+
+    const listEl = cp.querySelector('#cmdList');
+    if (listEl) {
+      listEl.innerHTML = filtered.length
+        ? filtered.map((c, i) => `
+            <button class="cmd-item ${i === 0 ? 'selected' : ''}" data-web-cmd-idx="${i}">
+              <span>${c.icon}</span>
+              <b>${c.label}</b>
+              ${c.badge ? `<span class="cmd-item-badge">${c.badge}</span>` : ''}
+            </button>
+          `).join('')
+        : '<p class="muted" style="padding:16px;text-align:center;color:rgba(255,255,255,0.4)">هیچ نتیجه‌ای یافت نشد.</p>';
+    }
+
+    cp._webCmds = filtered;
+    cp.classList.add('open');
+    setTimeout(() => cp.querySelector('#cmdInput')?.focus(), 50);
+  };
+
+  // Command palette item click listener
+  document.addEventListener('click', (e) => {
+    const itemBtn = e.target.closest('[data-web-cmd-idx]');
+    if (itemBtn) {
+      const idx = Number(itemBtn.dataset.webCmdIdx);
+      const cp = $('cmdPalette');
+      if (cp && cp._webCmds && cp._webCmds[idx]) {
+        cp._webCmds[idx].action();
+        cp.classList.remove('open');
+      }
     }
   });
 
-  /* ── If app.js exposes openAuthModal, patch it ── */
-  // Poll briefly to patch after app.js loads
+  /* ── Header Cart Launcher & Badge Sync ── */
+  $('webHeaderCartBtn')?.addEventListener('click', () => {
+    if (typeof window.openCartSheet === 'function') window.openCartSheet();
+    else $('cartFab')?.click();
+  });
+
+  const _syncCartBadge = () => {
+    const count = typeof window.cartCount === 'function' ? window.cartCount() : 0;
+    const badge = $('webCartCount');
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+  };
+
+  const _origUpdateCartFab = window.updateCartFab;
+  window.updateCartFab = function () {
+    if (typeof _origUpdateCartFab === 'function') _origUpdateCartFab.apply(this, arguments);
+    _syncCartBadge();
+  };
+
+  /* ── Global ⌘K Shortcut & KBD Click ── */
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      window.openWebCommandPalette();
+    }
+  });
+
+  // Clicking kbd badge opens Command Palette
+  document.querySelector('.web-search-kbd')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.openWebCommandPalette();
+  });
+
+  /* ── Desktop Tab Sync & Navigation Patch ── */
+  function syncAllWebNavs() {
+    const tab = window.currentTab || 'shop';
+    document.querySelectorAll('.web-sidebar-btn, .web-nav-btn, .web-footer-btn, .bottom-nav button, .topbar-desktop-nav button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    syncWebAuthBtn();
+    _syncCartBadge();
+  }
+
+  // Global tab click listener
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (btn && btn.dataset.tab) {
+      const tab = btn.dataset.tab;
+      if (typeof window.setTab === 'function') {
+        window.setTab(tab);
+      } else {
+        window.currentTab = tab;
+        if (typeof window.renderUser === 'function') window.renderUser();
+      }
+      syncAllWebNavs();
+    }
+  });
+
+  // Patch window.renderUser and window.setTab to sync navigation bars
+  const _origRenderUser = window.renderUser;
+  window.renderUser = function () {
+    if (typeof _origRenderUser === 'function') _origRenderUser.apply(this, arguments);
+    syncAllWebNavs();
+  };
+
+  const _origSetTab = window.setTab;
+  window.setTab = function (tab) {
+    if (typeof _origSetTab === 'function') _origSetTab(tab);
+    else {
+      window.currentTab = tab;
+      if (typeof window.renderUser === 'function') window.renderUser();
+    }
+    syncAllWebNavs();
+  };
+
+  /* ── Poll to initialize topbar & auth state on load ── */
   const _patchTimer = setInterval(() => {
-    // Expose openAuthModal to miniapp
     if (typeof window.openAuthModal === 'undefined') {
       window.openAuthModal = openAuthModal;
     }
 
-    // Sync topbar once state is loaded
-    if (window.state && window.state.user) {
+    if (window.state) {
       clearInterval(_patchTimer);
-      syncWebAuthBtn();
+      syncAllWebNavs();
 
       // Auto-open shop tab on first load
       if (!localStorage.getItem('blue_ref_web_first_load')) {
@@ -391,35 +534,16 @@
         if (typeof window.setTab === 'function') window.setTab('shop');
       }
     }
-  }, 200);
+  }, 100);
 
-  /* ── Handle AUTH_REQUIRED from app.js api() errors ── */
-  // app.js already calls openAuthModal() on AUTH_REQUIRED - we just need it defined
   window.openAuthModal = openAuthModal;
 
-  /* ── Logout helper (expose to miniapp) ── */
+  /* ── Logout helper ── */
   window.webLogout = function () {
     localStorage.removeItem(WEB_TOKEN_KEY);
     showStatus('از حساب کاربری خارج شدید');
     setTimeout(() => location.reload(), 700);
   };
 
-  /* ── Reflect tab changes in web sidebar ── */
-  const _origRenderUser = window.renderUser;
-  const _syncSidebar = () => {
-    const tab = window.currentTab || 'shop';
-    document.querySelectorAll('.web-sidebar-btn, .web-nav-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.tab === tab);
-    });
-    document.querySelectorAll('.bottom-nav button').forEach(b => {
-      b.classList.toggle('active', b.dataset.tab === tab);
-    });
-    syncWebAuthBtn();
-  };
-  // Observe DOM mutations to catch renderUser calls
-  new MutationObserver(_syncSidebar).observe(document.getElementById('homePage') || document.body, {
-    childList: true, subtree: false
-  });
-
-  console.log('[WebInit] BlueGate Web Mode initialized ✅');
+  console.log('[WebInit] BlueGate Web Mode Phase 1 Fixed & Operational ✅');
 })();
