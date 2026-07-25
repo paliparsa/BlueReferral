@@ -1395,6 +1395,7 @@ function send_email_via_resend(string $to, string $subject, string $htmlContent)
     curl_close($ch);
     
     if ($err) {
+        error_log("Resend cURL Error: " . $err);
         return ['ok' => false, 'error' => 'CURL_ERROR', 'message' => $err];
     }
     
@@ -1403,7 +1404,9 @@ function send_email_via_resend(string $to, string $subject, string $htmlContent)
         return ['ok' => true, 'id' => $json['id'] ?? null];
     }
     
-    return ['ok' => false, 'error' => 'RESEND_ERROR', 'message' => $json['message'] ?? $resp];
+    $msg = is_array($json) && !empty($json['message']) ? $json['message'] : (string)$resp;
+    error_log("Resend API Error [HTTP {$code}]: " . $msg);
+    return ['ok' => false, 'error' => 'RESEND_ERROR', 'message' => $msg];
 }
 
 function send_email_otp(array $user): array {
