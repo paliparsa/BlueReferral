@@ -318,25 +318,130 @@
       <h2 style="font-size:24px; font-weight:900; margin-bottom:20px;">📜 تاریخچه سفارش‌های شما</h2>
       <div style="display:flex; flex-direction:column; gap:16px;">
         ${orders.map(o => `
-          <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:20px;">
+          <div class="order-row-card" data-order-open="${o.id}" style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:18px; padding:20px; cursor:pointer; transition:0.3s;" onmouseover="this.style.borderColor='var(--cyan)'" onmouseout="this.style.borderColor='var(--border-color)'">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
               <div>
                 <b>سفارش #${o.id}</b>
                 <small style="color:var(--text-muted); margin-right:10px;">${esc(o.created_at)}</small>
               </div>
               <span style="background:rgba(0,242,254,0.15); color:var(--cyan); font-weight:800; font-size:12px; padding:4px 12px; border-radius:12px;">
-                ${esc(o.status_text || 'تکمیل شده')}
+                ${esc(o.status_fa || o.status || 'تکمیل شده')}
               </span>
             </div>
-            <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${esc(o.product_title || o.name || 'اشتراک دیجیتال')}</div>
+            <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${esc(o.display_name || o.product_title || o.name || 'اشتراک دیجیتال')}</div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-weight:900; color:var(--cyan);">${priceLabel(o.total_price || o.price)}</span>
-              ${o.license_key ? `<button style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:#fff; font-size:12px; padding:6px 12px; border-radius:10px;" data-copy="${esc(o.license_key)}">📋 کپی کد لایسنس</button>` : ''}
+              <span style="font-weight:900; color:var(--cyan);">${priceLabel(o.final_amount || o.price)}</span>
+              <span style="font-size:12px; color:var(--text-muted);">مشاهده جزئیات ‹</span>
             </div>
           </div>
         `).join('')}
       </div>
     `;
+  }
+
+  /* ── Order Stepper Helper ── */
+  function orderStepperHtml(o) {
+    const steps = [
+      {label: 'ثبت', icon: '📝'},
+      {label: 'پرداخت', icon: '💳'},
+      {label: 'آماده‌سازی', icon: '📦'},
+      {label: 'تحویل', icon: '✅'}
+    ];
+    const canceled = ['rejected', 'canceled', 'refunded'].includes(o.status);
+    if (canceled) {
+      return `<div class="order-stepper canceled">
+        <div class="stepper-cancel">
+          <span class="step-circle cancel">✕</span>
+          <div><b>سفارش ${esc(o.status_fa || o.status)}</b><br><small>این سفارش لغو شده است.</small></div>
+        </div>
+      </div>`;
+    }
+    let cur = 0;
+    if (o.status === 'pending_payment' || o.status === 'receipt_submitted') cur = 1;
+    else if (o.status === 'reviewing' || o.status === 'payment_confirmed' || o.status === 'preparing') cur = 2;
+    else if (o.status === 'delivered') cur = 3;
+
+    return `<div class="order-stepper">
+      ${steps.map((s, i) => {
+        const done = i <= cur;
+        const active = i === cur;
+        return `<div class="step ${done ? 'done' : ''} ${active ? 'active' : ''}">
+          <div class="step-circle">${done ? '✓' : s.icon}</div>
+          <span class="step-label">${s.label}</span>
+          ${i < steps.length - 1 ? `<div class="step-line ${i < cur ? 'done' : ''}"></div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  /* ── Order Detail Modal ── */
+  function openOrderDetailModal(orderId) {
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:600px; padding:32px;">
+        <div style="text-align:center; margin-bottom:20px;">
+          <h3 style="font-size:20px; font-weight:900;">⏳ در حال بارگذاری سفارش...</h3>
+        </div>
+      </div>
+    `;
+    modalContainer.classList.remove('hidden');
+
+    // Fetch order details via API
+    api('my_orders').then(res => {
+      const orders = (res && res.ok) ? (res.orders || []) : [];
+      const o = orders.find(x => Number(x.id) === Number(orderId));
+      if (!o) {
+        showToast('سفارش یافت نشد', 'error');
+        closeModal();
+        return;
+      }
+
+      modalContainer.innerHTML = `
+        <div class="modal-card" style="max-width:600px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:16px;">
+            <div>
+              <small style="color:var(--text-muted);">سفارش #${nf(o.id)}</small>
+              <h3 style="font-size:18px; font-weight:900;">${esc(o.display_name || 'محصول')}</h3>
+            </div>
+            <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+          </div>
+
+          ${orderStepperHtml(o)}
+
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:16px; padding:20px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+              <span style="color:var(--text-muted); font-size:14px;">مبلغ نهایی پرداخت</span>
+              <b style="color:var(--cyan); font-size:16px;">${priceLabel(o.final_amount || o.price)}</b>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+              <span style="color:var(--text-muted); font-size:14px;">روش پرداخت</span>
+              <b style="font-size:14px;">${esc(o.payment_method_fa || 'انتخاب نشده')}</b>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+              <span style="color:var(--text-muted); font-size:14px;">تاریخ ثبت</span>
+              <b style="font-size:14px;">${esc(o.created_at || '-')}</b>
+            </div>
+          </div>
+
+          ${o.license_key ? `
+            <div style="background:rgba(34, 197, 94, 0.1); border:1px solid rgba(34, 197, 94, 0.3); border-radius:16px; padding:20px; margin-bottom:20px; text-align:center;">
+              <p style="color:#4ade80; font-size:13px; margin-bottom:8px;">✅ کد لایسنس / اطلاعات تحویل:</p>
+              <code style="display:block; font-size:18px; font-weight:900; background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; margin-bottom:12px;">${esc(o.license_key)}</code>
+              <button class="user-account-btn" data-copy="${esc(o.license_key)}" style="background:#22c55e; color:#000; margin:0 auto;">📋 کپی اطلاعات</button>
+            </div>
+          ` : ''}
+
+          <div style="display:flex; justify-content:center; gap:12px;">
+            ${(o.status === 'pending_payment' || o.status === 'rejected') ? `
+              <button class="user-account-btn" style="flex:1; justify-content:center;">💳 پرداخت و ارسال رسید</button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+      $('close-modal-btn')?.addEventListener('click', closeModal);
+    });
   }
 
   /* ── Wallet View Renderer ── */
@@ -618,7 +723,11 @@
         toggleWishlist(wishBtn.dataset.wishlist);
       }
 
-      // Product Card Preview
+      // Order Detail
+      const orderCard = e.target.closest('[data-order-open]');
+      if (orderCard && orderCard.dataset.orderOpen) {
+        openOrderDetailModal(orderCard.dataset.orderOpen);
+      }
       const card = e.target.closest('.product-card');
       if (card && card.dataset.pid && !e.target.closest('[data-buy]') && !e.target.closest('[data-wishlist]')) {
         openProductModal(card.dataset.pid);
@@ -721,8 +830,53 @@
         <span>مبلغ قابل پرداخت:</span>
         <span style="color:var(--cyan);">${priceLabel(total)}</span>
       </div>
-      <button class="user-account-btn" style="width:100%; justify-content:center;" onclick="alert('تکمیل سفارش با موفقیت انجام شد')">تکمیل خرید &amp; پرداخت</button>
+      <button id="cart-checkout-btn" class="user-account-btn" style="width:100%; justify-content:center;">تکمیل خرید &amp; پرداخت</button>
     `;
+
+    $('cart-checkout-btn')?.addEventListener('click', checkoutCart);
+  }
+
+  /* ── Checkout Flow ── */
+  async function checkoutCart() {
+    if (!state.cart.length) return;
+    if (!state.user || state.user.is_guest) {
+      showToast('برای ثبت سفارش لطفا وارد حساب شوید', 'error');
+      openAuthModal();
+      return;
+    }
+
+    const btn = $('cart-checkout-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'در حال پردازش...';
+    }
+
+    let okCount = 0, failCount = 0;
+    
+    // We send create_order for each item separately
+    for (const item of state.cart) {
+      for (let i = 0; i < (item.qty || 1); i++) {
+        try {
+          const res = await api('create_order', {}, 'POST', { product_id: item.id, use_wallet: 0 });
+          if (res && res.ok) okCount++;
+          else failCount++;
+        } catch(e) {
+          failCount++;
+        }
+      }
+    }
+
+    // Clear cart locally
+    state.cart = [];
+    localStorage.setItem('bg_web_cart', '[]');
+    updateCartCount();
+    openCartDrawer(false);
+
+    showToast(`✅ ${nf(okCount)} سفارش ثبت شد${failCount ? ` · ${nf(failCount)} ناموفق` : ''}`, 'success');
+
+    // Switch to orders tab to see them
+    state.currentTab = 'orders';
+    renderApp();
   }
 
   /* ── Boot Web Engine ── */
