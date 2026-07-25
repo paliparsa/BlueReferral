@@ -109,7 +109,32 @@
 
     renderApp();
     bindGlobalEvents();
+    handleDeepLink();
   }
+
+  /* ── Product Deep Link Handler ── */
+  function handleDeepLink() {
+    const search = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+
+    let productId = search.get('p') || search.get('product') || search.get('id');
+
+    if (!productId && hash) {
+      const match = hash.match(/product-(\d+)/i) || hash.match(/p=(\d+)/i) || hash.match(/pid=(\d+)/i) || hash.match(/#(\d+)/);
+      if (match) productId = match[1];
+    }
+
+    if (productId && state.products.length > 0) {
+      const p = state.products.find(x => Number(x.id) === Number(productId));
+      if (p) {
+        state.currentTab = 'shop';
+        renderApp();
+        setTimeout(() => openProductModal(p.id), 250);
+      }
+    }
+  }
+
+  window.addEventListener('hashchange', handleDeepLink, { passive: true });
 
   /* ── Auto Responsive Device Detection ── */
   function detectDevice() {
@@ -378,14 +403,20 @@
   function renderProductCard(p) {
     const title = p.title || p.name || 'محصول بدون عنوان';
     const isWished = state.wishlist.includes(Number(p.id));
-    const isFlash = Number(p.is_featured || 0) === 1 || Number(p.discount_percent || 0) >= 15;
+    const discountPct = Number(p.flash_sale_discount || p.discount_percent || 0);
+    const isFlash = Number(p.is_featured || 0) === 1 || discountPct >= 15;
+
+    let origPrice = p.old_price;
+    if (!origPrice && discountPct > 0 && discountPct < 100) {
+      origPrice = Math.round(Number(p.price) / (1 - discountPct / 100));
+    }
     
     const flashBadge = isFlash ? `
       <div class="flash-sale-badge">
         <span>🔥</span>
         <b class="flash-sale-timer">${getFlashTimeRemaining()}</b>
       </div>
-    ` : (p.discount_percent ? `<span class="card-discount-badge">${p.discount_percent}% تخفیف</span>` : '');
+    ` : (discountPct > 0 ? `<span class="card-discount-badge">−${discountPct}% تخفیف</span>` : '');
 
     return `
       <div class="product-card" data-pid="${p.id}">
@@ -398,8 +429,8 @@
           <h3 class="card-title">${esc(title)}</h3>
           <div class="card-price-row">
             <div class="card-price">
-              ${priceLabel(p.price)}
-              ${p.old_price ? `<s>${priceLabel(p.old_price)}</s>` : ''}
+              ${origPrice ? `<s style="color:var(--text-muted); font-size:12px; margin-left:4px; text-decoration:line-through;">${priceLabel(origPrice)}</s>` : ''}
+              <b style="color:var(--cyan); font-weight:900;">${priceLabel(p.price)}</b>
             </div>
             <div style="display:flex; gap:6px;">
               <button class="user-account-btn" data-share="${p.id}" style="padding:6px 10px; font-size:12px;" title="اشتراک‌گذاری">🔗</button>
@@ -476,7 +507,8 @@
     if (!modalContainer) return;
     if (document.body) document.body.style.overflow = 'hidden';
 
-    const shareUrl = `${window.location.origin}/web/#product-${p.id}`;
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = `${baseUrl}?p=${p.id}`;
     const shareTitle = p.title || p.name || 'محصول BlueGate';
 
     modalContainer.innerHTML = `
@@ -2137,15 +2169,26 @@
           <div style="margin-bottom:18px;">
             <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:8px;">انتخاب پلن / مدت زمان اشتراک:</label>
             <div class="variant-cards-grid">
-              ${variants.map((v, idx) => `
-                <button class="variant-option-card ${idx === 0 ? 'selected' : ''}" data-v-id="${v.id}" data-v-price="${v.price}" data-v-title="${esc(v.title)}">
-                  <div class="variant-card-header">
-                    <span class="variant-title">${esc(v.title)}</span>
-                    <span class="variant-badge">${v.duration_days ? `${v.duration_days} روز` : 'پلن ویژه'}</span>
-                  </div>
-                  <div class="variant-price">${priceLabel(v.price)}</div>
-                </button>
-              `).join('')}
+              ${variants.map((v, idx) => {
+                const vDisc = Number(v.discount_percent || p.flash_sale_discount || 0);
+                let vOrig = v.old_price;
+                if (!vOrig && vDisc > 0 && vDisc < 100) {
+                  vOrig = Math.round(Number(v.price) / (1 - vDisc / 100));
+                }
+                return `
+                  <button class="variant-option-card ${idx === 0 ? 'selected' : ''}" data-v-id="${v.id}" data-v-price="${v.price}" data-v-orig="${vOrig || ''}" data-v-title="${esc(v.title)}">
+                    <div class="variant-card-header">
+                      <span class="variant-title">${esc(v.title)}</span>
+                      <span class="variant-badge">${v.duration_days ? `${v.duration_days} روز` : 'پلن ویژه'}</span>
+                    </div>
+                    <div class="variant-price">
+                      ${vOrig ? `<s style="color:var(--text-muted); font-size:11px; margin-left:4px; text-decoration:line-through;">${priceLabel(vOrig)}</s>` : ''}
+                      <span>${priceLabel(v.price)}</span>
+                      ${vDisc > 0 ? `<span class="flash-pill" style="font-size:10px; background:rgba(239, 68, 68, 0.2); color:#fca5a5; padding:2px 6px; border-radius:6px; margin-right:4px;">−${nf(vDisc)}٪</span>` : ''}
+                    </div>
+                  </button>
+                `;
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -2183,7 +2226,8 @@
         selectedVariant = {
           id: btn.dataset.vId,
           title: btn.dataset.vTitle,
-          price: Number(btn.dataset.vPrice)
+          price: Number(btn.dataset.vPrice),
+          origPrice: btn.dataset.vOrig ? Number(btn.dataset.vOrig) : null
         };
         updateModalPrice();
       });
@@ -2206,7 +2250,18 @@
 
     function updateModalPrice() {
       const basePrice = selectedVariant ? selectedVariant.price : p.price;
-      $('modal-price-label').textContent = priceLabel(basePrice * selectedQty);
+      const baseOrig = selectedVariant ? selectedVariant.origPrice : null;
+
+      const totalPrice = basePrice * selectedQty;
+      const totalOrig = baseOrig ? baseOrig * selectedQty : null;
+
+      const priceLbl = $('modal-price-label');
+      if (priceLbl) {
+        priceLbl.innerHTML = `
+          ${totalOrig ? `<s style="color:var(--text-muted); font-size:13px; margin-left:6px; text-decoration:line-through; font-weight:normal;">${priceLabel(totalOrig)}</s>` : ''}
+          ${priceLabel(totalPrice)}
+        `;
+      }
     }
 
     $('btn-buy-modal')?.addEventListener('click', () => {
