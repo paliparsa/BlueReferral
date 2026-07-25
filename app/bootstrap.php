@@ -1371,6 +1371,7 @@ function create_web_user(string $username, string $password, ?string $firstName 
     if ($referrerId) {
         try_reward_referrer($user);
     }
+    notify_new_user_signup($user, '🌐 وب‌سایت');
     return $user;
 }
 
@@ -1480,7 +1481,12 @@ function create_or_update_user(array $from, ?string $ref = null) {
     }
     db()->prepare('INSERT INTO users (telegram_id, username, first_name, last_name, ref_code, referrer_id) VALUES (?,?,?,?,?,?)')
         ->execute([$tid, $from['username'] ?? null, $from['first_name'] ?? null, $from['last_name'] ?? null, random_ref(), $referrerId]);
-    return get_user_by_tid($tid);
+    
+    $newUser = get_user_by_tid($tid);
+    if ($newUser) {
+        notify_new_user_signup($newUser, '📱 Mini App / تلگرام');
+    }
+    return $newUser;
 }
 function set_step($telegram_id, ?string $step, ?string $payload = null): void {
     db()->prepare('UPDATE users SET step=?, step_payload=? WHERE telegram_id=?')->execute([$step, $payload, (int)$telegram_id]);
@@ -1574,6 +1580,45 @@ function is_joined_channel(int $telegram_id): bool {
 }
 function notify_admins(string $text): void {
     foreach (app_config('ADMIN_IDS', []) as $aid) send_msg($aid, $text);
+}
+function notify_new_user_signup(array $user, string $sourceStr = '🌐 وب‌سایت'): void {
+    if (!setting_bool('notify_new_user', true)) return;
+    
+    $uid = (int)($user['id'] ?? 0);
+    $uname = !empty($user['username']) ? '@' . h($user['username']) : (!empty($user['web_username']) ? h($user['web_username']) : 'ثبت نشده');
+    $name = trim(h(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
+    if ($name === '') $name = 'مشتری بدون نام';
+    
+    $email = !empty($user['email']) ? h($user['email']) : 'ثبت نشده';
+    $tgId = !empty($user['telegram_id']) && (int)$user['telegram_id'] < 9000000000 ? "<code>{$user['telegram_id']}</code>" : 'کاربر وب‌سایت';
+    
+    $refStr = 'بدون معرف';
+    if (!empty($user['referrer_id'])) {
+        $refUser = get_user_by_id((int)$user['referrer_id']);
+        if ($refUser) {
+            $refName = $refUser['username'] ? '@'.$refUser['username'] : ($refUser['first_name'] ?? 'معرف');
+            $refStr = '#' . $refUser['id'] . ' (' . h($refName) . ')';
+        }
+    }
+    
+    $reward = money(setting_int('start_reward', 2000));
+    $date = date('Y-m-d H:i');
+    
+    $msg = "🆕 <b>ثبت‌نام کاربر جدید از {$sourceStr}</b>\n\n"
+         . "🆔 <b>شناسه کاربر:</b> <code>#{$uid}</code>\n"
+         . "👤 <b>نام کاربری:</b> {$uname}\n"
+         . "📛 <b>نام مشتری:</b> {$name}\n"
+         . "📧 <b>ایمیل:</b> {$email}\n"
+         . "📲 <b>تلگرام آیدی:</b> {$tgId}\n"
+         . "🔗 <b>معرف:</b> {$refStr}\n"
+         . "📅 <b>تاریخ ثبت‌نام:</b> <code>{$date}</code>\n"
+         . "🎁 <b>هدیه کیف پول:</b> {$reward}";
+         
+    try {
+        notify_admins($msg);
+    } catch (Throwable $e) {
+        error_log('[Notify Signup Error] ' . $e->getMessage());
+    }
 }
 function try_reward_referrer(array $user): void {
     if (empty($user['referrer_id']) || (int)$user['ref_rewarded'] === 1) return;
