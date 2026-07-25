@@ -621,7 +621,10 @@
     if (!p) return;
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
-    if (document.body) document.body.style.overflow = 'hidden';
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
 
     const baseUrl = window.location.origin + window.location.pathname;
     const shareUrl = `${baseUrl}?p=${p.id}`;
@@ -765,7 +768,10 @@
   function openOrderDetailModal(orderId) {
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
-    if (document.body) document.body.style.overflow = 'hidden';
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
     modalContainer.classList.remove('hidden');
 
     // Fetch order details via API
@@ -2084,7 +2090,10 @@
     `;
 
     modalContainer.classList.remove('hidden');
-    if (document.body) document.body.style.overflow = 'hidden';
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
     $('close-modal-btn')?.addEventListener('click', closeModal);
 
     const loginTab = $('tab-login-btn');
@@ -2228,7 +2237,12 @@
       modalContainer.classList.add('hidden');
       modalContainer.innerHTML = '';
     }
-    if (document.body) document.body.style.overflow = '';
+    const cartDrawer = $('cart-drawer');
+    const cartOpen = cartDrawer && cartDrawer.classList.contains('open');
+    if (!cartOpen && document.body) {
+      document.body.style.overflow = '';
+      document.body.classList.remove('has-open-popup');
+    }
   }
 
   /* ── Product Detail Preview Modal ── */
@@ -2239,7 +2253,10 @@
 
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
-    if (document.body) document.body.style.overflow = 'hidden';
+    if (document.body) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('has-open-popup');
+    }
 
     const title = p.title || p.name || 'جزئیات محصول';
     const variants = p.variants || [];
@@ -2571,6 +2588,18 @@
     const backdrop = $('cart-backdrop');
     if (drawer) drawer.classList.toggle('open', open);
     if (backdrop) backdrop.classList.toggle('open', open);
+    if (document.body) {
+      if (open) {
+        document.body.style.overflow = 'hidden';
+        document.body.classList.add('has-open-popup');
+      } else {
+        const modalContainer = $('modal-container');
+        if (!modalContainer || modalContainer.classList.contains('hidden')) {
+          document.body.style.overflow = '';
+          document.body.classList.remove('has-open-popup');
+        }
+      }
+    }
     if (open) renderCartDrawerContent();
   }
 

@@ -1226,6 +1226,44 @@ body {
 
 /* ── Auto Responsive Device Detection & Mobile Navigation ── */
 
+}
+
+/* Hide mobile bottom navigation bar when user opens ANY popup, modal, drawer, dialog, or sheet */
+body:has(#modal-container:not(.hidden)) .mobile-bottom-nav,
+body:has(#modal-container:not(.hidden)) .bottom-nav,
+body:has(#cart-drawer.open) .mobile-bottom-nav,
+body:has(#cart-drawer.open) .bottom-nav,
+body:has(#cart-backdrop.open) .mobile-bottom-nav,
+body:has(#cart-backdrop.open) .bottom-nav,
+body:has(.presentation-sheet.open) .mobile-bottom-nav,
+body:has(.presentation-sheet.open) .bottom-nav,
+body:has(.preview-sheet.open) .mobile-bottom-nav,
+body:has(.preview-sheet.open) .bottom-nav,
+body:has(.wallet-confirm-sheet.open) .mobile-bottom-nav,
+body:has(.wallet-confirm-sheet.open) .bottom-nav,
+body:has(#walletConfirmSheet) .mobile-bottom-nav,
+body:has(#walletConfirmSheet) .bottom-nav,
+body:has(dialog[open]) .mobile-bottom-nav,
+body:has(dialog[open]) .bottom-nav,
+body:has(.modal-card) .mobile-bottom-nav,
+body:has(.modal-card) .bottom-nav,
+body:has(.dialog-card) .mobile-bottom-nav,
+body:has(.dialog-card) .bottom-nav,
+body[style*="overflow: hidden"] .mobile-bottom-nav,
+body[style*="overflow:hidden"] .mobile-bottom-nav,
+body[style*="overflow: hidden"] .bottom-nav,
+body[style*="overflow:hidden"] .bottom-nav,
+body.has-open-popup .mobile-bottom-nav,
+body.has-open-popup .bottom-nav,
+body.modal-open .mobile-bottom-nav,
+body.modal-open .bottom-nav {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  transform: translateY(100%) !important;
+}
+
 /* Mobile Bottom Navigation Bar */
 .mobile-bottom-nav {
   display: none;
@@ -1243,6 +1281,7 @@ body {
   align-items: center;
   padding: 0 8px;
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 .mobile-nav-btn {
   display: flex;
