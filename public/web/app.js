@@ -652,8 +652,10 @@
   }
 
   /* ── Wallet View Renderer ── */
-  function renderWalletView(container) {
+  async function renderWalletView(container) {
     const user = state.user || {};
+    const refLink = user.referral_link || `${window.location.origin}/?ref=${user.ref_code || ''}`;
+
     container.innerHTML = `
       <h2 style="font-size:24px; font-weight:900; margin-bottom:20px;">💰 کیف پول &amp; پاداش‌ها</h2>
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
@@ -661,18 +663,178 @@
           <small style="color:var(--text-muted); font-size:13px;">موجودی فعلی کیف پول</small>
           <h1 style="font-size:36px; font-weight:900; color:#fff; margin:8px 0 16px;">${priceLabel(user.balance || 0)}</h1>
           <div style="display:flex; gap:10px;">
-            <button class="user-account-btn" id="btn-deposit-trx">⚡ شارژ با ترون (TRX)</button>
-            <button class="nav-link" style="background:rgba(255,255,255,0.08);" id="btn-deposit-card">💳 کارت به کارت</button>
+            <button class="user-account-btn" id="btn-deposit-trx">⚡ شارژ حساب</button>
           </div>
         </div>
 
         <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:28px; text-align:center;">
-          <h3 style="margin-bottom:10px;">🎯 گردونه شانس روزانه</h3>
-          <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">هر ۲۴ ساعت یکبار گردونه شانس را بچرخانید و اعتبار هدیه بگیرید!</p>
-          <button class="user-account-btn" style="margin:0 auto;" id="btn-spin-wheel">🎡 چرخاندن گردونه</button>
+          <h3 style="margin-bottom:10px;">🎡 گردونه شانس روزانه</h3>
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">شانس گردونه شما: <b style="color:var(--cyan);">${nf(user.spin_balance || 0)}</b></p>
+          <button class="user-account-btn" style="margin:0 auto;" id="btn-spin-wheel">🎰 چرخاندن گردونه</button>
+        </div>
+      </div>
+
+      <!-- Referral Link & Network Section -->
+      <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:24px; margin-top:20px;">
+        <h3 style="font-size:18px; font-weight:800; margin-bottom:8px;">🔗 لینک دعوت اختصاصی شما</h3>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">با دعوت دوستانتان از هر خرید آنها پورسانت آنی دریافت کنید.</p>
+        <div style="display:flex; gap:10px; margin-bottom:16px;">
+          <input type="text" readonly value="${esc(refLink)}" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:var(--cyan); padding:12px; border-radius:12px; font-family:monospace; direction:ltr; text-align:center;">
+          <button class="user-account-btn" data-copy="${esc(refLink)}">📋 کپی لینک</button>
+        </div>
+        <div id="referrals-tree-container">⏳ در حال بارگذاری زیرمجموعه‌ها...</div>
+      </div>
+
+      ${vipProgressHtml()}
+      ${achievementsHtml()}
+    `;
+
+    $('btn-spin-wheel')?.addEventListener('click', openSpinWheelModal);
+
+    // Fetch Referrals Tree
+    const refRes = await api('my_referrals');
+    const refs = (refRes && refRes.ok) ? (refRes.referrals || []) : [];
+    const treeBox = $('referrals-tree-container');
+
+    if (treeBox) {
+      if (!refs.length) {
+        treeBox.innerHTML = `<p style="color:var(--text-muted); font-size:13px; text-align:center;">هنوز هیچ زیرمجموعه‌ای ثبت نشده است. لینک بالا را برای دوستانتان بفرستید!</p>`;
+      } else {
+        treeBox.innerHTML = `
+          <h4 style="font-size:14px; font-weight:700; margin-bottom:12px;">👥 زیرمجموعه‌های شما (${refs.length})</h4>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            ${refs.map(r => `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:10px 14px; border-radius:12px; font-size:13px;">
+                <div>
+                  <b>${esc(r.first_name || r.username || 'کاربر')}</b>
+                  <small style="color:var(--text-muted); margin-right:8px;">${esc(String(r.created_at || '').slice(0, 10))}</small>
+                </div>
+                <span style="color:var(--cyan); font-weight:800;">+${priceLabel(r.total_earned || 0)}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    }
+  }
+
+  /* ── VIP Level Progress Component ── */
+  function vipProgressHtml() {
+    const user = state.user || {};
+    const spent = Number(user.customer?.total_spent || 0);
+    const tiers = [
+      { name: 'Bronze', fa: 'برنز', emoji: '🥉', min: 0 },
+      { name: 'Silver', fa: 'نقره', emoji: '🥈', min: 1000000 },
+      { name: 'Gold', fa: 'طلایی', emoji: '🥇', min: 5000000 },
+      { name: 'Diamond', fa: 'الماس', emoji: '💎', min: 10000000 }
+    ];
+    let cur = 0, nxt = tiers[1];
+    for (let i = 0; i < tiers.length; i++) {
+      if (spent >= tiers[i].min) {
+        cur = i;
+        nxt = tiers[i + 1] || null;
+      }
+    }
+    const curTier = tiers[cur];
+    const base = curTier.min;
+    const ceiling = nxt ? nxt.min : curTier.min;
+    const range = Math.max(1, ceiling - base);
+    const pct = nxt ? Math.min(100, Math.round((spent - base) / range * 100)) : 100;
+
+    return `
+      <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:24px; margin-top:20px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <span style="font-size:32px;">${curTier.emoji}</span>
+          <div>
+            <h3 style="font-size:16px; font-weight:800;">سطح همکاری &amp; مشتری: ${esc(curTier.fa)}</h3>
+            <p style="color:var(--text-muted); font-size:13px;">
+              ${nxt ? `تا ${esc(nxt.fa)} ${nxt.emoji}: ${priceLabel(Math.max(0, ceiling - spent))}` : 'به بالاترین سطح مشتریان رسیده‌اید! 🎉'}
+            </p>
+          </div>
+        </div>
+        <div style="width:100%; height:8px; background:rgba(255,255,255,0.05); border-radius:10px; overflow:hidden; margin-bottom:12px;">
+          <div style="width:${pct}%; height:100%; background:var(--accent-grad); transition:width 0.5s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">
+          ${tiers.map(t => `<span style="${t.name === curTier.name ? 'color:var(--cyan); font-weight:800;' : ''}">${t.emoji} ${esc(t.fa)}</span>`).join('')}
         </div>
       </div>
     `;
+  }
+
+  /* ── Achievements Component ── */
+  function achievementsHtml() {
+    const a = state.achievements || [];
+    if (!a.length) return '';
+    const earned = a.filter(x => x.earned).length;
+
+    return `
+      <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:24px; padding:24px; margin-top:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:16px; font-weight:800;">🏆 نشان‌های افتخار &amp; دستاوردها</h3>
+          <span style="font-size:13px; color:var(--cyan); font-weight:700;">${nf(earned)} از ${nf(a.length)} باز شده</span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:12px;">
+          ${a.map(x => `
+            <div style="background:${x.earned ? 'rgba(0,242,254,0.08)' : 'rgba(255,255,255,0.02)'}; border:1px solid ${x.earned ? 'rgba(0,242,254,0.3)' : 'var(--border-color)'}; border-radius:14px; padding:12px; text-align:center; opacity:${x.earned ? '1' : '0.4'};">
+              <div style="font-size:28px; margin-bottom:4px;">${x.earned ? x.emoji : '🔒'}</div>
+              <small style="font-size:11px; font-weight:700; display:block;">${esc(x.title)}</small>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  /* ── Spin Wheel Modal ── */
+  function openSpinWheelModal() {
+    const user = state.user || {};
+    const spins = Number(user.spin_balance || 0);
+
+    const modalContainer = $('modal-container');
+    if (!modalContainer) return;
+
+    modalContainer.innerHTML = `
+      <div class="modal-card" style="max-width:480px; text-align:center;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:18px; font-weight:900;">🎡 گردونه شانس روزانه</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
+        </div>
+        <div style="margin:20px 0;">
+          <div id="wheel-graphic" style="width:140px; height:140px; border-radius:50%; border:6px solid var(--cyan); margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:48px; background:radial-gradient(circle, rgba(0,242,254,0.2) 0%, rgba(15,23,42,0.9) 100%); transition:transform 2.5s cubic-bezier(0.15, 0.9, 0.25, 1);">
+            🎁
+          </div>
+        </div>
+        <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">
+          شانس باقی‌مانده شما: <b style="color:var(--cyan); font-size:16px;">${nf(spins)}</b>
+        </p>
+        <button id="btn-spin-now" class="user-account-btn" style="width:100%; justify-content:center;" ${spins <= 0 ? 'disabled' : ''}>
+          ${spins > 0 ? '🎰 چرخاندن گردونه' : 'فرصت گردونه ندارید'}
+        </button>
+      </div>
+    `;
+
+    modalContainer.classList.remove('hidden');
+    $('close-modal-btn')?.addEventListener('click', closeModal);
+
+    $('btn-spin-now')?.addEventListener('click', async () => {
+      const btn = $('btn-spin-now');
+      const graphic = $('wheel-graphic');
+      if (btn) btn.disabled = true;
+
+      if (graphic) graphic.style.transform = 'rotate(1440deg)';
+
+      const res = await api('spin');
+      setTimeout(() => {
+        if (res && res.ok && res.prize) {
+          showToast(`🎉 تبریک! شما برنده "${res.prize.title}" شدید!`, 'success');
+          initApp();
+        } else {
+          showToast(res.message || 'خطا در چرخاندن گردونه.', 'error');
+        }
+        closeModal();
+      }, 2600);
+    });
   }
 
   /* ── Profile View Renderer ── */
