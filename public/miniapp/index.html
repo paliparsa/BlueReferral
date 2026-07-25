@@ -2,35 +2,76 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-  <title>BlueReferral</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, viewport-fit=cover">
+  <title>BlueGate Store | فروشگاه تخصصی اشتراک‌های دیجیتال</title>
+  <meta name="description" content="خرید مستقیم و فوری انواع سرویس‌های هوش مصنوعی، پرمیوم تلگرام، استریم موسیقی و اکانت‌های کاربردی با تحویل خودکار ۲۴/۷.">
+  <meta name="theme-color" content="#08111f">
+  <meta property="og:title" content="BlueGate Store | فروشگاه اشتراک‌های دیجیتال">
+  <meta property="og:description" content="خرید مستقیم انواع اشتراک‌های دیجیتال با تحویل فوری و پشتیبانی ۲۴ ساعته">
+  <meta property="og:type" content="website">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Cache Buster Version: v65-remember-last-page -->
-  <link rel="stylesheet" href="style.css?v=65-remember-last-page">
+  <!-- NO Telegram WebApp script - this is the web version -->
+  <link rel="stylesheet" href="style.css?v=web-1.0">
+  <link rel="stylesheet" href="web-overrides.css?v=web-1.0">
 </head>
-<body>
+<body class="web-mode">
+
   <div id="status" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <main id="userApp" class="app-shell" role="main">
-    <header class="topbar glass">
-      <div class="brand-box">
-        <small id="helloText">سلام 👋</small>
-        <h1 id="brandTitle">BlueReferral</h1>
+  <!-- ====== WEB TOPBAR (replaces Telegram header) ====== -->
+  <header class="web-site-header">
+    <div class="web-header-inner">
+      <a href="/" class="web-logo-link">
+        <span class="web-logo-icon">⚡</span>
+        <span class="web-logo-text" id="webBrandTitle">BlueGate</span>
+      </a>
+
+      <div class="web-header-search" id="webHeaderSearchBox" title="جستجو در محصولات و دستورات (⌘K)">
+        <span class="web-search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="جستجو در محصولات، هوش مصنوعی، اشتراک‌ها..." autocomplete="off" />
+        <kbd class="web-search-kbd">⌘K</kbd>
       </div>
 
+      <div class="web-header-nav">
+        <button class="web-nav-btn active" data-tab="shop">🛒 فروشگاه</button>
+        <button class="web-nav-btn" data-tab="orders">🧾 سفارش‌ها</button>
+        <button class="web-nav-btn" data-tab="wallet">💰 کیف پول</button>
+        <button class="web-nav-btn" data-tab="home">👤 حساب</button>
+      </div>
+
+      <div class="web-header-actions">
+        <button class="web-header-cart-btn" id="webHeaderCartBtn" title="سبد خرید">
+          <span>🛒</span>
+          <span class="web-cart-count" id="webCartCount">0</span>
+        </button>
+
+        <button class="web-auth-btn" id="openAuthModalBtn">
+          <span id="webAuthBtnIcon">🔑</span>
+          <span id="webAuthBtnText">ورود / ثبت‌نام</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== MAIN APP SHELL (identical to miniapp) ====== -->
+  <main id="userApp" class="app-shell web-app-shell" role="main">
+    <!-- Hidden topbar from miniapp (replaced by web-site-header) -->
+    <header class="topbar glass web-inner-topbar" style="display:none" aria-hidden="true">
+      <div class="brand-box">
+        <small id="helloText">سلام 👋</small>
+        <h1 id="brandTitle">BlueGate</h1>
+      </div>
       <nav class="topbar-desktop-nav">
         <button data-tab="home" class="active"><span>👤</span> پروفایل</button>
         <button data-tab="shop"><span>🛒</span> فروشگاه</button>
         <button data-tab="orders"><span>🧾</span> سفارش‌ها</button>
         <button data-tab="wallet"><span>💰</span> کیف پول</button>
       </nav>
-
       <div class="topbar-actions">
-        <button class="auth-top-btn" id="openAuthModalBtn" title="ورود / ثبت نام">🔑 ورود / ثبت‌نام</button>
-        <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ Mini App">🎨</button>
+        <button class="auth-top-btn" id="openAuthModalBtnInner" title="ورود / ثبت نام">🔑 ورود / ثبت‌نام</button>
+        <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ">🎨</button>
       </div>
     </header>
 
@@ -40,19 +81,31 @@
     <section id="ordersPage" class="page hidden"></section>
     <section id="walletPage" class="page hidden"></section>
 
+    <!-- Web Desktop Sidebar Navigation -->
+    <aside class="web-sidebar">
+      <div class="web-sidebar-inner">
+        <button class="web-sidebar-btn active" data-tab="shop"><span>🛒</span><b>فروشگاه</b></button>
+        <button class="web-sidebar-btn" data-tab="home"><span>👤</span><b>پروفایل</b></button>
+        <button class="web-sidebar-btn" data-tab="orders"><span>🧾</span><b>سفارش‌ها</b></button>
+        <button class="web-sidebar-btn" data-tab="wallet"><span>💰</span><b>کیف پول</b></button>
+      </div>
+    </aside>
+
+    <!-- Mobile bottom nav (kept from miniapp) -->
     <nav class="bottom-nav glass" role="navigation" aria-label="ناوبری پایین">
-      <button data-tab="home" class="active"><span>👤</span>پروفایل</button>
       <button data-tab="shop"><span>🛒</span>فروشگاه</button>
+      <button data-tab="home"><span>👤</span>پروفایل</button>
       <button data-tab="orders"><span>🧾</span>سفارش‌ها</button>
       <button data-tab="wallet"><span>💰</span>کیف پول</button>
     </nav>
   </main>
 
-  <main id="adminApp" class="app-shell hidden admin-shell">
+  <!-- ====== ADMIN APP SHELL ====== -->
+  <main id="adminApp" class="app-shell web-app-shell hidden admin-shell">
     <header class="topbar glass">
       <div>
-        <small>پنل مدیریت Mini App</small>
-        <h1>BlueReferral Admin</h1>
+        <small>پنل مدیریت وب</small>
+        <h1>BlueGate Admin</h1>
       </div>
       <button class="icon-btn" id="openCmdPalette" title="جستجوی دستور (⌘K)" aria-label="جستجوی دستور">⌘</button>
       <button class="icon-btn" id="reloadAdmin" aria-label="رفرش پنل">↻</button>
@@ -75,6 +128,29 @@
     <section id="adminContent" class="admin-content"></section>
   </main>
 
+  <!-- ====== WEB FOOTER ====== -->
+  <footer class="web-site-footer">
+    <div class="web-footer-inner">
+      <div class="web-footer-brand">
+        <span class="web-logo-icon">⚡</span>
+        <div>
+          <h3 id="footerBrand">BlueGate Store</h3>
+          <p>مرجع معتبر اشتراک‌های سرویس‌های دیجیتال و هوش مصنوعی</p>
+        </div>
+      </div>
+      <div class="web-footer-links">
+        <a id="footerSupportLink" href="https://t.me/BlueGateSupport" target="_blank" rel="noopener">💬 پشتیبانی تلگرام</a>
+        <button class="web-footer-btn" data-tab="shop">🛒 فروشگاه</button>
+        <button class="web-footer-btn" data-tab="orders">🧾 سفارش‌ها</button>
+        <button class="web-footer-btn" data-tab="wallet">💰 کیف پول</button>
+      </div>
+      <div class="web-footer-copy">
+        <small>© تمامی حقوق برای BlueGate محفوظ است. ساخته شده با ❤️</small>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ====== MINIAPP OVERLAYS (kept as-is) ====== -->
   <div id="lightbox" class="lightbox"></div>
   <div id="cartSheet" class="cart-sheet"></div>
   <button id="cartFab" class="cart-fab hidden"><span>🛒</span><span class="cart-fab-badge">0</span></button>
@@ -110,6 +186,7 @@
     </form>
   </dialog>
 
+  <!-- ====== AUTH MODAL (web + telegram login tabs) ====== -->
   <dialog id="authModal" class="dialog-card auth-modal bottom-sheet">
     <div class="auth-modal-content">
       <div class="auth-header">
@@ -190,22 +267,21 @@
     </svg>
   </div>
 
+  <!-- Web version init: neutralize Telegram APIs -->
   <script>
-    // Dev loader: append dev.init.js when ?dev=1 is present
-    if (location.search.includes('dev=1')) {
-      const s = document.createElement('script');
-      s.src = 'dev.init.js';
-      s.defer = false;
-      document.head.appendChild(s);
-    }
+    // Web Mode: Shim Telegram WebApp to null so all tg?.xxx calls silently no-op
+    window.Telegram = window.Telegram || {};
+    window.Telegram.WebApp = null;
+
+    // Read web auth token
+    window._webAuthToken = localStorage.getItem('web_token') || '';
+
+    // Check for admin mode via URL
+    const _urlParams = new URLSearchParams(location.search);
+    window._webAdminMode = _urlParams.get('admin') === '1';
   </script>
-  <script src="app.js?v=65-remember-last-page"></script>
-  <!-- <script src="builder.js?v=v51-add-forms"></script> -->
-  <script>
-    // Remove the in-page palette quick-button if present (restore original layout)
-    const _removePaletteQuick = () => { const el = document.getElementById('paletteQuick'); if(el) el.remove(); };
-    document.addEventListener('DOMContentLoaded', _removePaletteQuick);
-    new MutationObserver(_removePaletteQuick).observe(document.body, {childList:true, subtree:true});
-  </script>
+
+  <script src="app.js?v=web-1.0"></script>
+  <script src="web-init.js?v=web-1.0"></script>
 </body>
 </html>
