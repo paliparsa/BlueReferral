@@ -87,7 +87,30 @@
 
     if (res && res.ok) {
       state.categories = res.shop_categories || [];
-      state.products = res.shop_products || [];
+      state.products = (res.shop_products || []).map(p => {
+        let maxVarDiscount = 0;
+        if (p.variants && p.variants.length > 0) {
+          p.variants.forEach(v => {
+            if (Number(v.discount_percent || 0) > maxVarDiscount) {
+              maxVarDiscount = Number(v.discount_percent);
+            }
+          });
+        }
+        const finalDiscount = Math.max(
+          Number(p.discount_percent || 0),
+          Number(p.flash_sale_discount || 0),
+          maxVarDiscount
+        );
+        let orig = p.old_price;
+        if (!orig && finalDiscount > 0 && finalDiscount < 100 && Number(p.price) > 0) {
+          orig = Math.round(Number(p.price) / (1 - finalDiscount / 100));
+        }
+        return {
+          ...p,
+          discount_percent: finalDiscount,
+          old_price: orig
+        };
+      });
       state.bot_username = res.bot_username || '';
       state.payment_methods = res.payment_methods || null;
       state.support_username = res.support_username || '';
@@ -341,6 +364,7 @@
 
     container.innerHTML = `
       ${heroHtml}
+      ${glowingFlashSaleSectionHtml()}
       <div class="storefront-layout">
         ${sidebarHtml}
         <section class="catalog-area">
@@ -358,6 +382,53 @@
           ${gridHtml}
         </section>
       </div>
+    `;
+  }
+
+  function glowingFlashSaleSectionHtml() {
+    const flashProducts = state.products.filter(p => Number(p.discount_percent || 0) > 0 || Number(p.is_featured || 0) === 1 || p.old_price);
+    const displayList = flashProducts.length > 0 ? flashProducts.slice(0, 6) : state.products.slice(0, 4);
+    if (!displayList.length) return '';
+
+    return `
+      <section class="glowing-flash-sale-section">
+        <div class="flash-sale-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="glowing-fire-icon">🔥</span>
+            <h3 class="flash-sale-title">پیشنهادهای شگفت‌انگیز &amp; تخفیف‌های ویژه امروز</h3>
+          </div>
+          <div class="flash-sale-timer-pill">
+            <span>⏰ زمان باقی‌مانده:</span>
+            <b class="flash-sale-timer">${getFlashTimeRemaining()}</b>
+          </div>
+        </div>
+
+        <div class="glowing-flash-products-row">
+          ${displayList.map(p => {
+            const disc = Number(p.discount_percent || 15);
+            let orig = p.old_price;
+            if (!orig && Number(p.price) > 0) {
+              orig = Math.round(Number(p.price) / (1 - disc / 100));
+            }
+            return `
+              <div class="glowing-flash-card" data-pid="${p.id}">
+                <span class="flash-card-badge">🔥 −${disc}٪</span>
+                <div class="flash-card-img">
+                  ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title || p.name)}">` : `<span>🛍️</span>`}
+                </div>
+                <div class="flash-card-title">${esc(p.title || p.name)}</div>
+                <div class="flash-card-bottom">
+                  <div class="flash-card-price-col">
+                    ${orig ? `<s class="flash-card-orig-price">${priceLabel(orig)}</s>` : ''}
+                    <b class="flash-card-cur-price">${priceLabel(p.price)}</b>
+                  </div>
+                  <button class="card-quick-buy-btn" data-buy="${p.id}" style="padding:6px 12px; font-size:12px;">⚡ خرید</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </section>
     `;
   }
 
@@ -2366,6 +2437,12 @@
       const recentCard = e.target.closest('.recent-product-card');
       if (recentCard && recentCard.dataset.pid) {
         openProductModal(recentCard.dataset.pid);
+      }
+
+      // Glowing flash card click
+      const flashCard = e.target.closest('.glowing-flash-card');
+      if (flashCard && flashCard.dataset.pid && !e.target.closest('[data-buy]')) {
+        openProductModal(flashCard.dataset.pid);
       }
 
       // Order Detail
