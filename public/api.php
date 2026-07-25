@@ -241,7 +241,7 @@ function admin_payload(): array {
 }
 function bool_input($v): int { return in_array(strtolower((string)$v), ['1','true','yes','on'], true) ? 1 : 0; }
 
-$input = request_json();
+$input = array_merge($_GET, $_POST, request_json());
 $action = $input['action'] ?? ($_GET['action'] ?? 'me');
 $initData = $input['initData'] ?? ($_GET['initData'] ?? '');
 $authToken = $input['authToken'] ?? ($_GET['authToken'] ?? ($_SERVER['HTTP_X_WEB_TOKEN'] ?? ''));
