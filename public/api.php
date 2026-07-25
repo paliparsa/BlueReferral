@@ -168,7 +168,7 @@ function admin_payload(): array {
         'categories'=>array_map('category_payload', shop_categories(false)),
         'inventory'=>inventory_items_for_admin(150),
         'variants'=>db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 150')->fetchAll(),
-        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','auto'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_refresh_interval_seconds'=>setting_int('crypto_rate_refresh_interval_seconds', 600), 'crypto_rate_cache'=>crypto_rate_cache(), 'crypto_rate_last_result'=>setting_json('crypto_rate_last_result', []), 'crypto_rate_provider_priority'=>setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines(), 'backup_last_created_at'=>setting('backup_last_created_at',''), 'backup_last_restored_at'=>setting('backup_last_restored_at',''), 'brand_name'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'default_base_currency'=>setting('default_base_currency', 'USDT')],
+        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','auto'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_refresh_interval_seconds'=>setting_int('crypto_rate_refresh_interval_seconds', 600), 'crypto_rate_cache'=>crypto_rate_cache(), 'crypto_rate_last_result'=>setting_json('crypto_rate_last_result', []), 'crypto_rate_provider_priority'=>setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines(), 'backup_last_created_at'=>setting('backup_last_created_at',''), 'backup_last_restored_at'=>setting('backup_last_restored_at',''), 'brand_name'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'default_base_currency'=>setting('default_base_currency', 'USDT'), 'resend_api_key'=>setting('resend_api_key',''), 'resend_from_email'=>setting('resend_from_email','onboarding@resend.dev'), 'require_email_verification'=>setting_bool('require_email_verification', true)],
         'backups'=>blue_backup_list(),
         'withdrawals'=>admin_list_withdrawals('all'),
         'coupons'=>admin_list_coupons(),
@@ -207,7 +207,49 @@ if ($action === 'register') {
         api_out(['ok'=>false, 'error'=>'EMAIL_TAKEN', 'message'=>'این ایمیل قبلاً ثبت شده است.'], 400);
     }
     $user = create_web_user($username, $password, $firstName, $refCode, $email ?: null);
+    
+    $requireEmailVerif = setting_bool('require_email_verification', true) && !empty($user['email']);
+    if ($requireEmailVerif) {
+        send_email_otp($user);
+        api_out([
+            'ok' => true,
+            'requires_email_verification' => true,
+            'user_id' => (int)$user['id'],
+            'email' => $user['email'],
+            'message' => 'کد تایید ۶ رقمی به ایمیل شما ارسال شد.'
+        ]);
+    }
+    
     api_out(dashboard_payload($user) + ['auth_token' => $user['auth_token']]);
+}
+
+if ($action === 'verify_email_otp') {
+    $userId = (int)($input['user_id'] ?? 0);
+    $otp = trim((string)($input['otp'] ?? ($input['otp_code'] ?? '')));
+    if ($userId <= 0 || strlen($otp) < 4) {
+        api_out(['ok'=>false, 'error'=>'INVALID_OTP', 'message'=>'کد تایید وارد شده معتبر نیست.'], 400);
+    }
+    if (!verify_email_otp($userId, $otp)) {
+        api_out(['ok'=>false, 'error'=>'OTP_VERIFICATION_FAILED', 'message'=>'کد تایید اشتباه است یا منقضی شده است.'], 400);
+    }
+    $user = get_user_by_id($userId);
+    $token = issue_user_auth_token((int)$user['id']);
+    $user['auth_token'] = $token;
+    api_out(dashboard_payload($user) + ['auth_token' => $token, 'message' => 'ایمیل شما با موفقیت تایید شد! 🎉']);
+}
+
+if ($action === 'resend_email_otp') {
+    $userId = (int)($input['user_id'] ?? 0);
+    $user = get_user_by_id($userId);
+    if (!$user || empty($user['email'])) {
+        api_out(['ok'=>false, 'error'=>'USER_NOT_FOUND', 'message'=>'کاربر یا ایمیل پیدا نشد.'], 400);
+    }
+    $res = send_email_otp($user);
+    if (!empty($res['ok'])) {
+        api_out(['ok'=>true, 'message'=>'کد تایید جدید به ایمیل شما ارسال شد.']);
+    } else {
+        api_out(['ok'=>false, 'error'=>'SEND_FAILED', 'message'=>$res['message'] ?? 'ارسال ایمیل ناموفق بود.'], 500);
+    }
 }
 
 if ($action === 'login') {
