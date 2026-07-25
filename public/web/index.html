@@ -1,293 +1,75 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, viewport-fit=cover">
-  <title>BlueGate Store | فروشگاه تخصصی اشتراک‌های دیجیتال</title>
-  <meta name="description" content="خرید مستقیم و فوری انواع سرویس‌های هوش مصنوعی، پرمیوم تلگرام، استریم موسیقی و اکانت‌های کاربردی با تحویل خودکار ۲۴/۷.">
-  <meta name="theme-color" content="#08111f">
-  <meta property="og:title" content="BlueGate Store | فروشگاه اشتراک‌های دیجیتال">
-  <meta property="og:description" content="خرید مستقیم انواع اشتراک‌های دیجیتال با تحویل فوری و پشتیبانی ۲۴ ساعته">
-  <meta property="og:type" content="website">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlueGate Store — مرجع تخصصی اشتراک‌های دیجیتال &amp; هوش مصنوعی</title>
+  <meta name="description" content="خرید مستقیم انواع اکانت‌های ChatGPT Plus، تلگرام پرمیوم، اسپاتیفای و اشتراک‌های پرکاربرد با تحویل فوری ۲۴ ساعته">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="web-standalone.css?v=web-11.0">
+  <link rel="stylesheet" href="style.css?v=v3.0">
 </head>
-<body class="web-mode">
+<body>
 
-  <div id="status" class="toast hidden" role="status" aria-live="polite"></div>
-
-  <!-- ====== WEB TOPBAR (replaces Telegram header) ====== -->
-  <header class="web-site-header">
-    <div class="web-header-inner">
-      <a href="/" class="web-logo-link">
-        <span class="web-logo-icon">⚡</span>
-        <span class="web-logo-text" id="webBrandTitle">BlueGate</span>
+  <!-- Top Sticky Header -->
+  <header class="web-header">
+    <div class="header-container">
+      <a href="#" class="brand-logo" data-tab="shop">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">BlueGate <small>Store</small></span>
       </a>
 
-      <div class="web-header-search" id="webHeaderSearchBox" title="جستجو در محصولات و دستورات (⌘K)">
-        <span class="web-search-icon">🔍</span>
-        <input type="text" id="searchInput" placeholder="جستجو در محصولات، هوش مصنوعی، اشتراک‌ها..." autocomplete="off" />
-        <kbd class="web-search-kbd">⌘K</kbd>
+      <div class="header-search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="جستجو در محصولات، اکانت‌ها، هوش مصنوعی..." autocomplete="off">
       </div>
 
-      <div class="web-header-nav">
-        <button class="web-nav-btn active" data-tab="shop">🛒 فروشگاه</button>
-        <button class="web-nav-btn" data-tab="orders">🧾 سفارش‌ها</button>
-        <button class="web-nav-btn" data-tab="wallet">💰 کیف پول</button>
-        <button class="web-nav-btn" data-tab="home">👤 حساب</button>
-      </div>
+      <nav class="header-nav">
+        <button class="nav-link active" data-tab="shop"><span>🛍️</span> فروشگاه</button>
+        <button class="nav-link" data-tab="orders"><span>📜</span> سفارش‌ها</button>
+        <button class="nav-link" data-tab="wallet"><span>💰</span> کیف پول</button>
+      </nav>
 
-      <div class="web-header-actions">
-        <button class="web-header-cart-btn" id="webHeaderCartBtn" title="سبد خرید">
+      <div class="header-actions">
+        <button class="cart-trigger-btn" id="open-cart-btn">
           <span>🛒</span>
-          <span class="web-cart-count" id="webCartCount">0</span>
+          <span class="cart-badge-count" id="cart-count">0</span>
         </button>
-
-        <button class="web-auth-btn" id="openAuthModalBtn">
-          <span id="webAuthBtnIcon">🔑</span>
-          <span id="webAuthBtnText">ورود / ثبت‌نام</span>
+        <button class="user-account-btn" id="user-btn">
+          <span>👤</span> <b id="user-btn-text">ورود / حساب</b>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- ====== MAIN APP SHELL (identical to miniapp) ====== -->
-  <main id="userApp" class="app-shell web-app-shell" role="main">
-    <!-- Hidden topbar from miniapp (replaced by web-site-header) -->
-    <header class="topbar glass web-inner-topbar" style="display:none" aria-hidden="true">
-      <div class="brand-box">
-        <small id="helloText">سلام 👋</small>
-        <h1 id="brandTitle">BlueGate</h1>
-      </div>
-      <nav class="topbar-desktop-nav">
-        <button data-tab="home" class="active"><span>👤</span> پروفایل</button>
-        <button data-tab="shop"><span>🛒</span> فروشگاه</button>
-        <button data-tab="orders"><span>🧾</span> سفارش‌ها</button>
-        <button data-tab="wallet"><span>💰</span> کیف پول</button>
-      </nav>
-      <div class="topbar-actions">
-        <button class="auth-top-btn" id="openAuthModalBtnInner" title="ورود / ثبت نام">🔑 ورود / ثبت‌نام</button>
-        <button class="icon-btn" id="openPalette" title="تنظیم رنگ" aria-label="تنظیم رنگ">🎨</button>
-      </div>
-    </header>
-
-    <section id="homePage" class="page"></section>
-    <section id="shopPage" class="page hidden"></section>
-    <section id="productPage" class="page hidden"></section>
-    <section id="ordersPage" class="page hidden"></section>
-    <section id="walletPage" class="page hidden"></section>
-
-    <!-- Web Desktop Sidebar Navigation -->
-    <aside class="web-sidebar">
-      <div class="web-sidebar-inner">
-        <button class="web-sidebar-btn active" data-tab="shop"><span>🛒</span><b>فروشگاه</b></button>
-        <button class="web-sidebar-btn" data-tab="home"><span>👤</span><b>پروفایل</b></button>
-        <button class="web-sidebar-btn" data-tab="orders"><span>🧾</span><b>سفارش‌ها</b></button>
-        <button class="web-sidebar-btn" data-tab="wallet"><span>💰</span><b>کیف پول</b></button>
-      </div>
-    </aside>
-
-    <!-- Mobile bottom nav (kept from miniapp) -->
-    <nav class="bottom-nav glass" role="navigation" aria-label="ناوبری پایین">
-      <button data-tab="shop"><span>🛒</span>فروشگاه</button>
-      <button data-tab="home"><span>👤</span>پروفایل</button>
-      <button data-tab="orders"><span>🧾</span>سفارش‌ها</button>
-      <button data-tab="wallet"><span>💰</span>کیف پول</button>
-    </nav>
+  <!-- Main View Mount Shell -->
+  <main id="app" class="web-app-shell">
+    <!-- Views dynamically rendered by app.js -->
   </main>
 
-  <!-- ====== ADMIN APP SHELL ====== -->
-  <main id="adminApp" class="app-shell web-app-shell hidden admin-shell">
-    <header class="topbar glass">
-      <div>
-        <small>پنل مدیریت وب</small>
-        <h1>BlueGate Admin</h1>
-      </div>
-      <button class="icon-btn" id="openCmdPalette" title="جستجوی دستور (⌘K)" aria-label="جستجوی دستور">⌘</button>
-      <button class="icon-btn" id="reloadAdmin" aria-label="رفرش پنل">↻</button>
-    </header>
-    <section id="adminStats" class="stats-grid"></section>
-    <nav class="admin-tabs glass">
-      <button data-admin-tab="dashboard" class="active">داشبورد</button>
-      <button data-admin-tab="products">محصولات</button>
-      <button data-admin-tab="categories">دسته‌ها</button>
-      <button data-admin-tab="variants">پلن‌ها</button>
-      <button data-admin-tab="inventory">انبار</button>
-      <button data-admin-tab="orders">سفارش‌ها</button>
-      <button data-admin-tab="withdrawals">برداشت‌ها</button>
-      <button data-admin-tab="coupons">تخفیف</button>
-      <button data-admin-tab="settings">تنظیمات</button>
-      <button data-admin-tab="activity">لاگ</button>
-      <button data-admin-tab="roles">نقش‌ها</button>
-      <button data-admin-tab="backups">بکاپ</button>
-    </nav>
-    <section id="adminContent" class="admin-content"></section>
-  </main>
-
-  <!-- ====== WEB FOOTER ====== -->
-  <footer class="web-site-footer">
-    <div class="web-footer-inner">
-      <div class="web-footer-brand">
-        <span class="web-logo-icon">⚡</span>
-        <div>
-          <h3 id="footerBrand">BlueGate Store</h3>
-          <p>مرجع معتبر اشتراک‌های سرویس‌های دیجیتال و هوش مصنوعی</p>
-        </div>
-      </div>
-      <div class="web-footer-links">
-        <a id="footerSupportLink" href="https://t.me/BlueGateSupport" target="_blank" rel="noopener">💬 پشتیبانی تلگرام</a>
-        <button class="web-footer-btn" data-tab="shop">🛒 فروشگاه</button>
-        <button class="web-footer-btn" data-tab="orders">🧾 سفارش‌ها</button>
-        <button class="web-footer-btn" data-tab="wallet">💰 کیف پول</button>
-      </div>
-      <div class="web-footer-copy">
-        <small>© تمامی حقوق برای BlueGate محفوظ است. ساخته شده با ❤️</small>
-      </div>
+  <!-- Slide-Over Cart Drawer -->
+  <aside id="cart-drawer" class="cart-drawer">
+    <div class="drawer-header">
+      <h3>🛒 سبد خرید شما</h3>
+      <button class="close-drawer-btn" id="close-cart-btn">✕</button>
     </div>
-  </footer>
-
-  <!-- ====== MINIAPP OVERLAYS (kept as-is) ====== -->
-  <div id="lightbox" class="lightbox"></div>
-  <div id="cartSheet" class="cart-sheet"></div>
-  <button id="cartFab" class="cart-fab hidden"><span>🛒</span><span class="cart-fab-badge">0</span></button>
-  <div id="custDrawer" class="cust-drawer"></div>
-  <div id="previewSheet" class="preview-sheet"></div>
-  <div id="qrSheet" class="qr-sheet"></div>
-  <div id="shareSheet" class="share-sheet"></div>
-  <div id="onboarding" class="onboarding"></div>
-  <div id="palettePopup" class="palette-popup"></div>
-  <div id="cmdPalette" class="cmd-palette"><div class="cmd-inner"><input id="cmdInput" type="text" placeholder="جستجوی دستور یا تب..." autocomplete="off"><div id="cmdList" class="cmd-list"></div></div></div>
-
-  <dialog id="inputDialog" class="dialog-card bottom-sheet">
-    <form method="dialog">
-      <h3 id="dialogTitle">ورودی</h3>
-      <p id="dialogText" class="muted"></p>
-      <textarea id="dialogInput" rows="5"></textarea>
-
-      <div id="receiptDropzone" class="receipt-dropzone" style="display:none;">
-        <span class="dropzone-icon">📥</span>
-        <b class="dropzone-title">تصویر رسید را اینجا رها کنید</b>
-        <span class="dropzone-subtitle">یا برای انتخاب فایل کلیک کنید (عکس / اسکرین‌شات)</span>
-        <div id="dropzonePreview" class="dropzone-preview hidden"></div>
-      </div>
-
-      <input type="file" id="dialogFileInput" accept="image/*" style="display:none; margin-bottom: 10px; width: 100%;" />
-      <div class="dialog-actions">
-        <button value="cancel" class="secondary">لغو</button>
-        <button id="dialogSubmit" value="ok" class="primary">ثبت</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="editDialog" class="dialog-card wide bottom-sheet">
-    <form method="dialog" id="editForm">
-      <h3 id="editTitle">ویرایش</h3>
-      <div id="editFields" class="form-grid"></div>
-      <div class="dialog-actions">
-        <button value="cancel" class="secondary">لغو</button>
-        <button id="editSubmit" value="ok" class="primary">ذخیره</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- ====== AUTH MODAL (web + telegram login tabs) ====== -->
-  <dialog id="authModal" class="dialog-card auth-modal bottom-sheet">
-    <div class="auth-modal-content">
-      <div class="auth-header">
-        <h3 id="authTitle">ورود / ثبت‌نام</h3>
-        <button type="button" class="close-btn" id="closeAuthModal" aria-label="بستن">✕</button>
-      </div>
-
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-auth-tab="login">ورود</button>
-        <button type="button" class="auth-tab" data-auth-tab="register">ثبت‌نام</button>
-        <button type="button" class="auth-tab" data-auth-tab="telegram">تلگرام ⚡</button>
-      </div>
-
-      <form id="loginForm" class="auth-form">
-        <div class="field">
-          <label for="loginUsername">ایمیل یا نام کاربری</label>
-          <input type="text" id="loginUsername" placeholder="مثلاً: user@example.com یا john_doe" required autocomplete="username" />
-        </div>
-        <div class="field">
-          <label for="loginPassword">رمز عبور</label>
-          <input type="password" id="loginPassword" placeholder="******" required autocomplete="current-password" />
-        </div>
-        <div id="loginError" class="auth-error hidden"></div>
-        <button type="submit" class="primary block-btn">ورود به حساب</button>
-      </form>
-
-      <form id="registerForm" class="auth-form hidden">
-        <div class="field">
-          <label for="regUsername">نام کاربری (انگلیسی)</label>
-          <input type="text" id="regUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
-        </div>
-        <div class="field">
-          <label for="regEmail">ایمیل (جهت ورود و بازیابی)</label>
-          <input type="email" id="regEmail" placeholder="مثلاً: user@example.com" autocomplete="email" />
-        </div>
-        <div class="field">
-          <label for="regFirstName">نام شما</label>
-          <input type="text" id="regFirstName" placeholder="مثلاً: علی" />
-        </div>
-        <div class="field">
-          <label for="regPassword">رمز عبور (حداقل ۶ کاراکتر)</label>
-          <input type="password" id="regPassword" placeholder="******" required autocomplete="new-password" />
-        </div>
-        <div class="field">
-          <label for="regRefCode">کد معرف (اختیاری)</label>
-          <input type="text" id="regRefCode" placeholder="کد معرف" />
-        </div>
-        <div id="regError" class="auth-error hidden"></div>
-        <button type="submit" class="primary block-btn">ایجاد حساب کاربری</button>
-      </form>
-
-      <div id="telegramTab" class="auth-form hidden text-center">
-        <p class="muted" style="margin-bottom: 12px; font-size: 13px;">ورود سریع بدون نیاز به رمز عبور با اکانت تلگرام:</p>
-        <div id="tgWidgetContainer"></div>
-      </div>
-
-      <form id="otpVerificationForm" class="auth-form hidden text-center">
-        <div style="margin-bottom: 12px;">
-          <h4 style="margin: 0 0 6px 0; font-size: 16px; color: #fff;">کد تایید ایمیل 📩</h4>
-          <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5;">
-            کد ۶ رقمی به ایمیل <strong id="otpEmailTarget" style="color: #fff;"></strong> ارسال شد.<br>
-            <span style="color: #f59e0b; font-size: 11px; display: inline-block; margin-top: 4px;">⚠️ (لطفاً پوشه اسپم / Spam ایمیل خود را نیز بررسی کنید)</span>
-          </p>
-        </div>
-        <div class="field">
-          <input type="text" id="otpCodeInput" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 10px; font-size: 24px; font-weight: 900; text-align: center; width: 100%; box-sizing: border-box;" required />
-        </div>
-        <div id="otpError" class="auth-error hidden"></div>
-        <button type="submit" class="primary block-btn">تایید و ورود به حساب</button>
-        <button type="button" id="resendOtpBtn" class="secondary block-btn" style="margin-top: 6px; font-size: 12px;">ارسال مجدد کد تایید</button>
-      </form>
+    <div class="drawer-body" id="cart-items-container">
+      <!-- Cart items rendered dynamically -->
     </div>
-  </dialog>
+    <div class="drawer-footer" id="cart-footer-container">
+      <!-- Checkout summary rendered dynamically -->
+    </div>
+  </aside>
+  <div id="cart-backdrop" class="drawer-backdrop"></div>
 
-  <div id="ptrIndicator" class="ptr-indicator">
-    <svg class="ptr-svg" viewBox="0 0 40 40">
-      <path class="ptr-path" d="M20 4 a16 16 0 1 1 0 32 a16 16 0 1 1 0 -32" />
-    </svg>
-  </div>
+  <!-- Global Modal Dialog Backdrop -->
+  <div id="modal-container" class="modal-container hidden"></div>
 
-  <!-- Web version init: neutralize Telegram APIs -->
-  <script>
-    // Web Mode: Shim Telegram WebApp to null so all tg?.xxx calls silently no-op
-    window.Telegram = window.Telegram || {};
-    window.Telegram.WebApp = null;
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
 
-    // Read web auth token
-    window._webAuthToken = localStorage.getItem('web_token') || '';
-
-    // Check for admin mode via URL
-    const _urlParams = new URLSearchParams(location.search);
-    window._webAdminMode = _urlParams.get('admin') === '1';
-  </script>
-
-  <script src="app.js?v=web-11.0"></script>
-  <script src="web-init.js?v=web-11.0"></script>
+  <!-- Application Script -->
+  <script src="app.js?v=v3.0"></script>
 </body>
 </html>
