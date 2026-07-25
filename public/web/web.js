@@ -82,10 +82,10 @@
     // Update Auth Button
     const u = state.user;
     if (u && !u.is_guest) {
-      $('authBtnText').textContent = `${u.first_name || u.username} (${nf(u.balance)} تومان)`;
+      $('authBtnText').textContent = `👤 ${u.first_name || u.username || 'حساب من'} (${nf(u.balance)} تومان)`;
       $('payWalletOption').classList.remove('hidden');
     } else {
-      $('authBtnText').textContent = 'ورود / ثبت‌نام';
+      $('authBtnText').textContent = '🔑 ورود / ثبت‌نام';
       $('payWalletOption').classList.add('hidden');
     }
 
