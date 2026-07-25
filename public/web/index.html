@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=v8.7">
+  <link rel="stylesheet" href="style.css?v=v8.8">
 </head>
 <body>
 
@@ -51,8 +51,13 @@
   <!-- Slide-Over Cart Drawer -->
   <aside id="cart-drawer" class="cart-drawer">
     <div class="drawer-header">
-      <h3>🛒 سبد خرید شما</h3>
-      <button class="close-drawer-btn" id="close-cart-btn">✕</button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h3 style="margin:0;">🛒 سبد خرید شما</h3>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button id="clear-cart-btn" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; padding:5px 10px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:none;" title="حذف همه محصولات">🗑️ خالی کردن</button>
+        <button class="close-drawer-btn" id="close-cart-btn">✕</button>
+      </div>
     </div>
     <div class="drawer-body" id="cart-items-container">
       <!-- Cart items rendered dynamically -->
@@ -70,6 +75,6 @@
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Application Script -->
-  <script src="app.js?v=v8.7"></script>
+  <script src="app.js?v=v8.8"></script>
 </body>
 </html>

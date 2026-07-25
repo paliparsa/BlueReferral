@@ -2522,6 +2522,40 @@
         navigator.clipboard.writeText(copyBtn.dataset.copy);
         showToast('کد با موفقیت کپی شد! 📋', 'success');
       }
+
+      // Clear Cart
+      const clearBtn = e.target.closest('#clear-cart-btn');
+      if (clearBtn) {
+        clearCart();
+        return;
+      }
+
+      // Plus Cart Qty
+      const plusBtn = e.target.closest('[data-cart-plus]');
+      if (plusBtn) {
+        const pid = plusBtn.dataset.cartPlus;
+        const vid = plusBtn.dataset.cartVid || null;
+        updateCartQty(pid, vid, 1);
+        return;
+      }
+
+      // Minus Cart Qty
+      const minusBtn = e.target.closest('[data-cart-minus]');
+      if (minusBtn) {
+        const pid = minusBtn.dataset.cartMinus;
+        const vid = minusBtn.dataset.cartVid || null;
+        updateCartQty(pid, vid, -1);
+        return;
+      }
+
+      // Remove Cart Item
+      const removeBtn = e.target.closest('[data-cart-remove]');
+      if (removeBtn) {
+        const pid = removeBtn.dataset.cartRemove;
+        const vid = removeBtn.dataset.cartVid || null;
+        removeFromCart(pid, vid);
+        return;
+      }
     });
 
     // In-Stock & Wishlist quick toggles
@@ -2603,38 +2637,94 @@
     if (open) renderCartDrawerContent();
   }
 
-  function renderCartDrawerContent() {
-    const container = $('cart-items-container');
-    const footer = $('cart-footer-container');
-    if (!container || !footer) return;
+  function updateCartQty(pid, vId, delta) {
+    const item = state.cart.find(x => Number(x.id) === Number(pid) && (x.vid == vId || (!x.vid && !vId)));
+    if (!item) return;
 
-    if (!state.cart.length) {
-      container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">سبد خرید شما خالی است.</div>`;
-      footer.innerHTML = '';
+    item.qty = (item.qty || 1) + delta;
+    if (item.qty <= 0) {
+      removeFromCart(pid, vId);
       return;
     }
 
+    localStorage.setItem('bg_web_cart', JSON.stringify(state.cart));
+    updateCartCount();
+    renderCartDrawerContent();
+  }
+
+  function removeFromCart(pid, vId) {
+    state.cart = state.cart.filter(x => !(Number(x.id) === Number(pid) && (x.vid == vId || (!x.vid && !vId))));
+    localStorage.setItem('bg_web_cart', JSON.stringify(state.cart));
+    updateCartCount();
+    renderCartDrawerContent();
+    showToast('محصول از سبد خرید حذف شد', 'info');
+  }
+
+  function clearCart() {
+    if (!state.cart.length) return;
+    state.cart = [];
+    localStorage.setItem('bg_web_cart', '[]');
+    updateCartCount();
+    renderCartDrawerContent();
+    showToast('سبد خرید خالی شد 🗑️', 'info');
+  }
+
+  function renderCartDrawerContent() {
+    const container = $('cart-items-container');
+    const footer = $('cart-footer-container');
+    const headerClearBtn = $('clear-cart-btn');
+    if (!container || !footer) return;
+
+    if (!state.cart.length) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:50px 20px; color:var(--text-muted);">
+          <div style="font-size:48px; margin-bottom:12px; opacity:0.6;">🛒</div>
+          <b style="font-size:16px; color:#fff; display:block; margin-bottom:6px;">سبد خرید شما خالی است!</b>
+          <p style="font-size:13px; margin-bottom:20px;">محصولات مورد نظرتان را به سبد خرید اضافه کنید.</p>
+        </div>
+      `;
+      footer.innerHTML = '';
+      if (headerClearBtn) headerClearBtn.style.display = 'none';
+      return;
+    }
+
+    if (headerClearBtn) headerClearBtn.style.display = 'inline-flex';
+
     const total = state.cart.reduce((sum, item) => sum + (Number(item.price) * (item.qty || 1)), 0);
 
-    container.innerHTML = state.cart.map(item => `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; background:rgba(255,255,255,0.03); padding:10px 14px; border-radius:12px;">
-        <div>
-          <b style="font-size:13px;">${esc(item.title)}</b>
-          <div style="color:var(--cyan); font-size:12px; font-weight:800;">${priceLabel(item.price)}</div>
+    container.innerHTML = state.cart.map(item => {
+      const vidAttr = item.vid ? `data-cart-vid="${item.vid}"` : '';
+      return `
+        <div class="cart-item-row" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); padding:12px 14px; border-radius:14px; gap:12px;">
+          <div style="flex:1; min-width:0;">
+            <b style="font-size:13.5px; display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; color:#fff; margin-bottom:2px;">${esc(item.title)}</b>
+            <div style="color:var(--cyan); font-size:12px; font-weight:800;">${priceLabel(item.price)}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <div style="display:flex; align-items:center; background:rgba(0,0,0,0.35); border:1px solid var(--border-color); border-radius:10px; padding:2px;">
+              <button class="cart-qty-btn" data-cart-minus="${item.id}" ${vidAttr} style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:#fff; font-weight:900; cursor:pointer; font-size:14px; border-radius:8px;" title="کم کردن">−</button>
+              <span style="font-weight:900; font-size:13px; min-width:24px; text-align:center; color:var(--cyan);">${item.qty || 1}</span>
+              <button class="cart-qty-btn" data-cart-plus="${item.id}" ${vidAttr} style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:#fff; font-weight:900; cursor:pointer; font-size:14px; border-radius:8px;" title="زیاد کردن">+</button>
+            </div>
+            <button class="cart-remove-btn" data-cart-remove="${item.id}" ${vidAttr} title="حذف از سبد" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; width:32px; height:32px; border-radius:10px; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center;">🗑️</button>
+          </div>
         </div>
-        <span style="font-weight:900;">x${item.qty || 1}</span>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     footer.innerHTML = `
       <div style="display:flex; justify-content:space-between; margin-bottom:14px; font-weight:900; font-size:16px;">
         <span>مبلغ قابل پرداخت:</span>
         <span style="color:var(--cyan);">${priceLabel(total)}</span>
       </div>
-      <button id="cart-checkout-btn" class="user-account-btn" style="width:100%; justify-content:center;">تکمیل خرید &amp; پرداخت</button>
+      <div style="display:flex; gap:8px;">
+        <button id="cart-clear-footer-btn" class="user-account-btn" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; padding:12px 14px; font-size:13px;" title="خالی کردن سبد خرید">🗑️ خالی کردن</button>
+        <button id="cart-checkout-btn" class="user-account-btn" style="flex:1; justify-content:center;">تکمیل خرید &amp; پرداخت</button>
+      </div>
     `;
 
     $('cart-checkout-btn')?.addEventListener('click', checkoutCart);
+    $('cart-clear-footer-btn')?.addEventListener('click', clearCart);
   }
 
   /* ── Checkout Flow ── */
