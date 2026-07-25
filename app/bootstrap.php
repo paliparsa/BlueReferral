@@ -1466,6 +1466,80 @@ function verify_email_otp(int $userId, string $otp): bool {
         
     return true;
 }
+
+function send_password_reset_otp(array $user): array {
+    if (empty($user['email'])) {
+        return ['ok' => false, 'error' => 'NO_EMAIL', 'message' => 'آدرس ایمیل برای این حساب ثبت نشده است.'];
+    }
+    
+    $otp = (string)rand(100000, 999999);
+    $expiresAt = date('Y-m-d H:i:s', time() + 900);
+    
+    db()->prepare('UPDATE users SET email_verification_token=?, email_verification_expires_at=? WHERE id=?')
+        ->execute([$otp, $expiresAt, (int)$user['id']]);
+        
+    $brand = setting('brand_name', app_config('BRAND_NAME', 'BlueGate'));
+    $subject = "کد بازیابی رمز عبور {$brand}";
+    
+    $html = '
+    <div style="font-family: Tahoma, Arial, sans-serif; direction: rtl; text-align: right; background-color: #08111f; color: #ffffff; padding: 30px; border-radius: 16px; max-width: 500px; margin: 0 auto; border: 1px solid #1d9bf044;">
+        <h2 style="color: #1d9bf0; margin-bottom: 20px;">' . htmlspecialchars($brand) . '</h2>
+        <p style="font-size: 16px; margin-bottom: 10px;">سلام ' . htmlspecialchars($user['first_name'] ?: $user['web_username'] ?: 'کاربر گرامی') . ' 👋</p>
+        <p style="font-size: 14px; color: #9fb0c8; line-height: 1.6;">درخواست بازیابی رمز عبور ثبت شده است. کد ۶ رقمی زیر را وارد کنید:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 34px; font-weight: 900; letter-spacing: 8px; color: #f59e0b; background: #ffffff10; padding: 12px 24px; border-radius: 14px; border: 1px solid #f59e0b55; display: inline-block;">' . $otp . '</span>
+        </div>
+        <p style="font-size: 12px; color: #9fb0c8; border-top: 1px solid #ffffff10; padding-top: 15px;">این کد تا ۱۵ دقیقه معتبر است. اگر شما این درخواست را نداده‌اید، رمز عبور شما تغییر نخواهد کرد.</p>
+    </div>
+    ';
+    
+    return send_email_via_resend($user['email'], $subject, $html);
+}
+
+function reset_password_with_otp(int $userId, string $otp, string $newPassword): bool {
+    $user = get_user_by_id($userId);
+    if (!$user || empty($user['email_verification_token'])) return false;
+    
+    if (trim((string)$user['email_verification_token']) !== trim((string)$otp)) return false;
+    if (!empty($user['email_verification_expires_at']) && strtotime($user['email_verification_expires_at']) < time()) return false;
+    
+    $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+    db()->prepare('UPDATE users SET password_hash=?, email_verified_at=COALESCE(email_verified_at, NOW()), email_verification_token=NULL, email_verification_expires_at=NULL, auth_token=NULL WHERE id=?')
+        ->execute([$hash, $userId]);
+        
+    return true;
+}
+
+function delete_user_account(int $userId): bool {
+    $user = get_user_by_id($userId);
+    if (!$user) return false;
+    
+    db()->prepare('UPDATE users SET email=NULL, web_username=NULL, password_hash=NULL, auth_token=NULL, phone=NULL, email_verification_token=NULL, email_verification_expires_at=NULL, first_name="حساب حذف شده", last_name="", username=NULL, balance=0 WHERE id=?')
+        ->execute([$userId]);
+    return true;
+}
+
+function admin_update_user_profile(int $userId, array $data): bool {
+    $user = get_user_by_id($userId);
+    if (!$user) return false;
+    
+    $fields = [];
+    $params = [];
+    
+    if (isset($data['first_name'])) { $fields[] = 'first_name=?'; $params[] = trim((string)$data['first_name']); }
+    if (isset($data['last_name'])) { $fields[] = 'last_name=?'; $params[] = trim((string)$data['last_name']); }
+    if (array_key_exists('email', $data)) { $fields[] = 'email=?'; $params[] = !empty($data['email']) ? strtolower(trim((string)$data['email'])) : null; }
+    if (array_key_exists('phone', $data)) { $fields[] = 'phone=?'; $params[] = !empty($data['phone']) ? trim((string)$data['phone']) : null; }
+    if (array_key_exists('web_username', $data)) { $fields[] = 'web_username=?'; $params[] = !empty($data['web_username']) ? strtolower(trim((string)$data['web_username'])) : null; }
+    if (isset($data['balance'])) { $fields[] = 'balance=?'; $params[] = (float)$data['balance']; }
+    
+    if (empty($fields)) return true;
+    
+    $params[] = $userId;
+    $sql = 'UPDATE users SET ' . implode(', ', $fields) . ' WHERE id=?';
+    db()->prepare($sql)->execute($params);
+    return true;
+}
 function create_or_update_user(array $from, ?string $ref = null) {
     $tid = (int)$from['id'];
     $user = get_user_by_tid($tid);
