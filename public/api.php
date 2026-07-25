@@ -342,6 +342,47 @@ if ($action === 'login') {
     api_out(dashboard_payload($user) + ['auth_token' => $token]);
 }
 
+if ($action === 'forgot_password_request') {
+    $identifier = trim((string)($input['email'] ?? ($input['identifier'] ?? '')));
+    if ($identifier === '') {
+        api_out(['ok'=>false, 'error'=>'EMPTY_IDENTIFIER', 'message'=>'لطفاً ایمیل یا نام کاربری خود را وارد کنید.'], 400);
+    }
+    $user = get_user_by_email_or_username($identifier);
+    if (!$user || empty($user['email'])) {
+        api_out(['ok'=>false, 'error'=>'USER_NOT_FOUND', 'message'=>'حسابی با این اطلاعات یا ایمیل پیدا نشد.'], 404);
+    }
+    $res = send_password_reset_otp($user);
+    if (!empty($res['ok'])) {
+        api_out([
+            'ok' => true,
+            'user_id' => (int)$user['id'],
+            'email' => $user['email'],
+            'message' => 'کد ۶ رقمی بازیابی رمز عبور به ایمیل شما ارسال شد.'
+        ]);
+    } else {
+        api_out(['ok'=>false, 'error'=>'SEND_FAILED', 'message'=>$res['message'] ?? 'ارسال ایمیل بازیابی ناموفق بود.'], 500);
+    }
+}
+
+if ($action === 'reset_password_submit') {
+    $userId = (int)($input['user_id'] ?? 0);
+    $otp = trim((string)($input['otp'] ?? ''));
+    $newPassword = (string)($input['new_password'] ?? '');
+
+    if ($userId <= 0 || strlen($otp) < 4) {
+        api_out(['ok'=>false, 'error'=>'INVALID_OTP', 'message'=>'کد تایید وارد شده معتبر نیست.'], 400);
+    }
+    if (mb_strlen($newPassword) < 6) {
+        api_out(['ok'=>false, 'error'=>'INVALID_PASSWORD', 'message'=>'رمز عبور جدید باید حداقل ۶ کاراکتر باشد.'], 400);
+    }
+    if (!reset_password_with_otp($userId, $otp, $newPassword)) {
+        api_out(['ok'=>false, 'error'=>'RESET_FAILED', 'message'=>'کد تایید اشتباه است یا منقضی شده است.'], 400);
+    }
+    $user = get_user_by_id($userId);
+    $token = issue_user_auth_token((int)$user['id']);
+    api_out(['ok'=>true, 'message'=>'رمز عبور شما با موفقیت تغییر کرد! اکنون وارد شده‌اید.', 'auth_token'=>$token] + dashboard_payload($user));
+}
+
 if ($action === 'telegram_login') {
     $authData = is_array($input['auth_data'] ?? null) ? $input['auth_data'] : [];
     $verified = verify_telegram_login_widget($authData);
@@ -738,5 +779,45 @@ if ($action === 'admin_order_note') { require_admin($user); $oid=(int)($input['o
 
 if ($action === 'admin_add_balance') { require_admin($user); $tid=(int)($input['telegram_id']??0); $amount=(int)($input['amount']??0); if($tid<=0 || $amount===0) api_out(['ok'=>false,'message'=>'مبلغ و آیدی نامعتبر'],400); $u=get_user_by_tid($tid); if(!$u) api_out(['ok'=>false,'message'=>'کاربر پیدا نشد'],404); add_balance((int)$u['id'], $amount, 'admin_adjust', 'تغییر موجودی توسط ادمین', null); api_out(admin_payload()); }
 if ($action === 'admin_ban_user') { require_admin($user); $tid=(int)($input['telegram_id']??0); if($tid<=0) api_out(['ok'=>false,'message'=>'آیدی نامعتبر'],400); db()->prepare('UPDATE users SET is_banned=1 WHERE telegram_id=?')->execute([$tid]); api_out(admin_payload()); }
+
+if ($action === 'delete_my_account') {
+    $webToken = $_SERVER['HTTP_X_WEB_TOKEN'] ?? (isset($_SERVER['HTTP_AUTHORIZATION']) ? str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']) : null);
+    $initData = (string)($input['initData'] ?? '');
+    $user = get_authenticated_user($initData, $webToken);
+    if (!$user) {
+        api_out(['ok'=>false, 'error'=>'UNAUTHORIZED', 'message'=>'نشست شما منقضی شده است.'], 401);
+    }
+    delete_user_account((int)$user['id']);
+    api_out(['ok'=>true, 'message'=>'حساب کاربری شما و اطلاعات مرتبط با موفقیت به طور کامل حذف شد.']);
+}
+
+if ($action === 'admin_get_user') {
+    $webToken = $_SERVER['HTTP_X_WEB_TOKEN'] ?? (isset($_SERVER['HTTP_AUTHORIZATION']) ? str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']) : null);
+    $initData = (string)($input['initData'] ?? '');
+    $authUser = get_authenticated_user($initData, $webToken);
+    if (!$authUser || !is_admin((int)($authUser['telegram_id'] ?? 0))) {
+        api_out(['ok'=>false, 'error'=>'ADMIN_ONLY', 'message'=>'دسترسی غیرمجاز.'], 403);
+    }
+    $targetUserId = (int)($input['user_id'] ?? 0);
+    $targetUser = get_user_by_id($targetUserId);
+    if (!$targetUser) api_out(['ok'=>false, 'error'=>'USER_NOT_FOUND', 'message'=>'کاربر یافت نشد.'], 404);
+    api_out(['ok'=>true, 'user'=>$targetUser]);
+}
+
+if ($action === 'admin_edit_user') {
+    $webToken = $_SERVER['HTTP_X_WEB_TOKEN'] ?? (isset($_SERVER['HTTP_AUTHORIZATION']) ? str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']) : null);
+    $initData = (string)($input['initData'] ?? '');
+    $authUser = get_authenticated_user($initData, $webToken);
+    if (!$authUser || !is_admin((int)($authUser['telegram_id'] ?? 0))) {
+        api_out(['ok'=>false, 'error'=>'ADMIN_ONLY', 'message'=>'دسترسی غیرمجاز.'], 403);
+    }
+    $targetUserId = (int)($input['user_id'] ?? 0);
+    if ($targetUserId <= 0) {
+        api_out(['ok'=>false, 'error'=>'INVALID_USER_ID', 'message'=>'شناسه کاربر معتبر نیست.'], 400);
+    }
+    admin_update_user_profile($targetUserId, $input);
+    $updatedUser = get_user_by_id($targetUserId);
+    api_out(['ok'=>true, 'user'=>$updatedUser, 'message'=>'اطلاعات کاربر با موفقیت بروزرسانی شد.']);
+}
 
 api_out(['ok'=>false, 'error'=>'UNKNOWN_ACTION'], 404);
