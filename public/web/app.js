@@ -2704,53 +2704,88 @@
     `;
   }
 
+  function webWithdrawalRowHtml(w) {
+    const isPaid = w.status === 'paid';
+    const isRejected = w.status === 'rejected';
+    const isPending = w.status === 'pending';
+
+    return `
+      <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">${isPaid ? '✅' : isRejected ? '❌' : '⏳'}</span>
+            <b style="font-size:15px; color:#22c55e;">${fmt(w.amount)} تومان</b>
+            <small style="color:var(--text-muted); font-size:11px;">#${w.id}</small>
+          </div>
+          <div style="font-size:13px; color:var(--text-color); margin-top:4px;">
+            کاربر: <b>${esc(w.first_name || w.username || w.user_id)}</b> ${w.username ? `(@${esc(w.username)})` : ''} · ID: <code>${w.telegram_id || w.user_id}</code>
+          </div>
+          <small style="color:var(--text-muted); font-size:12px; display:block; margin-top:4px;">💳 شماره کارت / حساب: <code style="direction:ltr; display:inline-block; color:var(--cyan);">${esc(w.card_info || 'نامشخص')}</code></small>
+          <small style="color:var(--text-muted); font-size:11px; display:block; margin-top:2px;">تاریخ: ${esc(w.created_at || '')}</small>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; padding:4px 10px; border-radius:8px; background:${isPaid ? 'rgba(34,197,94,0.15)' : isRejected ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)'}; color:${isPaid ? '#22c55e' : isRejected ? '#ef4444' : '#f59e0b'}; font-weight:700;">
+            ${isPaid ? 'پرداخت‌شده' : isRejected ? 'رد‌شده' : 'در انتظار'}
+          </span>
+          ${isPending ? `
+            <button class="user-account-btn" data-admin-withdraw-act="${w.id}:paid" style="background:#22c55e; color:#000; font-size:11px; padding:6px 12px;">✅ تایید &amp; پرداخت</button>
+            <button class="user-account-btn" data-admin-withdraw-act="${w.id}:rejected" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:6px 12px;">❌ رد درخواست</button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
   function renderAdminWithdrawalsTabMarkup(withdrawals) {
     const list = Array.isArray(withdrawals) ? withdrawals : [];
-    const pending = list.filter(w => w && w.status === 'pending');
-    const processed = list.filter(w => w && w.status !== 'pending');
+    const pending = list.filter(x => x && x.status === 'pending');
+    const paid = list.filter(x => x && x.status === 'paid');
+    const rejected = list.filter(x => x && x.status === 'rejected');
+    const totalPending = pending.reduce((s, x) => s + Number(x.amount || 0), 0);
 
     return `
       <div style="margin-bottom:20px;">
-        <h3 style="font-size:16px; font-weight:800; margin:0 0 16px 0;">🏧 مدیریت درخواست‌های برداشت (${list.length})</h3>
-        
+        <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px; margin-bottom:20px;">
+          <h3 style="font-size:18px; font-weight:900; margin:0 0 8px 0; color:#fff;">🏧 مدیریت درخواست‌های برداشت (${list.length})</h3>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">${nf(pending.length)} در انتظار · مجموع ${fmt(totalPending)} تومان</p>
+          
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-top:16px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; text-align:center;">
+              <b style="font-size:18px; color:#f59e0b; display:block;">${nf(pending.length)}</b>
+              <small style="color:var(--text-muted); font-size:12px;">در انتظار</small>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; text-align:center;">
+              <b style="font-size:18px; color:#22c55e; display:block;">${nf(paid.length)}</b>
+              <small style="color:var(--text-muted); font-size:12px;">پرداخت‌شده</small>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; text-align:center;">
+              <b style="font-size:18px; color:#ef4444; display:block;">${nf(rejected.length)}</b>
+              <small style="color:var(--text-muted); font-size:12px;">رد‌شده</small>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:12px; text-align:center;">
+              <b style="font-size:18px; color:var(--cyan); display:block;">${fmt(totalPending)}</b>
+              <small style="color:var(--text-muted); font-size:12px;">تومان مانده برداشت</small>
+            </div>
+          </div>
+        </div>
+
         ${pending.length > 0 ? `
-          <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:18px; padding:16px; margin-bottom:24px;">
-            <h4 style="font-size:14px; color:#f59e0b; margin:0 0 12px 0;">⏳ در انتظار اقدام (${pending.length})</h4>
+          <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:20px; padding:20px; margin-bottom:24px;">
+            <h4 style="font-size:15px; font-weight:800; color:#f59e0b; margin:0 0 14px 0;">⏳ نیازمند اقدام (${pending.length})</h4>
             <div style="display:flex; flex-direction:column; gap:12px;">
-              ${pending.map(w => `
-                <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-                  <div>
-                    <b style="font-size:15px; color:#22c55e;">${fmt(w.amount)} تومان</b>
-                    <div style="font-size:13px; color:var(--text-color); margin-top:4px;">کاربر: <b>${esc(w.first_name || w.username || w.user_id)}</b></div>
-                    <small style="color:var(--text-muted); font-size:12px; display:block; margin-top:4px;">اطلاعات کارت/حساب: <code style="direction:ltr; display:inline-block;">${esc(w.card_info || 'نامشخص')}</code></small>
-                    <small style="color:var(--text-muted); font-size:11px;">تاریخ درخواست: ${esc(w.created_at || '')}</small>
-                  </div>
-                  <div style="display:flex; gap:8px;">
-                    <button class="user-account-btn" data-admin-withdraw-act="${w.id}:paid" style="background:#22c55e; color:#000; font-size:11px; padding:6px 12px;">✅ تایید &amp; پرداخت</button>
-                    <button class="user-account-btn" data-admin-withdraw-act="${w.id}:rejected" style="background:rgba(239,68,68,0.2); color:#ef4444; font-size:11px; padding:6px 12px;">❌ رد درخواست</button>
-                  </div>
-                </div>
-              `).join('')}
+              ${pending.map(w => webWithdrawalRowHtml(w)).join('')}
             </div>
           </div>
         ` : ''}
 
-        <h4 style="font-size:14px; font-weight:700; margin:0 0 12px 0;">📋 تاریخچه برداشت‌ها</h4>
-        ${!processed.length ? `<p style="color:var(--text-muted); padding:20px; text-align:center;">تاریخچه‌ای وجود ندارد.</p>` : `
-          <div style="display:flex; flex-direction:column; gap:10px;">
-            ${processed.map(w => `
-              <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:14px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                <div>
-                  <b style="font-size:14px;">${fmt(w.amount)} تومان</b>
-                  <small style="color:var(--text-muted); margin-right:10px;">کاربر: ${esc(w.first_name || w.username || w.user_id)}</small>
-                </div>
-                <span style="font-size:11px; padding:3px 10px; border-radius:8px; background:${w.status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${w.status === 'paid' ? '#22c55e' : '#ef4444'}; font-weight:700;">
-                  ${w.status === 'paid' ? 'پرداخت‌شده' : 'رد‌شده'}
-                </span>
-              </div>
-            `).join('')}
-          </div>
-        `}
+        <div style="background:var(--card-dark); border:1px solid var(--border-color); border-radius:20px; padding:20px;">
+          <h4 style="font-size:15px; font-weight:800; margin:0 0 14px 0; color:#fff;">📋 همه درخواست‌های برداشت (${list.length})</h4>
+          ${!list.length ? `<p style="color:var(--text-muted); padding:20px; text-align:center;">هنوز برداشتی ثبت نشده است.</p>` : `
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              ${list.map(w => webWithdrawalRowHtml(w)).join('')}
+            </div>
+          `}
+        </div>
       </div>
     `;
   }
