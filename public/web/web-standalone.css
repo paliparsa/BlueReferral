@@ -1,6 +1,6 @@
 /* =========================================================
    web-standalone.css — Dedicated Web Storefront Design System
-   Built for desktop & mobile web browsers
+   Desktop-First E-Commerce Architecture for Web Browsers
    ========================================================= */
 
 :root {
@@ -219,6 +219,33 @@ button:active, .btn:active {
   text-overflow: ellipsis;
 }
 .web-header-search input::placeholder { color: var(--web-text-subtle); }
+
+/* Header Navigation Links */
+.web-header-nav {
+  display: flex;
+  gap: 6px;
+}
+.web-nav-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--web-text-muted);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 8px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.web-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.web-nav-btn.active {
+  background: rgba(0, 242, 254, 0.12);
+  color: var(--web-cyan);
+  border-color: rgba(0, 242, 254, 0.3);
+  font-weight: 800;
+}
 
 /* Header Actions */
 .web-header-actions {
