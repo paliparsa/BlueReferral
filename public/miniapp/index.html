@@ -165,6 +165,19 @@
         <p class="muted" style="margin-bottom: 12px; font-size: 13px;">ورود سریع بدون نیاز به رمز عبور با اکانت تلگرام:</p>
         <div id="tgWidgetContainer"></div>
       </div>
+
+      <form id="otpVerificationForm" class="auth-form hidden text-center">
+        <div style="margin-bottom: 8px;">
+          <h4 style="margin: 0 0 6px 0; font-size: 16px; color: #fff;">کد تایید ایمیل 📩</h4>
+          <p style="font-size: 12px; color: var(--muted); margin: 0;">کد ۶ رقمی به ایمیل <strong id="otpEmailTarget" style="color: #fff;"></strong> ارسال شد.</p>
+        </div>
+        <div class="field">
+          <input type="text" id="otpCodeInput" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 10px; font-size: 24px; font-weight: 900; text-align: center;" required />
+        </div>
+        <div id="otpError" class="auth-error hidden"></div>
+        <button type="submit" class="primary block-btn">تایید و ورود به حساب</button>
+        <button type="button" id="resendOtpBtn" class="secondary block-btn" style="margin-top: 6px; font-size: 12px;">ارسال مجدد کد تایید</button>
+      </form>
     </div>
   </dialog>
 

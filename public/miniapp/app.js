@@ -1821,6 +1821,8 @@ function closeAuthModal() {
 }
 
 function switchAuthTab(tabName) {
+  document.querySelector('.auth-tabs')?.classList.remove('hidden');
+  $('otpVerificationForm')?.classList.add('hidden');
   document.querySelectorAll('.auth-tab').forEach(b => {
     b.classList.toggle('active', b.dataset.authTab === tabName);
   });
@@ -1899,6 +1901,8 @@ function initAuthHandlers() {
     }
   });
 
+  let pendingVerifUserId = null;
+
   $('registerForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = $('regUsername').value;
@@ -1911,6 +1915,15 @@ function initAuthHandlers() {
 
     try {
       const res = await api('register', { username, email, first_name, password, ref_code });
+      if (res.requires_email_verification) {
+        pendingVerifUserId = res.user_id;
+        if ($('otpEmailTarget')) $('otpEmailTarget').textContent = res.email;
+        $('registerForm').classList.add('hidden');
+        document.querySelector('.auth-tabs')?.classList.add('hidden');
+        $('otpVerificationForm')?.classList.remove('hidden');
+        showStatus('کد تایید ۶ رقمی به ایمیل شما ارسال شد 📩');
+        return;
+      }
       if (res.auth_token) {
         localStorage.setItem('web_token', res.auth_token);
         showStatus('حساب کاربری با موفقیت ساخته شد 🎉');
@@ -1922,6 +1935,43 @@ function initAuthHandlers() {
         errEl.textContent = err.message || 'خطا در ثبت‌نام';
         errEl.classList.remove('hidden');
       }
+    }
+  });
+
+  $('otpVerificationForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const otp = $('otpCodeInput').value;
+    const errEl = $('otpError');
+    if (errEl) errEl.classList.add('hidden');
+
+    if (!pendingVerifUserId || !otp) {
+      if (errEl) { errEl.textContent = 'لطفاً کد تایید را کامل وارد کنید'; errEl.classList.remove('hidden'); }
+      return;
+    }
+
+    try {
+      const res = await api('verify_email_otp', { user_id: pendingVerifUserId, otp });
+      if (res.auth_token) {
+        localStorage.setItem('web_token', res.auth_token);
+        showStatus('ایمیل شما تایید شد! 🎉');
+        closeAuthModal();
+        location.reload();
+      }
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message || 'کد تایید نامعتبر است';
+        errEl.classList.remove('hidden');
+      }
+    }
+  });
+
+  $('resendOtpBtn')?.addEventListener('click', async () => {
+    if (!pendingVerifUserId) return;
+    try {
+      await api('resend_email_otp', { user_id: pendingVerifUserId });
+      showStatus('کد تایید جدید ارسال شد 📩');
+    } catch (err) {
+      alert(err.message || 'خطا در ارسال مجدد کد');
     }
   });
 }
