@@ -873,7 +873,7 @@
       : (discPct > 0 ? `<span class="card-discount-badge">−${discPct}٪ تخفیف</span>` : '');
 
     const imgContent = p.image_url
-      ? `<img src="${esc(p.image_url)}" alt="${esc(title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-fallback-img\\'><span>⚡</span><b>${esc(title.slice(0, 15))}</b></div>';">`
+      ? `<img src="${esc(p.image_url)}" alt="${esc(title)}" loading="lazy" decoding="async" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-fallback-img\\'><span>⚡</span><b>${esc(title.slice(0, 15))}</b></div>';">`
       : `<div class="card-fallback-img"><span>⚡</span><b>${esc(title.slice(0, 15))}</b></div>`;
 
     return `
