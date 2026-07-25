@@ -690,10 +690,18 @@
   /* ── Glowing Top Section — Only shows products with real discounts ── */
   /* Shows: active flash sale OR at least one variant with discount_percent > 0 */
   function glowingFlashSaleSectionHtml() {
-    const specialProducts = state.products.filter(p => {
+    let specialProducts = state.products.filter(p => {
       if (flashSaleActive(p)) return true;
+      if (Number(p.discount_percent || 0) > 0) return true;
       return (p.variants || []).some(v => Number(v.discount_percent) > 0);
     });
+
+    if (!specialProducts.length) {
+      specialProducts = state.products.filter(p => Number(p.is_featured) === 1);
+    }
+    if (!specialProducts.length) {
+      specialProducts = state.products.slice(0, 6);
+    }
     if (!specialProducts.length) return '';
 
     const flashProduct = specialProducts.find(p => flashSaleActive(p));
@@ -743,9 +751,9 @@
 
             return `
               <div class="glowing-flash-card" data-pid="${p.id}">
-                <span class="flash-card-badge">${discLabel || 'ویژه'}</span>
+                <span class="flash-card-badge">${discLabel || '🔥 ویژه'}</span>
                 <div class="flash-card-img">
-                  ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title || p.name)}">` : `<span>🛒</span>`}
+                  ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title || p.name)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-fallback-img\\'><span>⚡</span></div>';">` : `<div class="card-fallback-img"><span>⚡</span><b>${esc((p.title || p.name || '').slice(0, 12))}</b></div>`}
                 </div>
                 <div class="flash-card-title">${esc(p.title || p.name)}</div>
                 <div class="flash-card-bottom">
@@ -848,8 +856,11 @@
       origPrice = Number(bestVariant.old_price) || 0;
       salePrice = Number(bestVariant.price);
       discPct = variantDiscount;
-      // Safety: only show crossed price if original is actually higher
       if (origPrice <= salePrice) origPrice = 0;
+    } else if (Number(p.discount_percent || 0) > 0) {
+      discPct = Number(p.discount_percent);
+      salePrice = Number(p.price);
+      origPrice = Math.round(salePrice / (1 - discPct / 100));
     }
 
     const priceHtml = (origPrice > 0 && salePrice > 0)
@@ -861,12 +872,16 @@
       ? `<div class="flash-sale-badge"><span>⚡</span><b class="flash-sale-timer" data-pid="${p.id}">${flashSaleCountdown(p)}</b></div>`
       : (discPct > 0 ? `<span class="card-discount-badge">−${discPct}٪ تخفیف</span>` : '');
 
+    const imgContent = p.image_url
+      ? `<img src="${esc(p.image_url)}" alt="${esc(title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-fallback-img\\'><span>⚡</span><b>${esc(title.slice(0, 15))}</b></div>';">`
+      : `<div class="card-fallback-img"><span>⚡</span><b>${esc(title.slice(0, 15))}</b></div>`;
+
     return `
       <div class="product-card ${hasSale ? 'has-sale' : ''}" data-pid="${p.id}">
         <div class="card-img-wrap">
           ${badgeHtml}
           <button class="card-wishlist-btn" data-wishlist="${p.id}">${isWished ? '❤️' : '🤍'}</button>
-          ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(title)}">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:56px;">🛒</span>`}
+          ${imgContent}
         </div>
         <div class="card-content">
           <h3 class="card-title">${esc(title)}</h3>
@@ -3598,12 +3613,25 @@
       }
     });
 
-    // Search Input
+    // Search Input + Live Autocomplete Popover
     const searchInput = $('search-input');
     if (searchInput) {
+      let searchTimer;
       searchInput.addEventListener('input', (e) => {
         state.searchTerm = e.target.value.trim();
         if (state.currentTab === 'shop') renderApp();
+
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          renderLiveSearchPopover(state.searchTerm);
+        }, 150);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.header-search-box')) {
+          const popover = $('live-search-popover');
+          if (popover) popover.style.display = 'none';
+        }
       });
     }
 
@@ -3611,6 +3639,58 @@
     $('open-cart-btn')?.addEventListener('click', () => openCartDrawer(true));
     $('close-cart-btn')?.addEventListener('click', () => openCartDrawer(false));
     $('cart-backdrop')?.addEventListener('click', () => openCartDrawer(false));
+  }
+
+  function renderLiveSearchPopover(query) {
+    let popover = $('live-search-popover');
+    if (!popover) {
+      const searchBox = document.querySelector('.header-search-box');
+      if (!searchBox) return;
+      popover = document.createElement('div');
+      popover.id = 'live-search-popover';
+      popover.className = 'live-search-popover';
+      searchBox.appendChild(popover);
+    }
+
+    const q = (query || '').toLowerCase();
+    if (!q || q.length < 2) {
+      popover.style.display = 'none';
+      return;
+    }
+
+    const matches = state.products.filter(p => {
+      const title = (p.title || p.name || '').toLowerCase();
+      const desc = (p.description || '').toLowerCase();
+      return title.includes(q) || desc.includes(q);
+    }).slice(0, 5);
+
+    if (!matches.length) {
+      popover.innerHTML = `<div style="padding:16px; text-align:center; color:var(--text-muted); font-size:13px;">محصولی یافت نشد 🔍</div>`;
+      popover.style.display = 'block';
+      return;
+    }
+
+    popover.innerHTML = matches.map(p => `
+      <div class="search-match-item" data-pid="${p.id}" style="padding:10px 14px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;">
+        <div style="width:36px; height:36px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:100%; height:100%; object-fit:cover;">` : `⚡`}
+        </div>
+        <div style="flex:1; overflow:hidden;">
+          <b style="font-size:13px; color:#fff; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(p.title || p.name)}</b>
+          <small style="font-size:11px; color:var(--cyan); font-weight:800;">${priceLabel(p.price)}</small>
+        </div>
+        <span style="font-size:12px; opacity:0.6;">➔</span>
+      </div>
+    `).join('');
+
+    popover.style.display = 'block';
+
+    popover.querySelectorAll('.search-match-item').forEach(item => {
+      item.addEventListener('click', () => {
+        openProductModal(item.dataset.pid);
+        popover.style.display = 'none';
+      });
+    });
   }
 
   function toggleWishlist(pid) {

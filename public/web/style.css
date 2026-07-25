@@ -1714,11 +1714,21 @@ body.modal-open .bottom-nav {
 }
 
 .glowing-flash-products-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  display: flex;
   gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyan) transparent;
   position: relative;
   z-index: 2;
+}
+.glowing-flash-products-row::-webkit-scrollbar {
+  height: 6px;
+}
+.glowing-flash-products-row::-webkit-scrollbar-thumb {
+  background: var(--cyan);
+  border-radius: 10px;
 }
 
 .glowing-flash-card {
@@ -1733,6 +1743,9 @@ body.modal-open .bottom-nav {
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  min-width: 220px;
+  width: 240px;
+  flex-shrink: 0;
 }
 .glowing-flash-card:hover {
   border-color: #ef4444;
@@ -1803,6 +1816,50 @@ body.modal-open .bottom-nav {
   font-size: 15px;
   font-weight: 900;
   color: var(--cyan);
+}
+
+/* ── Fallback Card Images & Badges ── */
+.card-fallback-img {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(29, 155, 240, 0.2), rgba(139, 92, 246, 0.2));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  border-radius: inherit;
+}
+.card-fallback-img span {
+  font-size: 32px;
+}
+.card-fallback-img b {
+  font-size: 11px;
+  opacity: 0.85;
+  text-align: center;
+  padding: 0 8px;
+}
+
+/* ── Live Search Popover ── */
+.header-search-box {
+  position: relative;
+}
+.live-search-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0; left: 0;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid var(--border-cyan);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(29, 155, 240, 0.2);
+  z-index: 9999;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+  display: none;
+}
+.search-match-item:hover {
+  background: rgba(29, 155, 240, 0.15) !important;
 }
 
 
