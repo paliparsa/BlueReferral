@@ -239,53 +239,60 @@ body.web-mode .web-inner-topbar { display: none !important; }
   filter: brightness(1.08);
 }
 
-/* ── Desktop Sidebar ── */
+/* ── Desktop Sidebar (Floating Glass Panel) ── */
 .web-sidebar {
   display: none;
   position: fixed;
-  top: var(--web-header-h);
-  right: 0;
+  top: calc(var(--web-header-h) + 16px);
+  right: 20px;
   width: var(--web-sidebar-w);
-  height: calc(100vh - var(--web-header-h));
-  background: rgba(10, 20, 38, 0.85);
-  backdrop-filter: blur(16px);
-  border-left: 1px solid rgba(255,255,255,0.07);
-  padding: 20px 12px;
+  height: calc(100vh - var(--web-header-h) - 36px);
+  background: rgba(11, 20, 36, 0.9);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  padding: 20px 14px;
   z-index: 8800;
+  box-shadow: -8px 12px 40px rgba(0, 0, 0, 0.5);
   overflow-y: auto;
 }
 .web-sidebar-inner {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .web-sidebar-btn {
   display: flex;
   align-items: center;
   gap: 12px;
   background: none;
-  border: none;
-  color: rgba(255,255,255,0.65);
+  border: 1px solid transparent;
+  color: rgba(248, 250, 252, 0.65);
   font-size: 14px;
   font-family: inherit;
   font-weight: 600;
   padding: 12px 16px;
   border-radius: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   text-align: right;
   direction: rtl;
   width: 100%;
 }
 .web-sidebar-btn span { font-size: 20px; }
 .web-sidebar-btn:hover {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(-3px);
 }
 .web-sidebar-btn.active {
-  background: rgba(29,155,240,0.16);
-  color: var(--accent, #1d9bf0);
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(29, 155, 240, 0.2));
+  color: #00f2fe;
+  border-color: rgba(0, 242, 254, 0.35);
   font-weight: 800;
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.15);
 }
 
 /* ── Web App Shell on Desktop ── */
@@ -293,6 +300,31 @@ body.web-mode .web-inner-topbar { display: none !important; }
   max-width: var(--web-content-max);
   margin: 0 auto;
   min-height: calc(100vh - var(--web-header-h));
+}
+
+/* ── Slate Cards & Desktop Paneling ── */
+body.web-mode .hero,
+body.web-mode .wallet-card,
+body.web-mode .order-card,
+body.web-mode .detail-card,
+body.web-mode .admin-card,
+body.web-mode .mission-card,
+body.web-mode .mini-stat,
+body.web-mode .quick-card {
+  background: rgba(15, 25, 45, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(20px) saturate(160%) !important;
+  transition: transform 0.2s ease, border-color 0.2s ease !important;
+}
+body.web-mode .hero:hover,
+body.web-mode .wallet-card:hover,
+body.web-mode .order-card:hover,
+body.web-mode .detail-card:hover,
+body.web-mode .mini-stat:hover,
+body.web-mode .quick-card:hover {
+  border-color: rgba(0, 242, 254, 0.3) !important;
 }
 
 /* ── Web Footer ── */
