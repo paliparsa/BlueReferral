@@ -433,14 +433,221 @@
             </div>
           ` : ''}
 
-          <div style="display:flex; justify-content:center; gap:12px;">
-            ${(o.status === 'pending_payment' || o.status === 'rejected') ? `
-              <button class="user-account-btn" style="flex:1; justify-content:center;">💳 پرداخت و ارسال رسید</button>
-            ` : ''}
-          </div>
+          ${paymentMethodsHtml(o)}
         </div>
       `;
+
       $('close-modal-btn')?.addEventListener('click', closeModal);
+      bindOrderPaymentEvents(o);
+    });
+  }
+
+  /* ── Payment Gateways Renderer ── */
+  function paymentMethodsHtml(o) {
+    if (!['pending_payment', 'rejected'].includes(o.status) || Number(o.final_amount || 0) <= 0) {
+      return '';
+    }
+
+    const methods = state.payment_methods || { wallet: { enabled: true }, card: { enabled: true }, crypto: { enabled: false } };
+    const bal = Number(state.user?.balance || 0);
+
+    let html = `
+      <div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:16px;">
+        <h4 style="font-size:15px; font-weight:800; margin-bottom:12px;">💳 انتخاب روش پرداخت</h4>
+    `;
+
+    // 1. Method Selectors
+    if (!o.payment_method || o.payment_method === 'none') {
+      html += `<div class="payment-grid">`;
+      if (methods.wallet?.enabled !== false) {
+        html += `
+          <button class="pay-method-card" id="btn-pay-wallet-${o.id}">
+            <b>💰 کیف پول</b>
+            <span>موجودی: ${priceLabel(bal)}</span>
+          </button>
+        `;
+      }
+      if (methods.card?.enabled !== false) {
+        html += `
+          <button class="pay-method-card" id="btn-pay-card-${o.id}">
+            <b>💳 کارت به کارت</b>
+            <span>پرداخت دستی با رسید</span>
+          </button>
+        `;
+      }
+      if (methods.crypto?.enabled) {
+        html += `
+          <button class="pay-method-card" id="btn-pay-crypto-${o.id}">
+            <b>🪙 رمزارز (USDT / TRX)</b>
+            <span>واریز آنی با TXID</span>
+          </button>
+        `;
+      }
+      html += `</div>`;
+    }
+
+    // 2. Card Payment Panel
+    if (o.payment_method === 'card') {
+      let accounts = methods.card?.accounts || [];
+      if (!accounts.length) {
+        accounts = [{ title: 'کارت اصلی فروشگاه', card: '6037997412345678', owner: 'پشتیبانی BlueGate' }];
+      }
+
+      html += `
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:16px; padding:16px; margin-top:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <b style="font-size:14px; color:var(--cyan);">💳 اطلاعات شماره کارت</b>
+            <button class="ghost" id="btn-reset-method-${o.id}" style="font-size:11px; padding:4px 8px;">🔄 تغییر روش</button>
+          </div>
+          ${accounts.map(acc => `
+            <div class="luxury-bank-card">
+              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">
+                <span>${esc(acc.title || 'کارت بانکی')}</span>
+                <span>${esc(acc.owner || '')}</span>
+              </div>
+              <div class="bank-card-number">${esc(acc.card || '')}</div>
+              <button class="user-account-btn" data-copy="${esc(acc.card || '')}" style="margin:0 auto; font-size:12px; padding:6px 14px;">📋 کپی شماره کارت</button>
+            </div>
+          `).join('')}
+
+          <form id="receipt-upload-form-${o.id}" style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:14px;">
+            <div style="margin-bottom:12px;">
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">توضیحات / شماره پیگیری / ۴ رقم کارت</label>
+              <input type="text" id="receipt-note-${o.id}" required placeholder="مثلاً: واریز از کارت علی محمودی کد ۱۲۳۴" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; outline:none; font-size:13px;">
+            </div>
+            <div style="margin-bottom:14px;">
+              <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">تصویر رسید (اختیاری)</label>
+              <input type="file" id="receipt-file-${o.id}" accept="image/*" style="width:100%; font-size:12px; color:var(--text-muted);">
+            </div>
+            <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">📤 ثبت رسید و تایید پرداخت</button>
+          </form>
+        </div>
+      `;
+    }
+
+    // 3. Crypto Invoicing Panel
+    if (o.payment_method === 'crypto') {
+      const wallets = methods.crypto?.wallets || [];
+      const cryptoCheck = o.crypto_check;
+
+      html += `
+        <div class="crypto-invoice-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <b style="font-size:14px; color:var(--cyan);">🪙 پرداخت رمزارز</b>
+            <button class="ghost" id="btn-reset-method-${o.id}" style="font-size:11px; padding:4px 8px;">🔄 تغییر روش</button>
+          </div>
+          ${!cryptoCheck ? `
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">کیف پول شبکه مورد نظر خود را انتخاب کنید:</p>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              ${wallets.map(w => `
+                <button class="user-account-btn" data-select-crypto-id="${w.id}" style="justify-content:space-between; background:rgba(255,255,255,0.04);">
+                  <span>${esc(w.title || 'USDT TRC20')}</span>
+                  <small style="color:var(--cyan);">${w.rate_toman ? `۱ USDT = ${priceLabel(w.rate_toman)}` : ''}</small>
+                </button>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="background:rgba(0,0,0,0.3); border-radius:12px; padding:14px; margin-bottom:14px;">
+              <small style="color:var(--text-muted); font-size:12px; display:block;">آدرس کیف پول جهت واریز:</small>
+              <code style="font-size:14px; color:var(--cyan); word-break:break-all; display:block; margin:6px 0;">${esc(cryptoCheck.address)}</code>
+              <button class="user-account-btn" data-copy="${esc(cryptoCheck.address)}" style="font-size:11px; padding:4px 10px;">📋 کپی آدرس</button>
+            </div>
+            <form id="crypto-hash-form-${o.id}">
+              <div style="margin-bottom:12px;">
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">کد هش تراکنش (TXID / Hash)</label>
+                <input type="text" id="crypto-txid-${o.id}" required placeholder="هش تراکنش شبکه..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:10px; font-family:inherit; outline:none; font-size:13px;">
+              </div>
+              <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">⚡ ثبت TXID جهت استعلام آنی</button>
+            </form>
+          `}
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  /* ── Order Payment Event Binding ── */
+  function bindOrderPaymentEvents(o) {
+    // Wallet Payment Action
+    $(`btn-pay-wallet-${o.id}`)?.addEventListener('click', async () => {
+      const bal = Number(state.user?.balance || 0);
+      if (bal < Number(o.final_amount || 0)) {
+        if (!confirm(`موجودی کیف پول شما (${priceLabel(bal)}) از مبلغ سفارش کمتر است. آیا مایلید موجودی موجود کسر شود؟`)) return;
+      }
+      const res = await api('apply_wallet', {}, 'POST', { order_id: o.id });
+      if (res && res.ok) {
+        showToast('پرداخت از کیف پول انجام شد! 🎉', 'success');
+        openOrderDetailModal(o.id);
+      } else {
+        showToast(res.message || 'خطا در پرداخت کیف پول.', 'error');
+      }
+    });
+
+    // Select Card Payment Action
+    $(`btn-pay-card-${o.id}`)?.addEventListener('click', async () => {
+      const res = await api('select_payment_method', {}, 'POST', { order_id: o.id, method: 'card' });
+      if (res && res.ok) openOrderDetailModal(o.id);
+    });
+
+    // Select Crypto Payment Action
+    $(`btn-pay-crypto-${o.id}`)?.addEventListener('click', async () => {
+      const res = await api('select_payment_method', {}, 'POST', { order_id: o.id, method: 'crypto' });
+      if (res && res.ok) openOrderDetailModal(o.id);
+    });
+
+    // Reset Payment Method Action
+    $(`btn-reset-method-${o.id}`)?.addEventListener('click', async () => {
+      const res = await api('select_payment_method', {}, 'POST', { order_id: o.id, method: 'none' });
+      if (res && res.ok) openOrderDetailModal(o.id);
+    });
+
+    // Card Receipt Upload Submit
+    $(`receipt-upload-form-${o.id}`)?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const note = $(`receipt-note-${o.id}`).value.trim();
+      const fileInput = $(`receipt-file-${o.id}`);
+
+      let receipt_b64 = null;
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        const file = fileInput.files[0];
+        receipt_b64 = await new Promise(resolve => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.readAsDataURL(file);
+        });
+      }
+
+      const res = await api('submit_receipt', {}, 'POST', { order_id: o.id, note, receipt_b64 });
+      if (res && res.ok) {
+        showToast('رسید با موفقیت ثبت و برای پشتیبانی ارسال شد! 📤', 'success');
+        openOrderDetailModal(o.id);
+      } else {
+        showToast(res.message || 'خطا در ثبت رسید.', 'error');
+      }
+    });
+
+    // Crypto Wallet Selection
+    document.querySelectorAll(`[data-select-crypto-id]`).forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const wallet_id = btn.dataset.selectCryptoId;
+        const res = await api('select_crypto_wallet', {}, 'POST', { order_id: o.id, wallet_id });
+        if (res && res.ok) openOrderDetailModal(o.id);
+      });
+    });
+
+    // Submit Crypto TXID Hash
+    $(`crypto-hash-form-${o.id}`)?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const tx_hash = $(`crypto-txid-${o.id}`).value.trim();
+      const res = await api('submit_crypto_hash', {}, 'POST', { order_id: o.id, tx_hash });
+      if (res && res.ok) {
+        showToast('کد TXID ثبت شد و سیستم شبکه در حال بررسی است ⚡', 'success');
+        openOrderDetailModal(o.id);
+      } else {
+        showToast(res.message || 'خطا در ثبت کد Hash.', 'error');
+      }
     });
   }
 
