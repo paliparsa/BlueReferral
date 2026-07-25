@@ -405,14 +405,14 @@
 
         <div class="glowing-flash-products-row">
           ${displayList.map(p => {
-            const disc = Number(p.discount_percent || 15);
+            const disc = Number(p.discount_percent || p.flash_sale_discount || 0);
             let orig = p.old_price;
-            if (!orig && Number(p.price) > 0) {
+            if (!orig && disc > 0 && disc < 100 && Number(p.price) > 0) {
               orig = Math.round(Number(p.price) / (1 - disc / 100));
             }
             return `
               <div class="glowing-flash-card" data-pid="${p.id}">
-                <span class="flash-card-badge">🔥 −${disc}٪</span>
+                <span class="flash-card-badge">${disc > 0 ? `🔥 −${disc}٪` : '⭐ پیشنهاد ویژه'}</span>
                 <div class="flash-card-img">
                   ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title || p.name)}">` : `<span>🛍️</span>`}
                 </div>
@@ -521,10 +521,22 @@
     localStorage.setItem('bg_web_recent', JSON.stringify(state.recent));
   }
 
-  function getFlashTimeRemaining() {
+  function getFlashTimeRemaining(p = null) {
     const now = new Date();
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-    const diff = Math.max(0, Math.floor((endOfDay - now) / 1000));
+    let targetEnd = null;
+
+    if (p && p.flash_sale_end) {
+      const parsed = new Date(p.flash_sale_end);
+      if (!isNaN(parsed.getTime())) {
+        targetEnd = parsed;
+      }
+    }
+
+    if (!targetEnd) {
+      targetEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    }
+
+    const diff = Math.max(0, Math.floor((targetEnd - now) / 1000));
     const h = String(Math.floor(diff / 3600)).padStart(2, '0');
     const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
     const s = String(diff % 60).padStart(2, '0');
