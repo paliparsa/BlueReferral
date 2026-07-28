@@ -402,6 +402,10 @@
     applyUserTheme();
     restoreAppLastState();
 
+    $('modal-container')?.addEventListener('click', (e) => {
+      if (e.target === $('modal-container')) closeModal();
+    });
+
     const token = localStorage.getItem('bg_web_token');
     let res = null;
 
