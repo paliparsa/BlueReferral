@@ -262,6 +262,9 @@
       document.body.style.overflow = 'hidden';
       document.body.classList.add('has-open-popup');
     }
+    modalContainer.onclick = (e) => {
+      if (e.target === modalContainer) closeModal();
+    };
 
     const palettes = [
       { name: 'فیروزه‌ای (پیش‌فرض)', color: '#00f2fe' },
@@ -965,10 +968,9 @@
     if (!p) return;
     const modalContainer = $('modal-container');
     if (!modalContainer) return;
-    if (document.body) {
-      document.body.style.overflow = 'hidden';
-      document.body.classList.add('has-open-popup');
-    }
+    modalContainer.onclick = (e) => {
+      if (e.target === modalContainer) closeModal();
+    };
 
     const baseUrl = window.location.origin + window.location.pathname;
     const shareUrl = `${baseUrl}?p=${p.id}`;
@@ -1116,6 +1118,9 @@
       document.body.style.overflow = 'hidden';
       document.body.classList.add('has-open-popup');
     }
+    modalContainer.onclick = (e) => {
+      if (e.target === modalContainer) closeModal();
+    };
     modalContainer.classList.remove('hidden');
 
     // Fetch order details via API
@@ -4721,6 +4726,10 @@
       document.body.classList.add('has-open-popup');
     }
 
+    modalContainer.onclick = (e) => {
+      if (e.target === modalContainer) closeModal();
+    };
+
     const title = p.title || p.name || 'جزئیات محصول';
     const variants = p.variants || [];
     const isWished = state.wishlist.includes(Number(p.id));
@@ -4750,7 +4759,7 @@
         ` : ''}
 
         ${hasDesc ? `
-          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; margin-bottom:16px; font-size:13.5px; line-height:1.6; color:var(--text-muted);">
+          <div class="web-description-box">
             ${esc(rawDesc)}
           </div>
         ` : `
