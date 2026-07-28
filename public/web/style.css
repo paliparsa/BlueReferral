@@ -481,26 +481,29 @@ body {
 
 .product-modal-hero {
   width: 100%;
-  height: auto;
-  max-height: 400px;
+  height: 240px;
+  max-height: 240px;
   border-radius: 20px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(15, 23, 42, 0.4);
   border: 1px solid var(--border-color);
   margin-bottom: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14px;
+  padding: 12px;
 }
 .product-modal-hero img {
-  width: 100% !important;
+  width: auto !important;
+  max-width: 100% !important;
   height: auto !important;
-  max-height: 370px !important;
+  max-height: 216px !important;
   object-fit: contain !important;
   display: block !important;
   margin: 0 auto !important;
-  border-radius: 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
 }
 
 .web-description-box, .note-box {
