@@ -859,10 +859,12 @@
       salePrice = Number(p.price);
     }
 
+    const vTagHtml = bestVariant ? `<span class="variant-tag">${esc(bestVariant.title)}</span>` : '';
+
     const priceHtml = (origPrice > 0 && salePrice > 0)
       ? `<s style="color:#9fb0c8; font-size:11px; text-decoration:line-through;">${priceLabel(origPrice)}</s>
-         <b style="color:#ffffff; font-weight:900; display:block; margin-top:2px;">${priceLabel(salePrice)}</b>`
-      : `<b style="color:#ffffff; font-weight:900;">${priceLabel(p.price)}</b>`;
+         <b style="color:#ffffff; font-weight:900; display:block; margin-top:2px;">${priceLabel(salePrice)} ${vTagHtml}</b>`
+      : `<b style="color:#ffffff; font-weight:900;">${priceLabel(p.price)} ${vTagHtml}</b>`;
 
     const badgeHtml = discPct > 0 ? `<span class="card-discount-badge">−${nf(discPct)}٪ تخفیف</span>` : '';
 
