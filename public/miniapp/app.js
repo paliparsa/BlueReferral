@@ -160,7 +160,8 @@ function getOrderRemainingSeconds(o) {
       if (rem > 0) return rem;
     }
   }
-  if (o.status === 'pending_payment') {
+  const st = String(o.status || '').toLowerCase();
+  if (['pending_payment', 'pending', 'reviewing'].includes(st)) {
     return 20 * 60;
   }
   return 0;
@@ -498,7 +499,8 @@ function openWalletConfirmSheet(orderId){
 
 function paymentMethodsHtml(o){
   const methods=state.payment_methods||{wallet:{enabled:true},card:{enabled:true,accounts:[],instructions:state.payment_instructions||''},stars:{enabled:false,rate_toman:3200},crypto:{enabled:false,wallets:[],markup_percent:1}};
-  if(!['pending_payment','rejected'].includes(o.status)||Number(o.final_amount||0)<=0)return '';
+  const st = String(o.status || '').toLowerCase();
+  if(!['pending_payment','pending','rejected'].includes(st)||Number(o.final_amount||0)<=0)return '';
   const bal=Number(state.user?.balance||0);
   const supportUser = state.support_username || '';
   const supportWarningHtml = `
@@ -512,7 +514,8 @@ function paymentMethodsHtml(o){
   `;
 
   const remSec = getOrderRemainingSeconds(o);
-  if (o.status === 'pending_payment' && remSec <= 0) {
+  const isPending = ['pending_payment','pending'].includes(st);
+  if (isPending && remSec <= 0) {
     return `<article class="payment-box">
       <div class="order-expired-card">
         <div class="expired-icon">⚠️</div>
@@ -525,8 +528,61 @@ function paymentMethodsHtml(o){
     </article>`;
   }
 
-  const timerBadgeHtml = (o.status === 'pending_payment' && remSec > 0) ? `
+  const timerBadgeHtml = (isPending && remSec > 0) ? `
     <div class="payment-countdown-badge" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at || '')}">
+      <span class="timer-icon">⏳</span>
+      <span class="timer-label">مهلت پرداخت:</span>
+      <b class="timer-val">${formatMMSS(remSec)}</b>
+    </div>
+  ` : '';
+
+  let html=`<article class="payment-box">
+    ${timerBadgeHtml}
+    ${supportWarningHtml}
+    <div class="section-title compact">
+      <h3>💳 روش پرداخت</h3>
+      <span class="badge">${esc(o.payment_method_fa||'انتخاب نشده')}</span>
+    </div>`;
+
+  // 1. Selector Buttons Grid (Shown when method is NOT chosen yet)
+  if(!o.payment_method || o.payment_method === 'none'){
+    html+=`<p class="muted" style="margin-bottom:10px">یکی از روش‌های زیر را برای پرداخت انتخاب کن:</p><div class="payment-grid">`;
+    if(methods.wallet?.enabled) html+=`<button class="pay-method success" data-wallet-order="${o.id}"><b>💰 کیف پول</b><span>موجودی: ${fmt(bal)}</span></button>`;
+    if(methods.card?.enabled) html+=`<button class="pay-method" data-select-card="${o.id}"><b>💳 کارت به کارت</b><span>پرداخت دستی با رسید</span></button>`;
+    if(methods.stars?.enabled) html+=`<button class="pay-method warning" data-pay-stars="${o.id}"><b>⭐ Telegram Stars</b><span>${nf(Math.max(1,Math.ceil(Number(o.final_amount||0)/Number(methods.stars?.rate_toman||3200))))} استار</span></button>`;
+    if(methods.crypto?.enabled) html+=`<button class="pay-method crypto" data-select-crypto-tab="${o.id}"><b>🪙 رمزارز</b><span>USDT / TRX / TON با TXID</span></button>`;
+    if(!methods.wallet?.enabled && !methods.card?.enabled && !methods.stars?.enabled && !methods.crypto?.enabled) html+=`<p class="muted empty-state">فعلاً هیچ روش پرداختی فعال نیست. لطفاً به پشتیبانی پیام بده.</p>`;
+    html+=`</div>`;
+  }
+
+  // 2. Card Payment Panel (Shown ONLY when o.payment_method === 'card')
+  if(o.payment_method === 'card' && methods.card?.enabled){
+    let cardAccounts = methods.card?.accounts || [];
+    if(!cardAccounts.length && state.settings?.card_accounts_text){
+      cardAccounts = parsePipeLines(state.settings.card_accounts_text, ['title','card','owner','sheba']);
+    }
+    if(!cardAccounts.length && state.card_accounts_text){
+      cardAccounts = parsePipeLines(state.card_accounts_text, ['title','card','owner','sheba']);
+    }
+    if(!cardAccounts.length && (state.payment_instructions || methods.card?.instructions)){
+      const txt = String(methods.card?.instructions || state.payment_instructions || '');
+      const m = txt.match(/\d{16}/);
+      if(m) cardAccounts = [{title:'کارت بانکی سفارشات', card: m[0], owner:'پشتیبانی', sheba:''}];
+    }
+    if(!cardAccounts.length) cardAccounts = [{title:'کارت بانکی', card:'6037997412345678', owner:'پشتیبانی فروشگاه', sheba:''}];
+
+    html+=`<div class="card-v2-container">
+      ${timerBadgeHtml}
+      <div class="card-v2-topbar">
+        <button type="button" class="card-v2-reset-btn" data-reset-payment-method="${o.id}">
+          <span>🔄</span> تغییر روش
+        </button>
+
+        <div class="card-v2-title">
+          <span class="card-v2-title-text">اطلاعات شماره کارت</span>
+          <span class="card-v2-card-icon">💳</span>
+        </div>
+      </div>`;>
       <span class="timer-icon">⏳</span>
       <span class="timer-label">مهلت پرداخت:</span>
       <b class="timer-val">${formatMMSS(remSec)}</b>
@@ -635,6 +691,7 @@ function paymentMethodsHtml(o){
   const cryptoCheck=o.crypto_check||null;
   if(o.payment_method === 'crypto' && methods.crypto?.enabled){
     html+=`<div class="crypto-v2-container">
+      ${timerBadgeHtml}
       <div class="crypto-v2-topbar">
         <button type="button" class="crypto-v2-reset-btn" data-reset-payment-method="${o.id}">
           <span>🔄</span> تغییر روش
@@ -748,10 +805,12 @@ function orderDetailHtml(o){
   ` : '';
 
   const remSec = getOrderRemainingSeconds(o);
-  const topTimerHtml = (o.status === 'pending_payment' && remSec > 0) ? `
-    <div class="payment-countdown-badge" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at || '')}" style="margin: 12px 0;">
+  const stDetail = String(o.status || '').toLowerCase();
+  const isPendingDetail = ['pending_payment','pending'].includes(stDetail);
+  const topTimerHtml = (isPendingDetail && remSec > 0) ? `
+    <div class="payment-countdown-badge" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at || '')}" style="margin: 12px 0; width: 100%; justify-content: center;">
       <span class="timer-icon">⏳</span>
-      <span class="timer-label">مهلت پرداخت:</span>
+      <span class="timer-label">مهلت پرداخت سفارش:</span>
       <b class="timer-val">${formatMMSS(remSec)}</b>
     </div>
   ` : '';
@@ -1251,7 +1310,8 @@ function orderRowHtml(o){
     priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;
   }
   const remSec = getOrderRemainingSeconds(o);
-  const timerPill = (o.status === 'pending_payment' && remSec > 0) ? `<span class="payment-countdown-pill" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at||'')}"><span class="timer-icon">⏳</span> <b class="timer-val">${formatMMSS(remSec)}</b></span>` : '';
+  const isPendingRow = ['pending_payment','pending'].includes(String(o.status||'').toLowerCase());
+  const timerPill = (isPendingRow && remSec > 0) ? `<span class="payment-countdown-pill" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at||'')}"><span class="timer-icon">⏳</span> <b class="timer-val">${formatMMSS(remSec)}</b></span>` : '';
   return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid} ${timerPill}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`
 }
 
