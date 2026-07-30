@@ -126,6 +126,64 @@ const fmt = (n) => `${Number(n || 0).toLocaleString('fa-IR')} تومان`;
 const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
 const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const textBlock = (s) => esc(s || '').replace(/\n/g,'<br>');
+
+function getOrderRemainingSeconds(o) {
+  if (!o) return 0;
+  if (typeof o.payment_remaining_seconds === 'number' && o.payment_remaining_seconds >= 0) return o.payment_remaining_seconds;
+  if (o.payment_expires_at) {
+    const exp = new Date(String(o.payment_expires_at).replace(/-/g, '/')).getTime();
+    return Math.max(0, Math.floor((exp - Date.now()) / 1000));
+  }
+  if (o.created_at) {
+    const created = new Date(String(o.created_at).replace(/-/g, '/')).getTime();
+    const exp = created + 20 * 60 * 1000;
+    return Math.max(0, Math.floor((exp - Date.now()) / 1000));
+  }
+  return 0;
+}
+
+function formatMMSS(sec) {
+  if (sec <= 0) return '00:00';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+let _orderCountdownInterval = null;
+function startOrderCountdownTicker() {
+  if (_orderCountdownInterval) return;
+  _orderCountdownInterval = setInterval(() => {
+    const badges = document.querySelectorAll('[data-order-timer]');
+    if (!badges.length) return;
+    badges.forEach(badge => {
+      const expStr = badge.dataset.expiresAt;
+      let rem = 0;
+      if (expStr) {
+        const exp = new Date(expStr.replace(/-/g, '/')).getTime();
+        rem = Math.max(0, Math.floor((exp - Date.now()) / 1000));
+      } else {
+        const valEl = badge.querySelector('.timer-val');
+        if (valEl) {
+          const parts = valEl.textContent.trim().split(':');
+          if (parts.length === 2) {
+            rem = Math.max(0, (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0) - 1);
+          }
+        }
+      }
+      const valEl = badge.querySelector('.timer-val');
+      if (valEl) {
+        valEl.textContent = formatMMSS(rem);
+        if (rem <= 300) {
+          badge.classList.add('urgent');
+        }
+      }
+      if (rem <= 0) {
+        badge.classList.add('expired');
+      }
+    });
+  }, 1000);
+}
+startOrderCountdownTicker();
 function colorMix(c){return c || '#1d9bf0'}
 function applyTheme(data={}){const local=localStorage.getItem('blue_ref_color');const accent=local||data.theme_color||data.settings?.theme_color||'#1d9bf0';document.documentElement.style.setProperty('--accent',accent);document.documentElement.style.setProperty('--primary',data.button_colors_enabled===false?'#1d9bf0':(data.button_colors?.primary||data.settings?.button_colors?.primary||accent));document.documentElement.style.setProperty('--secondary',data.button_colors?.secondary||data.settings?.button_colors?.secondary||'#2563eb');document.documentElement.style.setProperty('--danger',data.button_colors?.danger||data.settings?.button_colors?.danger||'#ef4444');document.documentElement.style.setProperty('--success',data.button_colors?.success||data.settings?.button_colors?.success||'#22c55e');document.documentElement.style.setProperty('--warning',data.button_colors?.warning||data.settings?.button_colors?.warning||'#f59e0b');try{tg?.setHeaderColor?.(accent);tg?.setBackgroundColor?.('#08111f');tg?.MainButton?.setParams?.({color:accent,text_color:'#ffffff'});}catch(e){}}
 let _statusTimer=null;
@@ -429,7 +487,30 @@ function paymentMethodsHtml(o){
     </div>
   `;
 
+  const remSec = getOrderRemainingSeconds(o);
+  if (o.status === 'pending_payment' && remSec <= 0) {
+    return `<article class="payment-box">
+      <div class="order-expired-card">
+        <div class="expired-icon">⚠️</div>
+        <div class="expired-content">
+          <h4>مهلت پرداخت این سفارش به پایان رسیده است</h4>
+          <p>زمان مجاز برای تکمیل پرداخت ۲۰ دقیقه بود که به اتمام رسید. برای ادامه می‌توانید سفارش جدیدی ثبت کنید.</p>
+        </div>
+        <button class="primary btn-reorder" data-reorder-product="${o.product_id || ''}">🔄 سفارش مجدد / رفرش</button>
+      </div>
+    </article>`;
+  }
+
+  const timerBadgeHtml = (o.status === 'pending_payment' && remSec > 0) ? `
+    <div class="payment-countdown-badge" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at || '')}">
+      <span class="timer-icon">⏳</span>
+      <span class="timer-label">مهلت پرداخت:</span>
+      <b class="timer-val">${formatMMSS(remSec)}</b>
+    </div>
+  ` : '';
+
   let html=`<article class="payment-box">
+    ${timerBadgeHtml}
     ${supportWarningHtml}
     <div class="section-title compact">
       <h3>💳 روش پرداخت</h3>
@@ -1128,7 +1209,18 @@ function showProduct(pid){
   });
 }
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
-function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;}return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
+function orderRowHtml(o){
+  const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';
+  const d=Number(o.variant_discount_percent)||0;
+  let priceStr=`مانده ${fmt(o.final_amount)}`;
+  if(d>0){
+    const orig=Math.round(Number(o.amount)/(1-d/100));
+    priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;
+  }
+  const remSec = getOrderRemainingSeconds(o);
+  const timerPill = (o.status === 'pending_payment' && remSec > 0) ? `<span class="payment-countdown-pill" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at||'')}"><span class="timer-icon">⏳</span> <b class="timer-val">${formatMMSS(remSec)}</b></span>` : '';
+  return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid} ${timerPill}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`
+}
 
 function wheelGradient(rewards=[]){const colors=['#1d9bf0','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#ef4444','#84cc16'];const list=rewards.length?rewards:[{title:'جایزه'}];const step=100/list.length;return `conic-gradient(${list.map((_,i)=>`${colors[i%colors.length]} ${i*step}% ${(i+1)*step}%`).join(',')})`}
 function wheelPrizeList(rewards=[]){return (rewards||[]).slice(0,8).map(r=>`<div class="wheel-prize"><b>${esc(r.title||'جایزه')}</b><br><span>${Number(r.amount||0)>0?fmt(r.amount):'جایزه دستی'}</span></div>`).join('') || '<p class="muted">جایزه‌ای تعریف نشده.</p>'}
@@ -2538,6 +2630,19 @@ document.addEventListener('click',e=>{
     closeShareSheet(); return;
   }
 },true);
+
+/* ===== Reorder click delegation ===== */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-reorder-product]');
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  const pid = btn.dataset.reorderProduct;
+  currentTab = 'shop';
+  renderUser();
+  if (pid && Number(pid) > 0) {
+    showProduct(pid);
+  }
+});
 
 /* ===== Quick-win: haptic on tab & cat clicks ===== */
 document.addEventListener('click',e=>{

@@ -3688,6 +3688,111 @@ body .card-v2-submit-btn:active {
   transform: scale(0.98) !important;
 }
 
+/* ===== Phase 1: Payment Countdown Timer & Expired State ===== */
+.payment-countdown-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #f59e0b;
+  font-size: 13.5px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.15);
+  animation: timerPulse 2s infinite ease-in-out;
+}
+.payment-countdown-badge .timer-icon {
+  font-size: 16px;
+}
+.payment-countdown-badge .timer-val {
+  font-family: monospace, var(--font-fa);
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  color: #fbbf24;
+}
+.payment-countdown-badge.urgent {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.25);
+  animation: timerPulseUrgent 1s infinite ease-in-out;
+}
+.payment-countdown-badge.urgent .timer-val {
+  color: #ef4444;
+}
+
+@keyframes timerPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); opacity: 0.88; }
+}
+@keyframes timerPulseUrgent {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.75; }
+}
+
+.payment-countdown-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.order-expired-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 18px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  box-shadow: 0 12px 36px rgba(239, 68, 68, 0.15);
+  margin: 14px 0;
+}
+.order-expired-card .expired-icon {
+  font-size: 42px;
+  margin-bottom: 12px;
+  animation: bounceSlow 2s infinite ease-in-out;
+}
+.order-expired-card h4 {
+  font-size: 16px;
+  font-weight: 900;
+  color: #f87171;
+  margin: 0 0 8px;
+}
+.order-expired-card p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 18px;
+  line-height: 1.6;
+}
+.order-expired-card .btn-reorder {
+  padding: 12px 24px;
+  border-radius: 16px;
+  font-weight: 900;
+  font-size: 14px;
+  background: linear-gradient(135deg, #3b82f6, #1d9bf0);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(29, 155, 240, 0.35);
+  transition: transform 0.2s ease;
+}
+.order-expired-card .btn-reorder:active {
+  transform: scale(0.96);
+}
+
 
 
 
