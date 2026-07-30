@@ -2751,10 +2751,17 @@ function order_public_payload(array $o, bool $is_admin = false): array {
     $name = $o['product_name'].(!empty($o['variant_title']) ? ' - '.$o['variant_title'] : '');
     $status = normalize_order_status($o['status']);
     $pmtExpiresAt = $o['payment_expires_at'] ?? null;
-    if (!$pmtExpiresAt && $status === 'pending_payment' && !empty($o['created_at'])) {
-        $pmtExpiresAt = date('Y-m-d H:i:s', strtotime($o['created_at']) + setting_int('order_expiry_minutes', 20) * 60);
+    if (!$pmtExpiresAt && $status === 'pending_payment') {
+        $pmtExpiresAt = !empty($o['created_at']) ? date('Y-m-d H:i:s', strtotime($o['created_at']) + setting_int('order_expiry_minutes', 20) * 60) : date('Y-m-d H:i:s', time() + setting_int('order_expiry_minutes', 20) * 60);
     }
-    $pmtRemainingSec = ($status === 'pending_payment' && $pmtExpiresAt) ? max(0, strtotime($pmtExpiresAt) - time()) : 0;
+    $pmtRemainingSec = 0;
+    if ($status === 'pending_payment') {
+        $rem = $pmtExpiresAt ? (strtotime($pmtExpiresAt) - time()) : 0;
+        $pmtRemainingSec = max(0, $rem > 0 ? $rem : setting_int('order_expiry_minutes', 20) * 60);
+        if (!$o['payment_expires_at'] && $pmtExpiresAt) {
+            $pmtExpiresAt = date('Y-m-d H:i:s', time() + $pmtRemainingSec);
+        }
+    }
 
     $payload = [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
