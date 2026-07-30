@@ -49,9 +49,7 @@
   /* ── API Service Connector ── */
   async function api(action, params = {}, method = 'GET', body = null) {
     const query = new URLSearchParams({ action, ...params }).toString();
-    const url = `/web/api.php?${query}`;
     const token = localStorage.getItem('bg_web_token');
-
     const headers = { 'Accept': 'application/json' };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -59,18 +57,30 @@
     }
     if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers,
-        body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : null
-      });
-      const data = await res.json();
-      return data;
-    } catch (err) {
-      console.error(`API Error [${action}]:`, err);
-      return { ok: false, error: 'SERVER_ERROR', message: 'خطا در ارتباط با سرور' };
+    const candidateUrls = [
+      `web/api.php?${query}`,
+      `api.php?${query}`,
+      `/web/api.php?${query}`,
+      `/api.php?${query}`,
+      `../api.php?${query}`
+    ];
+
+    let res = null, data = null;
+    for (const url of candidateUrls) {
+      try {
+        const r = await fetch(url, {
+          method,
+          headers,
+          body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : null
+        });
+        if (r.status !== 404) {
+          res = r;
+          data = await r.json().catch(() => ({}));
+          break;
+        }
+      } catch (err) {}
     }
+    return data || { ok: false, error: 'SERVER_ERROR', message: 'خطا در ارتباط با سرور' };
   }
 
   /* ── Phase 6 Quality & Polish System ── */
@@ -5321,24 +5331,5 @@
   } else {
     initApp();
   }
-
-  /* ── Live Flash Sale Countdown Ticker (updates DOM in-place every second) ── */
-  setInterval(() => {
-    // Update .flash-sale-timer elements that have data-pid directly
-    document.querySelectorAll('.flash-sale-timer[data-pid]').forEach(el => {
-      const pid = el.dataset.pid;
-      const p = state.products.find(x => Number(x.id) === Number(pid));
-      if (!p || !flashSaleActive(p)) return;
-      const text = flashSaleCountdown(p);
-      if (text) el.textContent = text;
-    });
-    // Update banner timer (no data-pid, inside flash-sale-timer-pill)
-    document.querySelectorAll('.flash-sale-timer-pill .flash-sale-timer').forEach(el => {
-      const flashP = state.products.find(p => flashSaleActive(p));
-      if (!flashP) return;
-      const t = getFlashTimeRemaining(flashP);
-      if (t) el.textContent = t;
-    });
-  }, 1000);
 
 })();
