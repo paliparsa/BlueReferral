@@ -495,6 +495,9 @@ if ($action === 'admin_purchase_reward') {
         'reply_markup' => json_encode(main_menu_keyboard(is_admin($referrer['telegram_id'])))
     ]);
 
+    api_out(admin_payload() + ['message' => $msgAdmin, 'amount' => $amount, 'referrer' => $refName]);
+}
+
 if ($action === 'admin_save_vip_rates') {
     require_admin($user);
     $rates = is_array($input['vip_tier_rates'] ?? null) ? $input['vip_tier_rates'] : [];
