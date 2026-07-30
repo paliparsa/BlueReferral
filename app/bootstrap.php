@@ -111,7 +111,6 @@ function migrate(): void {
     seed_setting('resend_api_key', app_config('RESEND_API_KEY', ''));
     seed_setting('resend_from_email', app_config('RESEND_FROM_EMAIL', 'onboarding@resend.dev'));
     seed_setting('require_email_verification', '1');
-    seed_setting('payment_expiry_minutes', '20');
     seed_setting('payment_instructions', app_config('PAYMENT_INSTRUCTIONS', 'لطفاً یکی از روش‌های پرداخت فعال را انتخاب کن. پرداخت کارت‌به‌کارت با ارسال رسید بررسی می‌شود.'));
     seed_setting('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]);
     seed_setting('card_accounts', app_config('CARD_ACCOUNTS', []));
