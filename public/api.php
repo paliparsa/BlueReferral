@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if (!ob_start('ob_gzhandler')) { ob_start(); }
 require_once __DIR__ . '/../app/bootstrap.php';
 try {
@@ -114,6 +114,7 @@ function guest_dashboard_payload(): array {
         'shop_products' => $products,
         'orders' => [],
         'payment_methods' => payment_methods_public(null),
+        'payment_expiry_minutes' => setting_int('payment_expiry_minutes', 20),
         'payment_instructions' => setting('payment_instructions', 'لطفاً پرداخت را انجام دهید و رسید را ارسال کنید.'),
         'achievements' => []
     ];
