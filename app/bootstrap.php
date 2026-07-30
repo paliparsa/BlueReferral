@@ -133,6 +133,7 @@ function migrate(): void {
     seed_setting('swapwallet_notify_fail', '1');
     seed_setting('swapwallet_api_version', 'v2_temporary_wallet');
     seed_setting('swapwallet_strict_v2', '1');
+    seed_setting('order_expiry_minutes', '20');
     seed_payment_methods();
     seed_setting('delivery_template_account', "📩 اطلاعات اکانت شما\n\n{delivery}\n\n⚠️ لطفاً رمز را تغییر ندهید مگر ادمین گفته باشد.");
     seed_setting('delivery_template_vpn', "🔐 سرویس VPN شما آماده شد\n\n{delivery}\n\nاگر نیاز به راهنما داشتی، به پشتیبانی پیام بده.");
@@ -163,6 +164,7 @@ function migrate(): void {
     add_column_if_missing('orders', 'usd_rate_source', 'VARCHAR(32) NULL AFTER usd_rate_toman');
     add_column_if_missing('orders', 'usd_rate_updated_at', 'DATETIME NULL AFTER usd_rate_source');
     add_column_if_missing('orders', 'expires_at', 'DATETIME NULL AFTER delivery_text');
+    add_column_if_missing('orders', 'payment_expires_at', 'DATETIME NULL AFTER expires_at');
     add_column_if_missing('orders', 'delivered_inventory_id', 'BIGINT UNSIGNED NULL AFTER delivery_text');
     add_column_if_missing('orders', 'customer_note', 'TEXT NULL AFTER payment_note');
     add_column_if_missing('orders', 'review_started_at', 'DATETIME NULL AFTER receipt_file_id');
@@ -2363,7 +2365,31 @@ function order_timeline_text(int $orderId, bool $publicOnly=true): string {
     }
     return trim($out);
 }
+function cancel_expired_orders(): int {
+    if (!table_exists('orders')) return 0;
+    try {
+        $expiryMinutes = setting_int('order_expiry_minutes', 20);
+        $q = db()->prepare('SELECT id, user_id FROM orders WHERE status = "pending_payment" AND ((payment_expires_at IS NOT NULL AND payment_expires_at <= NOW()) OR (payment_expires_at IS NULL AND created_at <= DATE_SUB(NOW(), INTERVAL ? MINUTE)))');
+        $q->execute([$expiryMinutes]);
+        $expired = $q->fetchAll();
+        $count = 0;
+        foreach ($expired as $row) {
+            $oid = (int)$row['id'];
+            db()->prepare('UPDATE orders SET status="canceled", canceled_at=NOW(), admin_note=CONCAT(COALESCE(admin_note,""), "\nانقضای خودکار مهلت پرداخت 20 دقیقه‌ای") WHERE id=? AND status="pending_payment"')->execute([$oid]);
+            if (table_exists('inventory_items')) {
+                db()->prepare('UPDATE inventory_items SET status="available", order_id=NULL, reserved_at=NULL WHERE order_id=? AND status="reserved"')->execute([$oid]);
+            }
+            add_order_event($oid, 'canceled', 'مهلت پرداخت به پایان رسید', 'لغو خودکار به دلیل انقضای مهلت پرداخت 20 دقیقه‌ای', true);
+            $count++;
+        }
+        return $count;
+    } catch (Throwable $e) {
+        error_log('[BlueReferral Expire] Error: '.$e->getMessage());
+        return 0;
+    }
+}
 function create_shop_order(int $userId, int $productId, ?int $variantId=null): array {
+    cancel_expired_orders();
     $p = shop_product($productId);
     if (!$p || (int)$p['is_active'] !== 1) throw new RuntimeException('PRODUCT_NOT_FOUND');
     $variant = null;
@@ -2380,12 +2406,14 @@ function create_shop_order(int $userId, int $productId, ?int $variantId=null): a
     if ($amount <= 0) throw new RuntimeException('PRICE_NOT_AVAILABLE');
     $duration = $variant ? (int)$variant['duration_days'] : (int)($p['duration_days'] ?? 0);
     $expiresAt = $duration > 0 ? date('Y-m-d H:i:s', time() + $duration * 86400) : null;
-    db()->prepare('INSERT INTO orders (user_id, product_id, variant_id, amount, final_amount, price_currency, price_usd, usd_rate_toman, usd_rate_source, usd_rate_updated_at, status, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$userId,$productId,$variantId,$amount,$amount,$priceMeta['currency'],$priceMeta['usd'],$priceMeta['rate_toman'],$priceMeta['rate_source'],$priceMeta['rate_updated_at'] ? date('Y-m-d H:i:s', strtotime($priceMeta['rate_updated_at'])) : ($priceMeta['currency']==='USD'?date('Y-m-d H:i:s'):null),'pending_payment',$expiresAt]);
+    $paymentExpiresAt = date('Y-m-d H:i:s', time() + setting_int('order_expiry_minutes', 20) * 60);
+    db()->prepare('INSERT INTO orders (user_id, product_id, variant_id, amount, final_amount, price_currency, price_usd, usd_rate_toman, usd_rate_source, usd_rate_updated_at, status, expires_at, payment_expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$userId,$productId,$variantId,$amount,$amount,$priceMeta['currency'],$priceMeta['usd'],$priceMeta['rate_toman'],$priceMeta['rate_source'],$priceMeta['rate_updated_at'] ? date('Y-m-d H:i:s', strtotime($priceMeta['rate_updated_at'])) : ($priceMeta['currency']==='USD'?date('Y-m-d H:i:s'):null),'pending_payment',$expiresAt,$paymentExpiresAt]);
     $orderId = (int)db()->lastInsertId();
     add_order_event($orderId, 'pending_payment', 'سفارش ثبت شد', 'در انتظار پرداخت مشتری');
     return order_by_id($orderId);
 }
 function order_by_id(int $id) {
+    cancel_expired_orders();
     $q=db()->prepare('SELECT o.*, p.name product_name, p.delivery_type, p.commission_type, p.commission_value, p.short_description, p.full_description, p.image_url, p.duration_days product_duration_days,
         p.price_currency product_price_currency, p.price_usd product_price_usd, p.price_rate_toman product_price_rate_toman, p.price_rate_source product_price_rate_source, p.price_rate_updated_at product_price_rate_updated_at,
         v.title variant_title, v.price variant_price, v.price_currency variant_price_currency, v.price_usd variant_price_usd, v.price_rate_toman variant_price_rate_toman, v.price_rate_source variant_price_rate_source, v.price_rate_updated_at variant_price_rate_updated_at, v.duration_days variant_duration_days, v.discount_percent variant_discount_percent,
@@ -2398,6 +2426,7 @@ function order_by_id(int $id) {
     $q->execute([$id]); return $q->fetch();
 }
 function user_orders(int $userId, int $limit=10, bool $includeHidden=false): array {
+    cancel_expired_orders();
     $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title, v.discount_percent variant_discount_percent
         FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id
         WHERE o.user_id=?'.($includeHidden?'':' AND o.user_hidden=0').' ORDER BY o.id DESC LIMIT ?';
@@ -2405,6 +2434,7 @@ function user_orders(int $userId, int $limit=10, bool $includeHidden=false): arr
     $q->bindValue(1,$userId,PDO::PARAM_INT); $q->bindValue(2,$limit,PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
 }
 function admin_orders($status=null, int $limit=20, string $search='', bool $archived=false): array {
+    cancel_expired_orders();
     $sql='SELECT o.*, p.name product_name, p.delivery_type, p.image_url, v.title variant_title, v.discount_percent variant_discount_percent, u.telegram_id, u.username
         FROM orders o JOIN products p ON p.id=o.product_id LEFT JOIN product_variants v ON v.id=o.variant_id JOIN users u ON u.id=o.user_id';
     $where=[]; $params=[];
@@ -2719,6 +2749,13 @@ function refresh_crypto_order_amount_if_open(int $orderId): ?array {
 function order_public_payload(array $o, bool $is_admin = false): array {
     if (!empty($o['id']) && ($o['payment_method'] ?? '') === 'crypto') { $o = refresh_crypto_order_amount_if_open((int)$o['id']) ?: $o; }
     $name = $o['product_name'].(!empty($o['variant_title']) ? ' - '.$o['variant_title'] : '');
+    $status = normalize_order_status($o['status']);
+    $pmtExpiresAt = $o['payment_expires_at'] ?? null;
+    if (!$pmtExpiresAt && $status === 'pending_payment' && !empty($o['created_at'])) {
+        $pmtExpiresAt = date('Y-m-d H:i:s', strtotime($o['created_at']) + setting_int('order_expiry_minutes', 20) * 60);
+    }
+    $pmtRemainingSec = ($status === 'pending_payment' && $pmtExpiresAt) ? max(0, strtotime($pmtExpiresAt) - time()) : 0;
+
     $payload = [
         'id'=>(int)$o['id'], 'product_name'=>$o['product_name'], 'variant_title'=>$o['variant_title'] ?? null, 'display_name'=>$name,
         'image_url'=>$o['image_url'] ?? null, 'amount'=>(int)$o['amount'], 'discount_amount'=>(int)$o['discount_amount'],
@@ -2727,11 +2764,14 @@ function order_public_payload(array $o, bool $is_admin = false): array {
         'price_currency'=>normalize_price_currency($o['price_currency'] ?? 'IRT'), 'price_usd'=>isset($o['price_usd']) && $o['price_usd'] !== null ? (float)$o['price_usd'] : null, 'usd_rate_toman'=>isset($o['usd_rate_toman']) && $o['usd_rate_toman'] !== null ? (float)$o['usd_rate_toman'] : null, 'usd_rate_source'=>$o['usd_rate_source'] ?? null, 'usd_rate_updated_at'=>$o['usd_rate_updated_at'] ?? null,
         'payment_method'=>$o['payment_method'] ?? null, 'payment_method_fa'=>payment_method_fa($o['payment_method'] ?? null), 'payment_details'=>$o['payment_details'] ?? null, 'stars_amount'=>(int)($o['stars_amount'] ?? 0),
         'crypto_amount'=>isset($o['crypto_amount'])?(float)$o['crypto_amount']:null, 'crypto_asset'=>$o['crypto_asset'] ?? null, 'crypto_network'=>$o['crypto_network'] ?? null, 'crypto_check'=>crypto_check_payload(get_crypto_check_by_order((int)$o['id'])), 'crypto_fee_notice'=>'این مبلغ باید دقیقاً به کیف پول مقصد برسد؛ کارمزد صرافی/شبکه بر عهده شماست.', 'swapwallet_invoice'=>null,
-        'status'=>normalize_order_status($o['status']), 'status_fa'=>order_status_fa($o['status']),
+        'status'=>$status, 'status_fa'=>order_status_fa($o['status']),
         'payment_note'=>$o['payment_note'] ?? null, 'customer_note'=>$o['customer_note'] ?? null, 'receipt_file_id'=>$o['receipt_file_id'] ?? null,
         'user_id'=>(int)($o['user_id'] ?? 0), 'telegram_id'=>isset($o['telegram_id'])?(int)$o['telegram_id']:null, 'username'=>$o['username'] ?? null, 'first_name'=>$o['first_name'] ?? null,
         'delivery_type'=>$o['delivery_type'], 'delivery_type_fa'=>delivery_type_fa($o['delivery_type']), 'delivery_text'=>$o['delivery_text'],
-        'expires_at'=>$o['expires_at'] ?? null, 'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
+        'expires_at'=>$o['expires_at'] ?? null,
+        'payment_expires_at'=>$pmtExpiresAt,
+        'payment_remaining_seconds'=>$pmtRemainingSec,
+        'timeline'=>array_map(function($e){ return ['status'=>$e['status'], 'title'=>$e['title'], 'note'=>$e['note'], 'created_at'=>$e['created_at']]; }, order_timeline((int)$o['id'], true)),
         'user_hidden'=>(int)($o['user_hidden'] ?? 0), 'archived_at'=>$o['archived_at'] ?? null, 'created_at'=>$o['created_at']
     ];
     if ($is_admin) {
