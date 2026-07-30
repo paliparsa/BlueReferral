@@ -463,31 +463,66 @@ function paymentMethodsHtml(o){
     }
     if(!cardAccounts.length) cardAccounts = [{title:'کارت بانکی', card:'6037997412345678', owner:'پشتیبانی فروشگاه', sheba:''}];
 
-    html+=`<div class="card-pay-list" style="margin-top:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span class="badge success">💳 کارت به کارت فعال است</span>
-        <button class="ghost" data-reset-payment-method="${o.id}" style="font-size:11px;padding:4px 8px">🔄 تغییر روش پرداخت</button>
-      </div>
-      <p class="muted" style="margin-bottom:6px">کارت بانکی زیر را برای پرداخت کپی کن و پس از واریز رسید را بفرست.</p>`+cardAccounts.map(c=>{
+    html+=`<div class="card-v2-container">
+      <div class="card-v2-topbar">
+        <button type="button" class="card-v2-reset-btn" data-reset-payment-method="${o.id}">
+          <span>🔄</span> تغییر روش
+        </button>
+
+        <div class="card-v2-title">
+          <span class="card-v2-title-text">اطلاعات شماره کارت</span>
+          <span class="card-v2-card-icon">💳</span>
+        </div>
+      </div>`+cardAccounts.map(c=>{
         const rawCard = String(c.card||'').replace(/\D/g,'');
-        const formattedCard = rawCard.length===16 ? rawCard.match(/.{1,4}/g).join(' - ') : esc(c.card||'');
+        const formattedCard = rawCard.length===16 ? rawCard.match(/.{1,4}/g).join('  -  ') : esc(c.card||'');
         const rawSheba = String(c.sheba||'').trim();
-        return `<div class="luxury-bank-card">
-          <div class="bank-card-top">
-            <div class="bank-card-chip"></div>
-            <span class="bank-card-title">${esc(c.title||'کارت بانکی')}</span>
+        return `<div class="card-v2-bank-card">
+          <div class="card-v2-card-head">
+            <span class="card-v2-card-label">${esc(c.title||'کارت اصلی فروشگاه')}</span>
+            <span style="font-size:22px">💳</span>
           </div>
-          <div class="bank-card-number-row">
-            <span class="bank-card-number">${formattedCard}</span>
-          </div>
-          <div class="bank-card-owner">صاحب حساب: ${esc(c.owner||'نامشخص')}</div>
-          ${rawSheba ? `<div class="bank-card-sheba">شماره شبا: ${esc(rawSheba)}</div>` : ''}
-          <div class="bank-card-actions">
-            <button class="secondary" data-copy="${esc(c.card||'')}">📋 کپی شماره کارت</button>
-            ${rawSheba ? `<button class="secondary" data-copy="${esc(rawSheba)}">🏦 کپی شبا</button>` : ''}
-          </div>
+          <code class="card-v2-card-number">${formattedCard}</code>
+          <div class="card-v2-owner-info">صاحب حساب: <b>${esc(c.owner||'نامشخص')}</b></div>
+          ${rawSheba ? `<div class="card-v2-sheba-info">شماره شبا: <b>${esc(rawSheba)}</b></div>` : ''}
+          <button type="button" class="card-v2-copy-btn" data-copy="${esc(c.card||'')}">📋 کپی شماره کارت</button>
         </div>`;
-      }).join('')+`</div>`;
+      }).join('')+`
+
+      <div class="card-v2-form-section">
+        <div class="card-v2-form-group">
+          <label class="card-v2-label-title">توضیحات / شماره پیگیری / ۴ رقم کارت</label>
+          <input type="text" id="cardReceiptNote_${o.id}" class="card-v2-input" value="${esc(o.customer_note||'')}" placeholder="مثلاً: واریز از کارت علی محمودی کد ۱۲۳۴" autocomplete="off">
+        </div>
+
+        <div class="card-v2-form-group">
+          <label class="card-v2-label-title">تصویر رسید (اختیاری)</label>
+          <div class="card-v2-upload-box" onclick="document.getElementById('cardReceiptFile_${o.id}').click()">
+            <input type="file" id="cardReceiptFile_${o.id}" accept="image/*" style="display:none;" onchange="handleCardReceiptFileChange(this, ${o.id})">
+            <div id="cardReceiptFilePreview_${o.id}" class="card-v2-upload-inner">
+              ${o.payment_receipt_url ? `
+                <div class="receipt-file-selected">
+                  <img src="${esc(o.payment_receipt_url)}" alt="رسید" class="receipt-file-img">
+                  <div class="receipt-file-info">
+                    <b>رسید ارسال شده</b>
+                    <small>برای تغییر، تصویر جدید انتخاب کنید</small>
+                  </div>
+                </div>
+              ` : `
+                <span class="upload-icon">🖼️</span>
+                <span class="upload-text">انتخاب یا درگ تصویر رسید پرداخت...</span>
+              `}
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="card-v2-submit-btn" data-submit-inline-card-receipt="${o.id}">
+          📥 ثبت رسید و تایید پرداخت
+        </button>
+
+        ${(o.payment_receipt_url || o.customer_note) ? `<p class="crypto-v2-status success">✅ رسید پرداخت ثبت شد و در صف تایید ادمین قرار دارد.</p>` : ''}
+      </div>
+    </div>`;
   }
 
   // 3. Crypto Payment Panel (Shown ONLY when o.payment_method === 'crypto')
@@ -2179,7 +2214,42 @@ function applyTheme(data={}){
   document.documentElement.style.setProperty('--success', data && (data.button_colors?.success || (data.settings && data.settings.button_colors?.success)) || '#22c55e');
   document.documentElement.style.setProperty('--warning', data && (data.button_colors?.warning || (data.settings && data.settings.button_colors?.warning)) || '#f59e0b');
   try{tg?.setHeaderColor?.(accent);tg?.setBackgroundColor?.('#08111f');tg?.MainButton?.setParams?.({color:accent,text_color:'#ffffff'});}catch(e){}
-}
+window.handleCardReceiptFileChange = function(input, oid) {
+  const preview = document.getElementById('cardReceiptFilePreview_' + oid);
+  if(!preview) return;
+  if(input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      preview.innerHTML = `
+        <div class="receipt-file-selected">
+          <img src="${e.target.result}" alt="رسید" class="receipt-file-img">
+          <div class="receipt-file-info">
+            <b>${esc(file.name)}</b>
+            <small>${Math.round(file.size / 1024)} KB</small>
+          </div>
+          <button type="button" class="receipt-file-remove" onclick="event.stopPropagation(); clearCardReceiptFile(${oid});">✕</button>
+        </div>
+      `;
+      preview._base64 = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+window.clearCardReceiptFile = function(oid) {
+  const input = document.getElementById('cardReceiptFile_' + oid);
+  if(input) input.value = '';
+  const preview = document.getElementById('cardReceiptFilePreview_' + oid);
+  if(preview) {
+    preview.innerHTML = `
+      <span class="upload-icon">🖼️</span>
+      <span class="upload-text">انتخاب یا درگ تصویر رسید پرداخت...</span>
+    `;
+    delete preview._base64;
+  }
+};
+
 document.addEventListener('click',async(e)=>{
   if(e.target.closest('#btnAddSpinReward')){ openSpinRewardModal(null); return; }
   const editSpin = e.target.closest('[data-edit-spin-reward]');
@@ -2200,6 +2270,30 @@ document.addEventListener('click',async(e)=>{
     currentOrderId = oid;
     renderUser();
     showStatus('کد هش ثبت شد و در صف استعلام خودکار قرار گرفت ⚡');
+    return;
+  }
+  const submitCardReceiptBtn = e.target.closest('[data-submit-inline-card-receipt]');
+  if(submitCardReceiptBtn){
+    const oid = submitCardReceiptBtn.dataset.submitInlineCardReceipt;
+    const noteInput = $('cardReceiptNote_' + oid);
+    const note = noteInput ? noteInput.value.trim() : '';
+    const preview = $('cardReceiptFilePreview_' + oid);
+    const b64 = preview ? preview._base64 : null;
+
+    if(!note && !b64){
+      showStatus('لطفاً شماره پیگیری یا تصویر رسید را وارد کنید', 'error');
+      return;
+    }
+
+    await loadAfterAction('submit_receipt', {
+      order_id: oid,
+      note: note || 'رسید واریز کارت به کارت',
+      receipt_b64: b64 || ''
+    });
+    currentTab = 'orders';
+    currentOrderId = oid;
+    renderUser();
+    showStatus('رسید با موفقیت ثبت شد و در صف بررسی قرار گرفت ⚡');
     return;
   }
   const cartBtn = e.target.closest('#cartFab, .cart-fab');

@@ -3424,6 +3424,270 @@ body .crypto-v2-submit-btn:active {
 .crypto-v2-status.success { color: #86efac !important; }
 .crypto-v2-status.error { color: #fecaca !important; }
 
+/* Card to Card V2 Redesign (Exact Match to Screenshot) */
+.card-v2-container {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  margin-top: 14px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.card-v2-topbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+.card-v2-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.card-v2-title-text {
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  color: #00f2fe !important;
+}
+
+.card-v2-card-icon {
+  font-size: 20px !important;
+}
+
+body .card-v2-reset-btn,
+#userApp .card-v2-reset-btn,
+button.card-v2-reset-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: rgba(0, 242, 254, 0.08) !important;
+  border: 1px solid rgba(0, 242, 254, 0.4) !important;
+  color: #00f2fe !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  padding: 7px 14px !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  outline: none !important;
+}
+
+.card-v2-bank-card {
+  background: rgba(14, 23, 38, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 22px !important;
+  padding: 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+}
+
+.card-v2-card-head {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.card-v2-card-label {
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  color: var(--muted) !important;
+}
+
+.card-v2-card-number {
+  display: block !important;
+  font-family: monospace, 'Courier New', Courier !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-align: center !important;
+  letter-spacing: 2.5px !important;
+  margin: 14px 0 !important;
+  direction: ltr !important;
+}
+
+.card-v2-owner-info {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  text-align: right !important;
+}
+
+.card-v2-sheba-info {
+  font-size: 12.5px !important;
+  color: var(--muted) !important;
+  text-align: right !important;
+  direction: ltr !important;
+}
+
+body .card-v2-copy-btn,
+#userApp .card-v2-copy-btn,
+button.card-v2-copy-btn {
+  width: 100% !important;
+  padding: 12px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #00f2fe, #1d9bf0) !important;
+  color: #000000 !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  border: 0 !important;
+  cursor: pointer !important;
+  box-shadow: 0 6px 20px rgba(0, 242, 254, 0.3) !important;
+  transition: transform 0.2s ease !important;
+  margin-top: 10px !important;
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+body .card-v2-copy-btn:active {
+  transform: scale(0.98) !important;
+}
+
+/* Receipt Submission Form */
+.card-v2-form-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+}
+
+.card-v2-form-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.card-v2-label-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--muted) !important;
+  text-align: right !important;
+}
+
+body input.card-v2-input,
+#userApp input.card-v2-input,
+.card-v2-input {
+  width: 100% !important;
+  background: rgba(14, 23, 38, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  padding: 14px 16px !important;
+  border-radius: 16px !important;
+  font-size: 14px !important;
+  outline: none !important;
+  direction: rtl !important;
+  text-align: right !important;
+  box-sizing: border-box !important;
+}
+
+body input.card-v2-input:focus {
+  border-color: #00f2fe !important;
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.2) !important;
+}
+
+.card-v2-upload-box {
+  border: 1px dashed rgba(255, 255, 255, 0.22) !important;
+  background: rgba(14, 23, 38, 0.6) !important;
+  border-radius: 18px !important;
+  padding: 16px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.card-v2-upload-box:hover {
+  border-color: #00f2fe !important;
+  background: rgba(14, 23, 38, 0.85) !important;
+}
+
+.card-v2-upload-inner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  color: var(--muted) !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+}
+
+.receipt-file-selected {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+}
+
+.receipt-file-img {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 10px !important;
+  object-fit: cover !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.receipt-file-info {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  text-align: right !important;
+  flex: 1 !important;
+}
+
+.receipt-file-info b {
+  font-size: 13px !important;
+  color: #ffffff !important;
+  word-break: break-all !important;
+}
+
+.receipt-file-info small {
+  font-size: 11px !important;
+  color: var(--muted) !important;
+}
+
+.receipt-file-remove {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+body .card-v2-submit-btn,
+#userApp .card-v2-submit-btn,
+button.card-v2-submit-btn {
+  width: 100% !important;
+  padding: 15px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, #00f2fe, #1d9bf0) !important;
+  color: #000000 !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  border: 0 !important;
+  cursor: pointer !important;
+  box-shadow: 0 10px 28px rgba(0, 242, 254, 0.35) !important;
+  transition: transform 0.2s ease !important;
+  text-align: center !important;
+  justify-content: center !important;
+  margin-top: 4px !important;
+}
+
+body .card-v2-submit-btn:active {
+  transform: scale(0.98) !important;
+}
+
 
 
 
