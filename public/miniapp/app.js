@@ -155,7 +155,7 @@ async function api(action,payload={}){
   let res = null, data = null, fetchErr = null;
   for (const ep of candidateEndpoints) {
     try {
-      const r = await fetch(ep, {method:'POST', headers, body});
+      const r = await fetch(ep, {method:'POST', headers, body, cache:'no-store'});
       if (r.status !== 404) {
         res = r;
         data = await r.json().catch(()=>({}));
