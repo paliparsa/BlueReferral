@@ -2410,20 +2410,47 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .glowing-flash-card:active {
   transform: scale(0.97) !important;
 }
-.flash-card-badge {
+.discount-badge, .flash-card-badge {
   position: absolute !important;
   top: 8px !important;
   right: 8px !important;
   background: linear-gradient(135deg, #ef4444, #f97316) !important;
   color: #ffffff !important;
-  font-size: 10.5px !important;
+  font-size: 11px !important;
   font-weight: 900 !important;
-  padding: 3px 8px !important;
-  border-radius: 10px !important;
-  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4) !important;
-  z-index: 3 !important;
+  padding: 4px 10px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.45) !important;
+  z-index: 5 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  direction: ltr !important;
+  letter-spacing: 0.5px !important;
 }
+.discount-badge .disc-val, .flash-card-badge .disc-val {
+  font-weight: 900 !important;
+  font-size: 11.5px !important;
+}
+.discount-badge .disc-fire, .flash-card-badge .disc-fire {
+  font-size: 10px !important;
+}
+
+.tile-img {
+  width: 100% !important;
+  height: 140px !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+  position: relative !important;
+}
+.tile-img img {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 16px !important;
+  display: block !important;
 }
 .flash-card-title {
   font-size: 13.5px !important;

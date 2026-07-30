@@ -666,11 +666,11 @@ function specialDiscountsBannerHtml(){
           crossedPrice = Number(bestV.old_price) || (bestV.discount_percent > 0 ? Math.round(realPrice / (1 - Number(bestV.discount_percent) / 100)) : 0);
           if (crossedPrice <= realPrice) crossedPrice = 0;
           targetVTitle = bestV.title || '';
-          discLabel = `🔥 −${bestV.discount_percent}٪`;
+          discLabel = `<span class="disc-val">${bestV.discount_percent}%-</span> <span class="disc-fire">🔥</span>`;
         } else if (Number(p.discount_percent || 0) > 0) {
           const d = Number(p.discount_percent);
           crossedPrice = (p.old_price && Number(p.old_price) > realPrice) ? Number(p.old_price) : Math.round(realPrice / (1 - d / 100));
-          discLabel = `🔥 −${d}٪`;
+          discLabel = `<span class="disc-val">${d}%-</span> <span class="disc-fire">🔥</span>`;
         }
 
         const w = getWishlist();
@@ -707,7 +707,7 @@ function productCard(p){
   const noVariants = (!p.variants || p.variants.length === 0);
   const w = getWishlist();
   const wishBtn = `<button class="wishlist-fab ${w.includes(Number(p.id))?'active':''}" data-wishlist-pid="${p.id}" aria-label="نشان‌کردن">${w.includes(Number(p.id))?'❤️':'🤍'}</button>`;
-  const badgeHtml = hasDiscount ? `<span class="discount-badge">−${maxDiscount}٪</span>` : '';
+  const badgeHtml = hasDiscount ? `<span class="discount-badge"><span class="disc-val">${maxDiscount}%-</span> <span class="disc-fire">🔥</span></span>` : '';
   
   if(productCardMode==='detailed'){
     return `<article class="product-tile detailed ${hasDiscount?'discount-tile':''}" data-product-preview="${p.id}">`+
