@@ -494,44 +494,68 @@ function paymentMethodsHtml(o){
   const cryptoWallets=methods.crypto?.wallets||[];
   const cryptoCheck=o.crypto_check||null;
   if(o.payment_method === 'crypto' && methods.crypto?.enabled){
-    html+=`<div class="crypto-pay-panel" style="margin-top:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <h4 style="margin:0">🪙 پرداخت رمزارز (USDT / TRX / TON)</h4>
-        <button class="ghost" data-reset-payment-method="${o.id}" style="font-size:11px;padding:4px 8px">🔄 تغییر روش پرداخت</button>
+    html+=`<div class="crypto-pay-panel-v2">
+      <div class="crypto-pay-header">
+        <button type="button" class="crypto-change-method-btn" data-reset-payment-method="${o.id}">
+          <span>🔄</span> تغییر روش
+        </button>
+
+        <div class="crypto-pay-title">
+          <span class="crypto-title-text">پرداخت رمزارز (Crypto)</span>
+          <span class="crypto-title-icon">🪙</span>
+        </div>
       </div>`;
+
     if(!cryptoCheck){
-      html+=`<p class="muted">کیف پول و شبکه موردنظر را برای پرداخت انتخاب کن.</p><div class="crypto-wallet-grid">`+cryptoWallets.map(w=>{
+      html+=`<p class="crypto-subtitle">کیف پول شبکه مورد نظر خود را برای پرداخت انتخاب کنید:</p>
+      <div class="crypto-wallet-list-v2">`+cryptoWallets.map(w=>{
         const asset = esc(w.asset || w.rate_symbol || 'USDT');
         const network = esc(w.network || 'TRC20');
         const rate = Number(w.rate_toman || 0);
-        const markup = Number(methods.crypto?.markup_percent || 0) / 100;
-        const amount = rate > 0 ? ((Number(o.final_amount || 0) / rate) * (1 + markup)).toFixed(6) : null;
-        return `<button class="crypto-wallet" data-select-crypto="${o.id}:${w.id}">
-          <b>${esc(w.title || asset)}</b>
-          <span>${network} · ${asset}</span>
-          <em>${amount ? `${amount} ${asset}` : 'نرخ دستی لازم است'}</em>
-          <small>${rate ? `۱ ${asset} = ${nf(rate)} تومان${w.rate_updated_at ? ' · ' + esc(w.rate_updated_at) : ''}` : ''}</small>
-        </button>`;
+        const title = esc(w.title || (asset + ' ' + network));
+        return `<div class="crypto-wallet-card-v2" data-select-crypto="${o.id}:${w.id}">
+          <div class="crypto-wallet-left">
+            <span class="crypto-rate-tag">${rate ? `۱ ${asset} = ${nf(rate)} تومان` : 'نرخ دستی'}</span>
+          </div>
+          <div class="crypto-wallet-right">
+            <div class="crypto-wallet-info">
+              <b class="crypto-wallet-name">${title}</b>
+              <span class="crypto-wallet-net">${network}</span>
+            </div>
+            <div class="crypto-coin-badge">🪙</div>
+          </div>
+        </div>`;
       }).join('')+`</div>`;
     } else {
       const assetStr = esc(cryptoCheck.asset || 'USDT');
       const amountText = Number(cryptoCheck.expected_amount || 0).toFixed(6) + ' ' + assetStr;
-      html+=`<div class="crypto-invoice live">
-        ${orderUsdHint(o)}
-        <div class="full warning-box">
-          <b>مبلغ دقیق پرداخت رمزارز</b>
-          <p>دقیقاً <b>${amountText}</b> به آدرس ولت زیر و در شبکه <b>${esc(cryptoCheck.network)}</b> واریز شود. کارمزد شبکه به عهده خریدار است.</p>
-          <button class="secondary" data-copy="${Number(cryptoCheck.expected_amount || 0).toFixed(6)}">کپی مبلغ (${assetStr})</button>
+      html+=`
+      <div class="crypto-deposit-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="badge" style="background:rgba(0,242,254,0.12);color:#00f2fe;border:1px solid rgba(0,242,254,0.3);">
+            مبلغ واریزی: <b>${amountText}</b>
+          </span>
+          <label class="crypto-deposit-label">آدرس کیف پول جهت واریز:</label>
         </div>
-        <div><small>شبکه / ارز</small><b>${esc(cryptoCheck.network)} / ${assetStr}</b></div>
-        <div><small>نرخ تبدیل لحظه‌ای</small><b>${cryptoCheck.rate_toman ? '۱ ' + assetStr + ' = ' + nf(cryptoCheck.rate_toman) + ' تومان' : '-'}</b></div>
-        <div class="full"><small>آدرس ولت ${assetStr}</small><code>${esc(cryptoCheck.address)}</code><button class="secondary" data-copy="${esc(cryptoCheck.address)}">کپی ولت</button></div>
-        ${cryptoCheck.tx_hash ? `<div class="full"><small>TXID / Hash ثبت‌شده</small><code>${esc(cryptoCheck.tx_hash)}</code></div>` : ''}
-        <div class="full"><small>وضعیت بررسی خودکار شبکه</small><b>${cryptoCheck.status === 'confirmed' ? '✅ تایید شده' : cryptoCheck.status === 'pending' ? 'در حال بررسی شبکه...' : 'در انتظار ثبت Hash'}</b>${cryptoCheck.fail_reason ? `<p class="muted">${esc(cryptoCheck.fail_reason)}</p>` : ''}</div>
+        <div class="crypto-address-box">
+          <code class="crypto-address-text">${esc(cryptoCheck.address || '')}</code>
+        </div>
+        <div class="crypto-copy-wrap">
+          <button type="button" class="crypto-copy-btn" data-copy="${esc(cryptoCheck.address || '')}">
+            📋 کپی آدرس ولت
+          </button>
+        </div>
       </div>
-      <div class="actions">
-        <button class="primary" data-crypto-hash="${o.id}">ثبت TXID / Hash</button>
-        <button class="secondary" data-check-crypto="${o.id}">بررسی دوباره</button>
+
+      <div class="crypto-txid-card">
+        <label class="crypto-txid-label">کد هش تراکنش (TXID / Hash)</label>
+        <input type="text" id="inlineTxidInput_${o.id}" class="crypto-txid-input" value="${esc(cryptoCheck.tx_hash || '')}" placeholder="هش تراکنش شبکه...">
+        <button type="button" class="crypto-submit-txid-btn" data-submit-inline-txid="${o.id}">
+          ⚡ ثبت TXID جهت استعلام آنی
+        </button>
+        ${cryptoCheck.status === 'pending' ? `<p class="crypto-status-hint pending">⏳ در حال بررسی شبکه... لطفاً شکیبا باشید.</p>` : ''}
+        ${cryptoCheck.status === 'confirmed' ? `<p class="crypto-status-hint success">✅ تراکنش با موفقیت در شبکه تایید شد!</p>` : ''}
+        ${cryptoCheck.fail_reason ? `<p class="crypto-status-hint error">❌ ${esc(cryptoCheck.fail_reason)}</p>` : ''}
       </div>`;
     }
     html+=`</div>`;
@@ -2157,6 +2181,22 @@ document.addEventListener('click',async(e)=>{
   if(editSpin){ openSpinRewardModal(Number(editSpin.dataset.editSpinReward)); return; }
   const delSpin = e.target.closest('[data-del-spin-reward]');
   if(delSpin){ deleteSpinReward(Number(delSpin.dataset.delSpinReward)); return; }
+  const submitTxidBtn = e.target.closest('[data-submit-inline-txid]');
+  if(submitTxidBtn){
+    const oid = submitTxidBtn.dataset.submitInlineTxid;
+    const input = $('inlineTxidInput_' + oid);
+    const txt = input ? input.value.trim() : '';
+    if(!txt){
+      showStatus('لطفاً کد هش تراکنش (TXID) را وارد کنید', 'error');
+      return;
+    }
+    await loadAfterAction('submit_crypto_hash', { order_id: oid, tx_hash: txt });
+    currentTab = 'orders';
+    currentOrderId = oid;
+    renderUser();
+    showStatus('کد هش ثبت شد و در صف استعلام خودکار قرار گرفت ⚡');
+    return;
+  }
   const cartBtn = e.target.closest('#cartFab, .cart-fab');
   if(cartBtn){
     if(typeof haptic === 'function') haptic('light');
