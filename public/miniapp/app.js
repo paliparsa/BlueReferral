@@ -494,35 +494,35 @@ function paymentMethodsHtml(o){
   const cryptoWallets=methods.crypto?.wallets||[];
   const cryptoCheck=o.crypto_check||null;
   if(o.payment_method === 'crypto' && methods.crypto?.enabled){
-    html+=`<div class="crypto-pay-panel-v2">
-      <div class="crypto-pay-header">
-        <button type="button" class="crypto-change-method-btn" data-reset-payment-method="${o.id}">
+    html+=`<div class="crypto-v2-container">
+      <div class="crypto-v2-topbar">
+        <button type="button" class="crypto-v2-reset-btn" data-reset-payment-method="${o.id}">
           <span>🔄</span> تغییر روش
         </button>
 
-        <div class="crypto-pay-title">
-          <span class="crypto-title-text">پرداخت رمزارز (Crypto)</span>
-          <span class="crypto-title-icon">🪙</span>
+        <div class="crypto-v2-title">
+          <span class="crypto-v2-title-text">پرداخت رمزارز (Crypto)</span>
+          <span class="crypto-v2-coin-icon">🪙</span>
         </div>
       </div>`;
 
     if(!cryptoCheck){
-      html+=`<p class="crypto-subtitle">کیف پول شبکه مورد نظر خود را برای پرداخت انتخاب کنید:</p>
-      <div class="crypto-wallet-list-v2">`+cryptoWallets.map(w=>{
+      html+=`<p class="crypto-v2-subtitle">کیف پول شبکه مورد نظر خود را برای پرداخت انتخاب کنید:</p>
+      <div class="crypto-v2-wallet-list">`+cryptoWallets.map(w=>{
         const asset = esc(w.asset || w.rate_symbol || 'USDT');
         const network = esc(w.network || 'TRC20');
         const rate = Number(w.rate_toman || 0);
         const title = esc(w.title || (asset + ' ' + network));
-        return `<div class="crypto-wallet-card-v2" data-select-crypto="${o.id}:${w.id}">
-          <div class="crypto-wallet-left">
-            <span class="crypto-rate-tag">${rate ? `۱ ${asset} = ${nf(rate)} تومان` : 'نرخ دستی'}</span>
+        return `<div class="crypto-v2-wallet-card" data-select-crypto="${o.id}:${w.id}">
+          <div class="crypto-v2-wallet-left">
+            <span class="crypto-v2-rate-pill">${rate ? `۱ ${asset} = ${nf(rate)} تومان` : 'نرخ دستی'}</span>
           </div>
-          <div class="crypto-wallet-right">
-            <div class="crypto-wallet-info">
-              <b class="crypto-wallet-name">${title}</b>
-              <span class="crypto-wallet-net">${network}</span>
+          <div class="crypto-v2-wallet-right">
+            <div class="crypto-v2-wallet-text">
+              <b class="crypto-v2-wallet-name">${title}</b>
+              <span class="crypto-v2-wallet-network">${network}</span>
             </div>
-            <div class="crypto-coin-badge">🪙</div>
+            <div class="crypto-v2-coin-badge">🪙</div>
           </div>
         </div>`;
       }).join('')+`</div>`;
@@ -530,32 +530,37 @@ function paymentMethodsHtml(o){
       const assetStr = esc(cryptoCheck.asset || 'USDT');
       const amountText = Number(cryptoCheck.expected_amount || 0).toFixed(6) + ' ' + assetStr;
       html+=`
-      <div class="crypto-deposit-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span class="badge" style="background:rgba(0,242,254,0.12);color:#00f2fe;border:1px solid rgba(0,242,254,0.3);">
-            مبلغ واریزی: <b>${amountText}</b>
-          </span>
-          <label class="crypto-deposit-label">آدرس کیف پول جهت واریز:</label>
+      <div class="crypto-v2-card">
+        <div class="crypto-v2-amount-bar">
+          <span>مبلغ دقیق واریزی:</span>
+          <b class="crypto-v2-amount-val">${amountText}</b>
         </div>
-        <div class="crypto-address-box">
-          <code class="crypto-address-text">${esc(cryptoCheck.address || '')}</code>
+
+        <label class="crypto-v2-label">آدرس کیف پول جهت واریز:</label>
+        
+        <div class="crypto-v2-address-box">
+          <code class="crypto-v2-address-code">${esc(cryptoCheck.address || '')}</code>
         </div>
-        <div class="crypto-copy-wrap">
-          <button type="button" class="crypto-copy-btn" data-copy="${esc(cryptoCheck.address || '')}">
+
+        <div class="crypto-v2-copy-row">
+          <button type="button" class="crypto-v2-copy-btn" data-copy="${esc(cryptoCheck.address || '')}">
             📋 کپی آدرس ولت
           </button>
         </div>
       </div>
 
-      <div class="crypto-txid-card">
-        <label class="crypto-txid-label">کد هش تراکنش (TXID / Hash)</label>
-        <input type="text" id="inlineTxidInput_${o.id}" class="crypto-txid-input" value="${esc(cryptoCheck.tx_hash || '')}" placeholder="هش تراکنش شبکه...">
-        <button type="button" class="crypto-submit-txid-btn" data-submit-inline-txid="${o.id}">
+      <div class="crypto-v2-txid-section">
+        <label class="crypto-v2-label">کد هش تراکنش (TXID / Hash)</label>
+        
+        <input type="text" id="inlineTxidInput_${o.id}" class="crypto-v2-input" value="${esc(cryptoCheck.tx_hash || '')}" placeholder="هش تراکنش شبکه..." autocomplete="off" spellcheck="false">
+
+        <button type="button" class="crypto-v2-submit-btn" data-submit-inline-txid="${o.id}">
           ⚡ ثبت TXID جهت استعلام آنی
         </button>
-        ${cryptoCheck.status === 'pending' ? `<p class="crypto-status-hint pending">⏳ در حال بررسی شبکه... لطفاً شکیبا باشید.</p>` : ''}
-        ${cryptoCheck.status === 'confirmed' ? `<p class="crypto-status-hint success">✅ تراکنش با موفقیت در شبکه تایید شد!</p>` : ''}
-        ${cryptoCheck.fail_reason ? `<p class="crypto-status-hint error">❌ ${esc(cryptoCheck.fail_reason)}</p>` : ''}
+
+        ${cryptoCheck.status === 'pending' ? `<p class="crypto-v2-status pending">⏳ در حال بررسی شبکه... لطفاً شکیبا باشید.</p>` : ''}
+        ${cryptoCheck.status === 'confirmed' ? `<p class="crypto-v2-status success">✅ تراکنش با موفقیت در شبکه تایید شد!</p>` : ''}
+        ${cryptoCheck.fail_reason ? `<p class="crypto-v2-status error">❌ ${esc(cryptoCheck.fail_reason)}</p>` : ''}
       </div>`;
     }
     html+=`</div>`;
