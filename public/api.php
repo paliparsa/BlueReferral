@@ -241,7 +241,7 @@ function admin_payload(): array {
         'categories'=>array_map('category_payload', shop_categories(false)),
         'inventory'=>inventory_items_for_admin(150),
         'variants'=>db()->query('SELECT v.*, p.name product_name FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id DESC LIMIT 150')->fetchAll(),
-        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','auto'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_refresh_interval_seconds'=>setting_int('crypto_rate_refresh_interval_seconds', 600), 'crypto_rate_cache'=>crypto_rate_cache(), 'crypto_rate_last_result'=>setting_json('crypto_rate_last_result', []), 'crypto_rate_provider_priority'=>setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines(), 'backup_last_created_at'=>setting('backup_last_created_at',''), 'backup_last_restored_at'=>setting('backup_last_restored_at',''), 'brand_name'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'default_base_currency'=>setting('default_base_currency', 'USDT'), 'resend_api_key'=>setting('resend_api_key',''), 'resend_from_email'=>setting('resend_from_email','onboarding@resend.dev'), 'require_email_verification'=>setting_bool('require_email_verification', true)],
+        'settings'=>['payment_instructions'=>setting('payment_instructions',''), 'payment_methods_enabled'=>setting_json('payment_methods_enabled', ['wallet'=>true,'card'=>true,'stars'=>false,'crypto'=>false]), 'payment_methods'=>payment_methods_public(null), 'card_accounts_text'=>card_accounts_lines(), 'stars_rate_toman'=>setting_int('stars_rate_toman', 3200), 'crypto_wallets_text'=>crypto_wallets_lines(), 'crypto_manual_rates_text'=>crypto_manual_rates_lines(), 'crypto_rate_source'=>setting('crypto_rate_source','auto'), 'crypto_rate_markup_percent'=>(float)setting('crypto_rate_markup_percent','1'), 'crypto_notify_rate_fail'=>setting_bool('crypto_notify_rate_fail', true), 'crypto_rate_refresh_interval_seconds'=>setting_int('crypto_rate_refresh_interval_seconds', 600), 'crypto_rate_cache'=>crypto_rate_cache(), 'crypto_rate_last_result'=>setting_json('crypto_rate_last_result', []), 'crypto_rate_provider_priority'=>setting('crypto_rate_provider_priority','wallex,ramzinex,nobitex'), 'theme_color'=>setting('theme_color','#1d9bf0'), 'button_colors_enabled'=>setting_bool('button_colors_enabled', true), 'button_colors'=>button_colors(), 'require_contact_auth'=>setting_bool('require_contact_auth', false), 'notify_new_user'=>setting_bool('notify_new_user', true), 'spin_referrals_per_chance'=>setting_int('spin_referrals_per_chance', 5), 'spin_rewards_text'=>spin_rewards_lines(), 'backup_last_created_at'=>setting('backup_last_created_at',''), 'backup_last_restored_at'=>setting('backup_last_restored_at',''), 'brand_name'=>setting('brand_name', app_config('BRAND_NAME', 'BlueGate')), 'default_base_currency'=>setting('default_base_currency', 'USDT'), 'resend_api_key'=>setting('resend_api_key',''), 'resend_from_email'=>setting('resend_from_email','onboarding@resend.dev'), 'require_email_verification'=>setting_bool('require_email_verification', true), 'vip_tier_rates'=>setting_json('vip_tier_rates', [])],
         'backups'=>blue_backup_list(),
         'withdrawals'=>admin_list_withdrawals('all'),
         'coupons'=>admin_list_coupons(),
@@ -495,7 +495,13 @@ if ($action === 'admin_purchase_reward') {
         'reply_markup' => json_encode(main_menu_keyboard(is_admin($referrer['telegram_id'])))
     ]);
 
-    api_out(admin_payload() + ['message' => $msgAdmin, 'amount' => $amount, 'referrer' => $refName]);
+if ($action === 'admin_save_vip_rates') {
+    require_admin($user);
+    $rates = is_array($input['vip_tier_rates'] ?? null) ? $input['vip_tier_rates'] : [];
+    if (!empty($rates)) {
+        set_setting('vip_tier_rates', $rates);
+    }
+    api_out(admin_payload() + ['message' => 'نرخ‌های VIP با موفقیت به روز شد.']);
 }
 if ($action === 'admin_broadcast') { 
     require_admin($user); 
@@ -780,6 +786,22 @@ if ($action === 'admin_add_inventory') { require_admin($user); $pid=(int)($input
 if ($action === 'admin_update_inventory') { require_admin($user); $id=(int)($input['inventory_id']??0); foreach(['product_id','variant_id','content','status'] as $f){ if(array_key_exists($f,$input)) update_inventory_field($id,$f,$input[$f]); } api_out(admin_payload()); }
 if ($action === 'admin_delete_inventory') { require_admin($user); delete_available_inventory((int)($input['inventory_id']??0)); api_out(admin_payload()); }
 if ($action === 'admin_hard_delete_inventory') { require_admin($user); hard_delete_inventory((int)($input['inventory_id']??0)); api_out(admin_payload()); }
+
+if ($action === 'admin_add_coupon') {
+    require_admin($user);
+    $code = trim((string)($input['code'] ?? ''));
+    $type = (string)($input['discount_type'] ?? 'percent');
+    $value = max(0, (int)($input['discount_value'] ?? 0));
+    $minAmount = max(0, (int)($input['min_order_amount'] ?? 0));
+    $maxUses = max(0, (int)($input['max_uses'] ?? 0));
+    $maxUsesPerUser = max(1, (int)($input['max_uses_per_user'] ?? 1));
+    $catId = !empty($input['category_id']) ? (int)$input['category_id'] : null;
+    $expires = (string)($input['expires_at'] ?? '');
+    admin_add_coupon($code, $type, $value, $maxUses, $expires, $minAmount, $maxUsesPerUser, $catId);
+    api_out(admin_payload());
+}
+if ($action === 'admin_toggle_coupon') { require_admin($user); $id=(int)($input['coupon_id']??0); db()->prepare('UPDATE coupons SET is_active=1-is_active WHERE id=?')->execute([$id]); api_out(admin_payload()); }
+if ($action === 'admin_delete_coupon') { require_admin($user); $id=(int)($input['coupon_id']??0); db()->prepare('DELETE FROM coupons WHERE id=?')->execute([$id]); api_out(admin_payload()); }
 
 if ($action === 'admin_archive_order') { require_admin($user); $oid=(int)($input['order_id']??0); $order=archive_order($oid); if(!$order) api_out(['ok'=>false,'message'=>'سفارش پیدا نشد.'],404); api_out(admin_payload()); }
 if ($action === 'admin_delete_order') { require_admin($user); $oid=(int)($input['order_id']??0); if(!hard_delete_order($oid,true)) api_out(['ok'=>false,'message'=>'حذف کامل فقط برای سفارش‌های لغو/رد/مرجوع‌شده مجاز است.'],400); api_out(admin_payload()); }
