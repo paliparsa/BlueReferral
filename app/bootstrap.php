@@ -29,9 +29,14 @@ function db(): PDO {
 }
 
 function run_sql_file(string $path): void {
+    if (!file_exists($path)) return;
     $sql = file_get_contents($path);
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
-        if ($stmt !== '') db()->exec($stmt);
+        if ($stmt !== '') {
+            try {
+                db()->exec($stmt);
+            } catch (Throwable $e) {}
+        }
     }
 }
 
