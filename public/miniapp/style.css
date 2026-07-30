@@ -3947,6 +3947,123 @@ body .card-v2-submit-btn:active {
   justify-content: center !important;
 }
 
+/* ===== Centered Glassmorphic Modal Popups ===== */
+.presentation-sheet {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(14px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.25s ease !important;
+}
+
+.presentation-sheet.open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.presentation-sheet .presentation-inner {
+  width: 100% !important;
+  max-width: 380px !important;
+  max-height: 82vh !important;
+  overflow-y: auto !important;
+  background: rgba(14, 23, 42, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 26px !important;
+  padding: 20px 18px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  transform: scale(0.92) translateY(12px) !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+}
+
+.presentation-sheet.open .presentation-inner {
+  transform: scale(1) translateY(0) !important;
+}
+
+.presentation-sheet .presentation-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  width: 100% !important;
+}
+
+.presentation-sheet .presentation-header h3 {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+  text-align: center !important;
+  flex: 1 !important;
+}
+
+.presentation-sheet .presentation-header button {
+  border-radius: 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  padding: 7px 14px !important;
+}
+
+.presentation-sheet .presentation-body {
+  padding-top: 8px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.presentation-sheet .presentation-section-title {
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  color: var(--muted) !important;
+  margin-bottom: 4px !important;
+}
+
+.presentation-sheet .form-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.presentation-sheet label span {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--muted) !important;
+  margin-bottom: 4px !important;
+  display: block !important;
+}
+
+.presentation-sheet input,
+.presentation-sheet textarea,
+.presentation-sheet select {
+  width: 100% !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  padding: 12px 14px !important;
+  color: #ffffff !important;
+  font-size: 13.5px !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.2s ease !important;
+}
+
+.presentation-sheet input:focus,
+.presentation-sheet textarea:focus,
+.presentation-sheet select:focus {
+  border-color: var(--accent) !important;
+  outline: none !important;
+}
+
 
 
 
