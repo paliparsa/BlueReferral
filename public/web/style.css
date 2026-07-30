@@ -1933,3 +1933,11 @@ body.modal-open .bottom-nav {
   font-weight: 800;
   margin-right: 4px;
 }
+
+/* Hardware Acceleration & Off-screen DOM Containment */
+.product-card, .glowing-flash-card, .user-order-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 180px;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
