@@ -2607,6 +2607,33 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   z-index: 100000 !important;
 }
 
+/* Ultimate Top-Layer Toast Notification */
+#status, .toast {
+  position: fixed !important;
+  top: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 999999 !important;
+  background: rgba(15, 24, 44, 0.96) !important;
+  border: 1.5px solid #00f2fe !important;
+  color: #ffffff !important;
+  padding: 12px 24px !important;
+  border-radius: 16px !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 242, 254, 0.35) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  text-align: center !important;
+  pointer-events: none !important;
+  max-width: 90% !important;
+  white-space: nowrap !important;
+}
+#status.hidden, .toast.hidden {
+  display: none !important;
+}
+
+
 
 
 
