@@ -309,11 +309,25 @@ function cardImage(obj, emoji='🛒'){
   return `<img src="${url}" loading="lazy" decoding="async"${srcset} alt="${esc(obj.name||'product')}">`;
 }
 function priceLabel(p){
-  const maxVarDiscount = (p.variants||[]).reduce((max, v)=>Math.max(max, Number(v.discount_percent||0)), 0);
-  const d = Number(p.discount_percent || p.variant_discount_percent || maxVarDiscount || 0);
+  if (!p || typeof p !== 'object') return esc(fmt(p));
+  const discountedVariants = (p.variants || []).filter(v => Number(v.discount_percent) > 0);
+  const bestV = discountedVariants.sort((a, b) => Number(b.discount_percent) - Number(a.discount_percent))[0];
+  if (bestV) {
+    const salePrice = Number(bestV.price);
+    const d = Number(bestV.discount_percent);
+    const origPrice = (bestV.old_price && Number(bestV.old_price) > salePrice) ? Number(bestV.old_price) : Math.round(salePrice / (1 - d / 100));
+    if (origPrice > salePrice) {
+      return `<s class="muted-strike">${fmt(origPrice)}</s> <span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span>`;
+    }
+    return `<span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span>`;
+  }
+  const d = Number(p.discount_percent || p.variant_discount_percent || 0);
   if (d > 0 && Number(p.price) > 0) {
-    const orig = (p.old_price && Number(p.old_price) > Number(p.price)) ? Number(p.old_price) : Math.round(Number(p.price) / (1 - d / 100));
-    return `<s class="muted-strike">${fmt(orig)}</s> <span style="font-weight:900;color:#ffffff;">${fmt(p.price)}</span>`;
+    const salePrice = Number(p.price);
+    const origPrice = (p.old_price && Number(p.old_price) > salePrice) ? Number(p.old_price) : Math.round(salePrice / (1 - d / 100));
+    if (origPrice > salePrice) {
+      return `<s class="muted-strike">${fmt(origPrice)}</s> <span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span>`;
+    }
   }
   return esc(p.price_label || fmt(p.price));
 }
