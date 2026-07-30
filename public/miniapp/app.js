@@ -309,10 +309,11 @@ function cardImage(obj, emoji='🛒'){
   return `<img src="${url}" loading="lazy" decoding="async"${srcset} alt="${esc(obj.name||'product')}">`;
 }
 function priceLabel(p){
-  const d = Number(p.discount_percent || p.variant_discount_percent || p.flash_sale_discount || p.product_flash_sale_discount || 0);
+  const maxVarDiscount = (p.variants||[]).reduce((max, v)=>Math.max(max, Number(v.discount_percent||0)), 0);
+  const d = Number(p.discount_percent || p.variant_discount_percent || maxVarDiscount || 0);
   if (d > 0 && Number(p.price) > 0) {
-    const orig = Math.round(Number(p.price) / (1 - d / 100));
-    return `<s class="muted-strike">${fmt(orig)}</s> <span style="font-weight:900;color:var(--text);">${fmt(p.price)}</span>`;
+    const orig = (p.old_price && Number(p.old_price) > Number(p.price)) ? Number(p.old_price) : Math.round(Number(p.price) / (1 - d / 100));
+    return `<s class="muted-strike">${fmt(orig)}</s> <span style="font-weight:900;color:#ffffff;">${fmt(p.price)}</span>`;
   }
   return esc(p.price_label || fmt(p.price));
 }
@@ -647,14 +648,14 @@ function buyButtonsForProduct(p){
   if((p.variants||[]).length){
     return `${walletHint}<div class="variant-list" style="display:flex;flex-direction:column;gap:8px">${(p.variants||[]).map(v=>{
       const d=Number(v.discount_percent)||0;
-      const currentPrice=priceLabel(v);
-      let priceHtml=`<span>${currentPrice}</span>`;
-      if(d>0){
-        const orig=Math.round(Number(v.price)/(1-d/100));
-        const savings=orig - Number(v.price);
-        priceHtml=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><s class="muted-strike" style="font-size:0.85em;text-decoration:line-through;color:var(--muted);">${fmt(orig)}</s><span style="font-weight:900;color:var(--text);">${currentPrice}</span><span class="discount-badge">−${nf(d)}٪</span>${savings>0?`<small class="savings-tag" style="color:var(--success);font-weight:800;font-size:11px;">(سود: ${fmt(savings)})</small>`:''}</div>`;
+      const priceText = fmt(v.price);
+      let priceHtml = `<span style="font-weight:900;color:#ffffff;">${priceText}</span>`;
+      if(d > 0){
+        const orig = (v.old_price && Number(v.old_price) > Number(v.price)) ? Number(v.old_price) : Math.round(Number(v.price) / (1 - d / 100));
+        const savings = orig - Number(v.price);
+        priceHtml = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><s class="muted-strike" style="font-size:0.88em;text-decoration:line-through;color:#9fb0c8;">${fmt(orig)}</s><span style="font-weight:900;color:#ffffff;">${priceText}</span><span class="discount-badge">−${nf(d)}٪</span>${savings>0?`<small class="savings-tag" style="color:#4ade80;font-weight:800;font-size:11px;">(سود: ${fmt(savings)})</small>`:''}</div>`;
       }
-      return `<div class="variant-card"><div class="variant-info"><b>${esc(v.title)}</b>${priceHtml}</div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">خرید</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف</button>`:''}</div></div>`;
+      return `<div class="variant-card"><div class="variant-info"><b style="color:#ffffff;">${esc(v.title)}</b>${priceHtml}</div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">خرید</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف</button>`:''}</div></div>`;
     }).join('')}</div>`;
   }
   return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`;
