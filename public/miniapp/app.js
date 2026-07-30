@@ -316,10 +316,11 @@ function priceLabel(p){
     const salePrice = Number(bestV.price);
     const d = Number(bestV.discount_percent);
     const origPrice = (bestV.old_price && Number(bestV.old_price) > salePrice) ? Number(bestV.old_price) : Math.round(salePrice / (1 - d / 100));
+    const vLabel = `<span class="variant-tag">${esc(bestV.title)}</span>`;
     if (origPrice > salePrice) {
-      return `<s class="muted-strike">${fmt(origPrice)}</s> <span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span>`;
+      return `<s class="muted-strike">${fmt(origPrice)}</s> <span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span> ${vLabel}`;
     }
-    return `<span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span>`;
+    return `<span style="font-weight:900;color:#ffffff;">${fmt(salePrice)}</span> ${vLabel}`;
   }
   const d = Number(p.discount_percent || p.variant_discount_percent || 0);
   if (d > 0 && Number(p.price) > 0) {
@@ -654,6 +655,7 @@ function specialDiscountsBannerHtml(){
         let realPrice = Number(p.price);
         let crossedPrice = 0;
         let discLabel = '';
+        let targetVTitle = '';
 
         const discountedVariants = (p.variants || []).filter(v => Number(v.discount_percent) > 0);
         if (discountedVariants.length > 0) {
@@ -661,6 +663,7 @@ function specialDiscountsBannerHtml(){
           realPrice = Number(bestV.price);
           crossedPrice = Number(bestV.old_price) || (bestV.discount_percent > 0 ? Math.round(realPrice / (1 - Number(bestV.discount_percent) / 100)) : 0);
           if (crossedPrice <= realPrice) crossedPrice = 0;
+          targetVTitle = bestV.title || '';
           discLabel = `🔥 −${bestV.discount_percent}٪`;
         } else if (Number(p.discount_percent || 0) > 0) {
           const d = Number(p.discount_percent);
@@ -673,7 +676,7 @@ function specialDiscountsBannerHtml(){
           <div class="flash-card-img">
             ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}">` : `<div class="tile-placeholder">🛍</div>`}
           </div>
-          <div class="flash-card-title">${esc(p.name)}</div>
+          <div class="flash-card-title">${esc(p.name)}${targetVTitle ? `<small class="flash-card-vname">${esc(targetVTitle)}</small>` : ''}</div>
           <div class="flash-card-bottom">
             <div class="flash-card-price-col">
               ${crossedPrice > 0 ? `<s class="flash-card-orig-price">${fmt(crossedPrice)}</s>` : ''}
