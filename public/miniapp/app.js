@@ -1,4 +1,4 @@
-// BlueReferral miniapp — ensure no stray top-level statements break the bundle
+﻿// BlueReferral miniapp — ensure no stray top-level statements break the bundle
 // (prepending a safe comment helps spot versions; remove only when sure)
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
@@ -304,6 +304,63 @@ function canHideOrder(o){return cleanupStatuses.includes(String(o?.status||''))}
 function statusClass(status){return ({delivered:'success',payment_confirmed:'success',preparing:'warning',receipt_submitted:'warning',reviewing:'warning',pending_payment:'pending',rejected:'danger',canceled:'danger',refunded:'danger'}[status]||'pending')}
 function orderStatusBadge(o){return `<span class="status-badge ${statusClass(o.status)}">${esc(o.status_fa||o.status)}</span>`}
 function orderById(id){return (state.orders||[]).find(o=>Number(o.id)===Number(id))}
+
+// ─── Payment Expiry Countdown (Phase 1) ─────────────────────────────────────
+const PAYMENT_EXPIRY_MINUTES = 20;
+let _countdownInterval = null;
+
+function orderExpiryMs(o){
+  if(o.expires_at){ const d=new Date(o.expires_at); if(!isNaN(d)) return d.getTime(); }
+  if(o.created_at){ const d=new Date(o.created_at.replace(' ','T')+'Z'); if(!isNaN(d)) return d.getTime()+PAYMENT_EXPIRY_MINUTES*60*1000; }
+  return null;
+}
+
+function countdownTimerHtml(o, compact){
+  const isPending=['pending_payment','rejected'].includes(o.status)&&Number(o.final_amount||0)>0;
+  if(!isPending) return '';
+  const exp=orderExpiryMs(o);
+  if(!exp) return '';
+  const diff=exp-Date.now();
+  const expired=diff<=0;
+  if(compact){
+    if(expired) return '<span class="order-expiry-badge expired" data-expiry-oid="'+o.id+'">⚠️ منقضی شده</span>';
+    const m=Math.floor(Math.ceil(diff/1000)/60), s=Math.ceil(diff/1000)%60;
+    return '<span class="order-expiry-badge" data-expiry-oid="'+o.id+'">⏳ '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'</span>';
+  }
+  if(expired) return '<div class="order-expiry-banner expired" data-expiry-oid="'+o.id+'"><span class="expiry-icon">⚠️</span><div><b>مهلت پرداخت این سفارش به پایان رسیده است</b><p class="muted">لطفاً سفارش را لغو کرده و دوباره ثبت کنید.</p></div></div>';
+  const m=Math.floor(Math.ceil(diff/1000)/60), s=Math.ceil(diff/1000)%60;
+  const txt=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  return '<div class="order-expiry-banner" data-expiry-oid="'+o.id+'"><span class="expiry-icon">⏳</span><div><b>مهلت پرداخت</b><p>در <b class="expiry-countdown-val" data-expiry-oid="'+o.id+'">'+txt+'</b> مانده — پس از آن سفارش لغو خواهد شد.</p></div></div>';
+}
+
+function startCountdownTimers(){
+  if(_countdownInterval) clearInterval(_countdownInterval);
+  _countdownInterval=setInterval(()=>{
+    document.querySelectorAll('[data-expiry-oid]').forEach(el=>{
+      const oid=el.dataset.expiryOid;
+      const o=orderById(oid);
+      if(!o) return;
+      const exp=orderExpiryMs(o);
+      if(!exp) return;
+      const diff=exp-Date.now();
+      const isBadge=el.classList.contains('order-expiry-badge');
+      const isBanner=el.classList.contains('order-expiry-banner');
+      const isVal=el.classList.contains('expiry-countdown-val');
+      if(diff<=0){
+        if(isBadge&&!el.classList.contains('expired')){el.classList.add('expired');el.textContent='⚠️ منقضی شده';}
+        if(isBanner&&!el.classList.contains('expired')){el.classList.add('expired');el.innerHTML='<span class="expiry-icon">⚠️</span><div><b>مهلت پرداخت این سفارش به پایان رسیده است</b><p class="muted">لطفاً سفارش را لغو کرده و دوباره ثبت کنید.</p></div>';}
+        if(isVal){const ban=el.closest('.order-expiry-banner');if(ban)ban.classList.add('expired');}
+      } else {
+        const m=Math.floor(Math.ceil(diff/1000)/60), s=Math.ceil(diff/1000)%60;
+        const txt=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+        if(isBadge&&!el.classList.contains('expired')) el.textContent='⏳ '+txt;
+        if(isVal) el.textContent=txt;
+      }
+    });
+  },1000);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function cryptoRateCacheText(){const c=state?.payment_methods?.crypto?.rate_cache||adminState?.settings?.crypto_rate_cache||{};const rows=Object.entries(c||{});const last=adminState?.settings?.crypto_rate_last_result||{};let out=[];if(rows.length){out=rows.map(([k,v])=>{const r=typeof v==='object'?v.rate:v;const at=typeof v==='object'?(v.updated_at||''):'';const src=typeof v==='object'?(v.source||v.provider||'cache'):'cache';return `${k}: ${Number(r||0).toLocaleString('fa-IR')} تومان · ${src}${at?' · '+at:''}`})}else out.push('هنوز cache نرخ نداریم.');if(last?.providers?.length)out.push('Providerها: '+last.providers.join(' → '));if(last?.failed&&Object.keys(last.failed).length)out.push('خطا/ fallback: '+Object.entries(last.failed).map(([k,v])=>`${k}:${v}`).join('، '));return out.join('\n')}
 async function refreshCurrentOrderSilently(){if(currentTab!=='orders'||!currentOrderId)return;try{state=await api('me');applyTheme(state);renderOrders()}catch(e){console.warn('order refresh failed',e)}}
 
@@ -642,7 +699,7 @@ function orderDetailHtml(o){
     </div>
   ` : '';
 
-  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}${savingsCard}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
+  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button>${countdownTimerHtml(o,false)}<div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}${savingsCard}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
 }
 function setTab(tab){currentTab=tab;saveAppLastState();renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;saveAppLastState();renderAdmin()}
@@ -1127,8 +1184,8 @@ function showProduct(pid){
     openCartSheet();
   });
 }
-function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
-function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;}return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
+function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); setTimeout(startCountdownTimers,50); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
+function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;const timerBadge=countdownTimerHtml(o,true);return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}${timerBadge}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
 
 function wheelGradient(rewards=[]){const colors=['#1d9bf0','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#ef4444','#84cc16'];const list=rewards.length?rewards:[{title:'جایزه'}];const step=100/list.length;return `conic-gradient(${list.map((_,i)=>`${colors[i%colors.length]} ${i*step}% ${(i+1)*step}%`).join(',')})`}
 function wheelPrizeList(rewards=[]){return (rewards||[]).slice(0,8).map(r=>`<div class="wheel-prize"><b>${esc(r.title||'جایزه')}</b><br><span>${Number(r.amount||0)>0?fmt(r.amount):'جایزه دستی'}</span></div>`).join('') || '<p class="muted">جایزه‌ای تعریف نشده.</p>'}
