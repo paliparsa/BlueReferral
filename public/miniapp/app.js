@@ -673,10 +673,15 @@ function specialDiscountsBannerHtml(){
           discLabel = `🔥 −${d}٪`;
         }
 
+        const w = getWishlist();
+        const wishBtn = `<button class="wishlist-fab ${w.includes(Number(p.id))?'active':''}" data-wishlist-pid="${p.id}" aria-label="نشان‌کردن">${w.includes(Number(p.id))?'❤️':'🤍'}</button>`;
+        const discBadge = discLabel ? `<span class="discount-badge" style="z-index:3;">${discLabel}</span>` : '';
+
         return `<div class="glowing-flash-card" data-product-preview="${p.id}">
-          <span class="flash-card-badge">${discLabel || '🔥 ویژه'}</span>
-          <div class="flash-card-img">
-            ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}">` : `<div class="tile-placeholder">🛍</div>`}
+          <div class="tile-img" style="position:relative; margin-bottom:10px;">
+            ${cardImage(p,'🛍')}
+            ${discBadge}
+            ${wishBtn}
           </div>
           <div class="flash-card-title">${esc(p.name)}${targetVTitle ? `<small class="flash-card-vname">${esc(targetVTitle)}</small>` : ''}</div>
           <div class="flash-card-bottom">
