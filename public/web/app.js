@@ -29,8 +29,17 @@
   /* ── Utility Helpers ── */
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
-  const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
-  const priceLabel = (p) => `${nf(p)} تومان`;
+  const priceLabel = (p) => {
+    if (typeof p === 'number' || typeof p === 'string') return `${nf(p)} تومان`;
+    if (!p) return '0 تومان';
+    const maxVarDiscount = (p.variants||[]).reduce((max, v)=>Math.max(max, Number(v.discount_percent||0)), 0);
+    const d = Number(p.discount_percent || p.variant_discount_percent || maxVarDiscount || 0);
+    if (d > 0 && Number(p.price) > 0) {
+      const orig = (p.old_price && Number(p.old_price) > Number(p.price)) ? Number(p.old_price) : Math.round(Number(p.price) / (1 - d / 100));
+      return `<s class="muted-strike" style="font-size:0.88em;text-decoration:line-through;color:#9fb0c8;margin-left:4px;">${nf(orig)} تومان</s> <span style="font-weight:900;color:#ffffff;">${nf(p.price)} تومان</span>`;
+    }
+    return `${nf(p.price || 0)} تومان`;
+  };
 
   /* ── Toast Notifications ── */
   function showToast(msg, type = 'info') {
