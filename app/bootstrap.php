@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if (!file_exists(__DIR__ . '/../config.php')) {
     http_response_code(500);
     exit('Missing config.php. Copy config.example.php to config.php first.');
