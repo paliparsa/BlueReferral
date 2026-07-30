@@ -273,9 +273,7 @@ async function reorderItem(type,id,direction){const list=type==='product'?(admin
 /* Command palette (A13) */
 function openCommandPalette(){const cp=$('cmdPalette');if(!cp)return;const cmds=[{label:'داشبورد',icon:'📊',action:()=>setAdminTab('dashboard')},{label:'محصولات',icon:'🛒',action:()=>setAdminTab('products')},{label:'پلن‌ها',icon:'📐',action:()=>setAdminTab('variants')},{label:'سفارش‌ها',icon:'🧾',action:()=>setAdminTab('orders')},{label:'برداشت‌ها',icon:'🏧',action:()=>setAdminTab('withdrawals')},{label:'کدهای تخفیف',icon:'🎟',action:()=>setAdminTab('coupons')},{label:'انبار',icon:'📦',action:()=>setAdminTab('inventory')},{label:'تنظیمات',icon:'⚙️',action:()=>setAdminTab('settings')},{label:'بکاپ',icon:'💾',action:()=>setAdminTab('backups')},{label:'لاگ فعالیت',icon:'📜',action:()=>setAdminTab('activity')},{label:'نقش‌های ادمین',icon:'👥',action:()=>setAdminTab('roles')},{label:'دانلود CSV سفارش‌ها',icon:'📥',action:()=>exportOrdersCsv()},{label:'دانلود CSV محصولات',icon:'📥',action:()=>exportProductsCsv()}];const q=(cp.querySelector('#cmdInput')?.value||'').toLowerCase();const filtered=cmds.filter(c=>c.label.toLowerCase().includes(q));cp.querySelector('#cmdList').innerHTML=filtered.length?filtered.map((c,i)=>`<button class="cmd-item" data-cmd-idx="${i}"><span>${c.icon}</span><b>${c.label}</b></button>`).join(''):'<p class="muted" style="padding:14px;text-align:center">موردی پیدا نشد.</p>';cp._cmds=filtered;cp.classList.add('open');setTimeout(()=>cp.querySelector('#cmdInput')?.focus(),50)}
 function closeCommandPalette(){const cp=$('cmdPalette');if(cp)cp.classList.remove('open')}
-/* Flash sale helpers (U18/A18) */
-function flashSaleActive(p){if(!p.flash_sale_start||!p.flash_sale_end||!Number(p.flash_sale_discount))return false;const now=Date.now();return now>=new Date(p.flash_sale_start).getTime()&&now<=new Date(p.flash_sale_end).getTime()}
-function flashSaleCountdown(p){if(!flashSaleActive(p))return '';const ms=new Date(p.flash_sale_end).getTime()-Date.now();if(ms<=0)return '';const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);return `⚡ فلش فروش −${nf(p.flash_sale_discount)}٪ · ${nf(h)}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+/* Flash sale functions removed for Phase 1 */
 /* Chat shortcut (A16) */
 function openUserChat(username){if(username){try{Telegram?.WebApp?.openTelegramLink?.('https://t.me/'+username)}catch(e){location.href='https://t.me/'+username}}else{showStatus('این کاربر یوزرنیم ندارد','error')}}
 function openDialog(title,text,placeholder,onSubmit,initial='',showFile=false){pendingDialog=onSubmit;$('dialogTitle').textContent=title;$('dialogText').textContent=text;$('dialogInput').value=initial;$('dialogInput').placeholder=placeholder||'';const f=$('dialogFileInput');if(f){f.style.display=showFile?'block':'none';f.value='';}$('inputDialog').showModal()}
@@ -298,7 +296,14 @@ function cardImage(obj, emoji='🛒'){
   const srcset = obj.image_srcset?` srcset="${esc(obj.image_srcset)}"` : '';
   return `<img src="${url}" loading="lazy" decoding="async"${srcset} alt="${esc(obj.name||'product')}">`;
 }
-function priceLabel(p){return esc(p.price_label || fmt(p.price))}
+function priceLabel(p){
+  const d = Number(p.discount_percent || p.variant_discount_percent || p.flash_sale_discount || p.product_flash_sale_discount || 0);
+  if (d > 0 && Number(p.price) > 0) {
+    const orig = Math.round(Number(p.price) / (1 - d / 100));
+    return `<s class="muted-strike">${fmt(orig)}</s> <span style="font-weight:900;color:var(--text);">${fmt(p.price)}</span>`;
+  }
+  return esc(p.price_label || fmt(p.price));
+}
 function priceCurrencyOptions(selected='IRT'){selected=String(selected||'IRT').toUpperCase();return `<option value="IRT" ${selected!=='USD'?'selected':''}>تومان</option><option value="USD" ${selected==='USD'?'selected':''}>دلار / USDT</option>`}
 function priceAdminFields(prefix,item={}){const c=String(item.price_currency||'IRT').toUpperCase();const usd=item.price_usd||'';const toman=item.price||'';return `<div class="price-editor full"><div class="price-editor-head"><span>💸</span><div><b>نوع قیمت‌گذاری</b><small>تومان ثابت یا دلار با تبدیل خودکار به تومان</small></div></div><div class="price-editor-grid"><label><span>واحد قیمت</span><select id="${prefix}_currency">${priceCurrencyOptions(c)}</select></label><label><span>قیمت تومان</span><input id="${prefix}_price" value="${esc(toman)}" inputmode="numeric" placeholder="مثلاً 2199000"></label><label><span>قیمت دلار</span><input id="${prefix}_price_usd" value="${esc(usd)}" inputmode="decimal" placeholder="مثلاً 19.99"></label><p class="muted full">اگر دلار انتخاب شود، کاربر فقط قیمت تومانی لحظه‌ای را می‌بیند؛ مبلغ دلاری فقط هنگام پرداخت رمزارز/ارزی نمایش داده می‌شود.</p></div></div>`}
 function priceAdminSummary(obj={}){const m=obj.price_meta||{};if((obj.price_currency||m.currency)==='USD'){return `قیمت دلاری: ${nf(obj.price_usd||m.usd||0)}$ → ${fmt(obj.price||m.toman||0)} ${m.rate_source?`· نرخ ${esc(m.rate_source)}`:''}`}return `قیمت تومانی: ${fmt(obj.price||0)}`}
@@ -524,8 +529,21 @@ function orderDetailHtml(o){
     nativeCurrencyPill = `<span class="badge" style="margin-right:6px">💎 ${nf(o.price_crypto || 0)} TON</span>`;
   } else if (cur === 'STARS') {
     nativeCurrencyPill = `<span class="badge" style="margin-right:6px">⭐ ${nf(o.price_stars || 0)} Stars</span>`;
-  }
-  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
+  const totalSavings = Number(o.discount_amount||0) + Number(o.wallet_amount||0);
+  const savingsCard = totalSavings > 0 ? `
+    <div class="savings-breakdown-card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:16px;padding:14px;margin:12px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:900;color:#22c55e;">🎉 سود شما از این خرید</span>
+        <span class="savings-tag" style="color:#4ade80;font-weight:800;font-size:11px;background:rgba(34,197,94,0.12);padding:2px 7px;border-radius:8px;border:1px solid rgba(34,197,94,0.25);">مجموع سود: ${fmt(totalSavings)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;">
+        ${Number(o.discount_amount)>0 ? `<div>🎟 تخفیف با کد: <b style="color:var(--text);">${fmt(o.discount_amount)}</b></div>` : ''}
+        ${Number(o.wallet_amount)>0 ? `<div>💰 کسر از کیف پول: <b style="color:var(--text);">${fmt(o.wallet_amount)}</b></div>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}${savingsCard}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
 }
 function setTab(tab){currentTab=tab;saveAppLastState();renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;saveAppLastState();renderAdmin()}
@@ -587,32 +605,47 @@ function closePalettePopup(){const p=$('palettePopup');if(p){p.classList.remove(
 function missionCard(m){const today=Number(state.user?.today_referrals||0);const target=Math.max(1,Number(m.target||1));const pct=Math.max(0,Math.min(100,Math.round(today/target*100)));const done=m.claimed?'claimed':(m.done?'done':'todo');return `<article class="mission-card ${done}"><div class="mission-top"><div><small>${nf(Math.min(today,target))} از ${nf(target)}</small><h3>${nf(target)} دعوت امروز</h3><p class="muted">پاداش: <b>${fmt(m.reward)}</b></p></div><div class="mission-icon">${m.claimed?'✅':(m.done?'🎁':'✌️')}</div></div><div class="progress-track"><span style="width:${pct}%"></span></div><div class="mission-foot"><span>${pct}% تکمیل شده</span><b>${m.claimed?'دریافت شد':(m.done?'آماده دریافت':'در حال انجام')}</b></div></article>`}
 function getWishlist(){try{return JSON.parse(localStorage.getItem('blue_ref_wishlist')||'[]').map(Number)}catch(e){return []}}
 function toggleWishlist(pid){let w=getWishlist();pid=Number(pid);if(w.includes(pid))w=w.filter(id=>id!==pid);else{w.push(pid);haptic('success');}localStorage.setItem('blue_ref_wishlist',JSON.stringify(w));document.querySelectorAll(`[data-wishlist-pid="${pid}"]`).forEach(el=>{el.textContent=w.includes(pid)?'❤️':'🤍';el.classList.toggle('active',w.includes(pid))});if(shopFilterWishlist)renderShopSections();}
-function filteredProducts(){let list=(state.shop_products||[]).filter(p=>(activeCategory==='all'||Number(p.category_id)===Number(activeCategory)||activeCategory==='featured'&&Number(p.is_featured)===1)&&(!searchTerm||`${p.name} ${p.short_description} ${p.full_description}`.toLowerCase().includes(searchTerm.toLowerCase())));if(shopFilterInStock)list=list.filter(p=>Number(p.inventory_available||0)>0);if(shopFilterFeatured)list=list.filter(p=>Number(p.is_featured)===1||flashSaleActive(p));if(shopFilterWishlist){const w=getWishlist();list=list.filter(p=>w.includes(Number(p.id)));}if(shopSort==='price_low')list=[...list].sort((a,b)=>Number(a.price||0)-Number(b.price||0));else if(shopSort==='price_high')list=[...list].sort((a,b)=>Number(b.price||0)-Number(a.price||0));else if(shopSort==='newest')list=[...list].sort((a,b)=>Number(a.id)-Number(a.id));return list}
-function shopSectionsHtml(){const cats=state.shop_categories||[];const products=filteredProducts();const filtersActive=shopFilterInStock||shopFilterFeatured||shopFilterWishlist||shopSort!=='newest';let sections='';if(activeCategory==='all'&&!searchTerm&&!filtersActive){const recent=recentProductsHtml();if(recent)sections+=recent;const featured=(state.shop_products||[]).filter(p=>Number(p.is_featured)===1||flashSaleActive(p));if(featured.length)sections+=sectionHtml('⭐ محصولات ویژه',featured);for(const c of cats){const list=(state.shop_products||[]).filter(p=>Number(p.category_id)===Number(c.id));if(list.length)sections+=sectionHtml(`${esc(c.emoji||'🛒')} ${esc(c.title)}`,list)} }else sections=gridHtml(products);return sections||'<div class="empty-state rich-empty-state" style="padding:40px 20px;text-align:center"><div class="empty-icon" style="font-size:48px;margin-bottom:12px;opacity:0.8">🕵️‍♂️</div><h3>محصولی پیدا نشد!</h3><p class="muted" style="margin-bottom:20px;font-size:14px">با این فیلترها و جستجو چیزی پیدا نکردیم.</p><button class="secondary" data-clear-filters>حذف تمام فیلترها</button></div>'}
+function filteredProducts(){let list=(state.shop_products||[]).filter(p=>(activeCategory==='all'||Number(p.category_id)===Number(activeCategory)||activeCategory==='featured'&&Number(p.is_featured)===1)&&(!searchTerm||`${p.name} ${p.short_description} ${p.full_description}`.toLowerCase().includes(searchTerm.toLowerCase())));if(shopFilterInStock)list=list.filter(p=>Number(p.inventory_available||0)>0);if(shopFilterFeatured)list=list.filter(p=>Number(p.is_featured)===1);if(shopFilterWishlist){const w=getWishlist();list=list.filter(p=>w.includes(Number(p.id)));}if(shopSort==='price_low')list=[...list].sort((a,b)=>Number(a.price||0)-Number(b.price||0));else if(shopSort==='price_high')list=[...list].sort((a,b)=>Number(b.price||0)-Number(a.price||0));else if(shopSort==='newest')list=[...list].sort((a,b)=>Number(a.id)-Number(a.id));return list}
+function shopSectionsHtml(){const cats=state.shop_categories||[];const products=filteredProducts();const filtersActive=shopFilterInStock||shopFilterFeatured||shopFilterWishlist||shopSort!=='newest';let sections='';if(activeCategory==='all'&&!searchTerm&&!filtersActive){const recent=recentProductsHtml();if(recent)sections+=recent;const featured=(state.shop_products||[]).filter(p=>Number(p.is_featured)===1);if(featured.length)sections+=sectionHtml('⭐ محصولات ویژه',featured);for(const c of cats){const list=(state.shop_products||[]).filter(p=>Number(p.category_id)===Number(c.id));if(list.length)sections+=sectionHtml(`${esc(c.emoji||'🛒')} ${esc(c.title)}`,list)} }else sections=gridHtml(products);return sections||'<div class="empty-state rich-empty-state" style="padding:40px 20px;text-align:center"><div class="empty-icon" style="font-size:48px;margin-bottom:12px;opacity:0.8">🕵️‍♂️</div><h3>محصولی پیدا نشد!</h3><p class="muted" style="margin-bottom:20px;font-size:14px">با این فیلترها و جستجو چیزی پیدا نکردیم.</p><button class="secondary" data-clear-filters>حذف تمام فیلترها</button></div>'}
 function renderShop(){const cats=state.shop_categories||[];const brand=state.brand||'BlueReferral';$('shopPage').innerHTML=`<section class="shop-hero"><div><small>${esc(brand)}</small><h2>محصولاتو راحت پیدا کن</h2></div><span>🛍</span></section><div class="shop-header-sticky"><div class="searchbar-modern"><span class="search-icon">🔍</span><input id="searchInput" autocomplete="off" inputmode="search" placeholder="جستجوی محصول، اشتراک..." value="${esc(searchTerm)}"><div class="quick-toggles"><button class="icon-toggle ${shopFilterWishlist?'active':''}" data-shop-toggle="wishlist" title="نشان‌شده">${shopFilterWishlist?'❤️':'🤍'}</button><button class="icon-toggle ${shopFilterInStock?'active':''}" data-shop-toggle="instock" title="فقط آنی">${shopFilterInStock?'⚡':'📦'}</button></div></div><div class="shop-controls-row"><div class="segmented-control"><button class="${shopSort==='newest'?'active':''}" data-shop-sort="newest">جدیدترین</button><button class="${shopSort==='price_low'?'active':''}" data-shop-sort="price_low">ارزان‌ترین</button><button class="${shopSort==='price_high'?'active':''}" data-shop-sort="price_high">گران‌ترین</button></div></div><div class="category-strip modern-cats"><button class="cat-pill ${activeCategory==='all'?'active':''}" data-cat="all"><span>✨</span><b>همه</b></button><button class="cat-pill ${activeCategory==='featured'?'active':''}" data-cat="featured"><span>⭐</span><b>ویژه</b></button>${cats.map(c=>`<button class="cat-pill ${Number(activeCategory)===Number(c.id)?'active':''}" data-cat="${c.id}">${c.image_url?`<img src="${esc(c.image_url)}">`:`<span>${esc(c.emoji||'🛒')}</span>`}<b>${esc(c.title)}</b></button>`).join('')}</div></div><div id="shopSections">${shopSectionsHtml()}</div>`}
 function renderShopSections(){const box=$('shopSections'); if(box) box.innerHTML=shopSectionsHtml();}
 function sectionHtml(title,products){return `<details class="section-row section-collapsible" open><summary class="section-title"><h2>${title}</h2><span class="section-chevron">‹</span></summary><div class="h-scroll product-grid-wrap">${products.map(productCard).join('')}</div></details>`}
 function gridHtml(products){return products.length ? `<section class="section-row"><div class="h-scroll product-grid-wrap">${products.map(productCard).join('')}</div></section>` : ''}
 function productCard(p){
-  const flash=flashSaleActive(p);
-  const variantDiscount=(p.variants||[]).some(v=>Number(v.discount_percent)>0);
-  const hasSale=flash||variantDiscount;
+  const maxDiscount = (p.variants||[]).reduce((max, v)=>Math.max(max, Number(v.discount_percent||0)), Number(p.discount_percent||0));
+  const hasDiscount = maxDiscount > 0;
   const noVariants = (!p.variants || p.variants.length === 0);
-  const quickBuy = noVariants ? `<button class="quick-buy-fab pulse" data-buy="${p.id}" aria-label="خرید سریع">⚡</button>` : '';
   const w = getWishlist();
   const wishBtn = `<button class="wishlist-fab ${w.includes(Number(p.id))?'active':''}" data-wishlist-pid="${p.id}" aria-label="نشان‌کردن">${w.includes(Number(p.id))?'❤️':'🤍'}</button>`;
-  const badgeHtml = flash ? '<span class="flash-badge">⚡</span>' : (variantDiscount ? '<span class="flash-badge" style="background:var(--danger)">%</span>' : '');
+  const badgeHtml = hasDiscount ? `<span class="discount-badge">−${maxDiscount}٪</span>` : '';
   
   if(productCardMode==='detailed'){
-    return `<article class="product-tile detailed ${hasSale?'flash-sale-tile':''}" data-product-preview="${p.id}">`+
+    return `<article class="product-tile detailed ${hasDiscount?'discount-tile':''}" data-product-preview="${p.id}">`+
       `<div class="tile-img">${cardImage(p,'🛍')}${badgeHtml}${wishBtn}</div>`+
       `<div class="tile-body"><h3>${esc(p.name)}</h3>`+
       (p.short_description?`<p class="tile-desc">${esc(p.short_description)}</p>`:'')+
-      `<div class="price-row-mini"><span class="price-pill">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill" data-flash-pid="${p.id}">${flashSaleCountdown(p)}</span>`:''}${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div></div></article>`;
+      `<div class="price-row-mini"><span class="price-pill">${priceLabel(p)}</span>${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div></div></article>`;
   }
-  return `<article class="product-tile compact-tile ${hasSale?'flash-sale-tile':''}" data-product-preview="${p.id}"><div class="tile-img" style="position:relative">${cardImage(p,'🛍')}<div class="overlay-price" style="position:absolute;bottom:8px;left:8px;display:flex;gap:4px;z-index:2;max-width:calc(100% - 16px)"><span class="compact-price">${flash?'<s>'+priceLabel(p)+'</s>':priceLabel(p)}</span>${flash?`<span class="flash-pill" data-flash-pid="${p.id}">${flashSaleCountdown(p)}</span>`:''}</div>${badgeHtml}${wishBtn}</div><div class="tile-body" style="padding:10px;padding-bottom:12px"><h3>${esc(p.name)}</h3></div></article>`;
+  return `<article class="product-tile compact-tile ${hasDiscount?'discount-tile':''}" data-product-preview="${p.id}"><div class="tile-img" style="position:relative">${cardImage(p,'🛍')}<div class="overlay-price" style="position:absolute;bottom:8px;left:8px;display:flex;gap:4px;z-index:2;max-width:calc(100% - 16px)"><span class="compact-price">${priceLabel(p)}</span></div>${badgeHtml}${wishBtn}</div><div class="tile-body" style="padding:10px;padding-bottom:12px"><h3>${esc(p.name)}</h3></div></article>`;
 }
-function buyButtonsForProduct(p){const bal=Number(state.user?.balance||0);const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';if((p.variants||[]).length){return `${walletHint}<div class="variant-list" style="display:flex;flex-direction:column;gap:8px">${(p.variants||[]).map(v=>{const d=Number(v.discount_percent)||0;const currentPrice=priceLabel(v);let priceHtml=`<span>${currentPrice}</span>`;if(d>0){const orig=Math.round(Number(v.price)/(1-d/100));priceHtml=`<div style="display:flex;align-items:center;gap:6px;"><s class="muted" style="font-size:0.85em">${fmt(orig)}</s><span>${currentPrice}</span><span class="flash-pill">−${nf(d)}٪</span></div>`;}return `<div class="variant-card"><div class="variant-info"><b>${esc(v.title)}</b>${priceHtml}</div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">خرید</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف</button>`:''}</div></div>`;}).join('')}</div>`}return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`}
+function buyButtonsForProduct(p){
+  const bal=Number(state.user?.balance||0);
+  const walletHint=bal>0?`<div class="wallet-hint">💰 موجودی شما: <b>${fmt(bal)}</b>؛ می‌تونی ازش برای کم‌کردن فاکتور استفاده کنی.</div>`:'';
+  if((p.variants||[]).length){
+    return `${walletHint}<div class="variant-list" style="display:flex;flex-direction:column;gap:8px">${(p.variants||[]).map(v=>{
+      const d=Number(v.discount_percent)||0;
+      const currentPrice=priceLabel(v);
+      let priceHtml=`<span>${currentPrice}</span>`;
+      if(d>0){
+        const orig=Math.round(Number(v.price)/(1-d/100));
+        const savings=orig - Number(v.price);
+        priceHtml=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><s class="muted-strike" style="font-size:0.85em;text-decoration:line-through;color:var(--muted);">${fmt(orig)}</s><span style="font-weight:900;color:var(--text);">${currentPrice}</span><span class="discount-badge">−${nf(d)}٪</span>${savings>0?`<small class="savings-tag" style="color:var(--success);font-weight:800;font-size:11px;">(سود: ${fmt(savings)})</small>`:''}</div>`;
+      }
+      return `<div class="variant-card"><div class="variant-info"><b>${esc(v.title)}</b>${priceHtml}</div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">خرید</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف</button>`:''}</div></div>`;
+    }).join('')}</div>`;
+  }
+  return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`;
+}
 
 /* ===== Share sheet ===== */
 function copyText(text){
@@ -1349,6 +1382,20 @@ function renderAdminSettings(){
         </div>
         <div class="hint-box">فرمت جایزه: <code>عنوان|مبلغ کیف پول|وزن احتمال|اعلان ادمین ۰/۱</code></div>
       </article>
+
+      <article class="settings-card admin-card" style="margin-top:14px">
+        <div class="admin-card-head"><div class="admin-card-icon"><span>👑</span></div><div><h3>مدیریت نرخ‌های VIP و ضریب پورسانت</h3><p class="muted">تنظیم حد نصاب دعوت و ضریب پورسانت سطح‌ها.</p></div></div>
+        <div class="form-grid settings-form compact-form">
+          <label><span>🥉 برنز (ضریب)</span><input id="vip_bronze_mult" value="${esc((s.vip_tier_rates?.bronze?.multiplier)||1.00)}" inputmode="decimal"></label>
+          <label><span>🥈 سیلور (حد نصاب)</span><input id="vip_silver_min" value="${esc((s.vip_tier_rates?.silver?.min_ref)||10)}" inputmode="numeric"></label>
+          <label><span>🥈 سیلور (ضریب)</span><input id="vip_silver_mult" value="${esc((s.vip_tier_rates?.silver?.multiplier)||1.10)}" inputmode="decimal"></label>
+          <label><span>🥇 گلد (حد نصاب)</span><input id="vip_gold_min" value="${esc((s.vip_tier_rates?.gold?.min_ref)||50)}" inputmode="numeric"></label>
+          <label><span>🥇 گلد (ضریب)</span><input id="vip_gold_mult" value="${esc((s.vip_tier_rates?.gold?.multiplier)||1.25)}" inputmode="decimal"></label>
+          <label><span>💎 دایموند (حد نصاب)</span><input id="vip_diamond_min" value="${esc((s.vip_tier_rates?.diamond?.min_ref)||100)}" inputmode="numeric"></label>
+          <label><span>💎 دایموند (ضریب)</span><input id="vip_diamond_mult" value="${esc((s.vip_tier_rates?.diamond?.multiplier)||1.50)}" inputmode="decimal"></label>
+        </div>
+        <button class="secondary wide" style="margin-top:10px" data-save-vip-rates>💾 ذخیره نرخ‌های VIP</button>
+      </article>
     </div>
 
     <button class="primary save-floating" data-admin-save-settings>ذخیره همه تنظیمات</button>
@@ -1557,7 +1604,7 @@ function openAddVariant(productId){
   });
   setTimeout(()=>{ setupPricingFormListeners('av'); }, 50);
 }
-function openAddCoupon(){openEdit('افزودن کد تخفیف',[{title:'اطلاعات کد',fields:[{id:'acp_code',label:'کد تخفیف',placeholder:'مثلا BLUE10'},{id:'acp_type',label:'نوع',type:'select',options:`<option value="percent" selected>درصدی</option><option value="fixed">مبلغ ثابت</option>`},{id:'acp_value',label:'مقدار',type:'number',props:'inputmode="numeric"',value:0},{id:'acp_max',label:'حداکثر استفاده',type:'number',props:'inputmode="numeric"',value:0,placeholder:'۰ = نامحدود'},{id:'acp_expires',label:'تاریخ انقضا',type:'datetime-local'}]}],async()=>adminAction('admin_add_coupon',{code:val('acp_code'),discount_type:val('acp_type'),discount_value:val('acp_value'),max_uses:val('acp_max'),expires_at:val('acp_expires')}))}
+function openAddCoupon(){openEdit('افزودن کد تخفیف',[{title:'اطلاعات کد',fields:[{id:'acp_code',label:'کد تخفیف',placeholder:'مثلا BLUE10'},{id:'acp_type',label:'نوع تخفیف',type:'select',options:`<option value="percent" selected>درصدی (٪)</option><option value="fixed">مبلغ ثابت (تومان)</option>`},{id:'acp_value',label:'مقدار (درصد یا تومان)',type:'number',props:'inputmode="numeric"',value:0},{id:'acp_min',label:'حداقل مبلغ سفارش (تومان)',type:'number',props:'inputmode="numeric"',value:0,placeholder:'۰ = بدون حداقل'},{id:'acp_max',label:'کل سقف استفاده جهانی',type:'number',props:'inputmode="numeric"',value:0,placeholder:'۰ = نامحدود'},{id:'acp_per_user',label:'سقف استفاده برای هر کاربر',type:'number',props:'inputmode="numeric"',value:1},{id:'acp_cat',label:'محدودیت دسته‌بندی (اختیاری)',type:'select',options:catOptions()},{id:'acp_expires',label:'تاریخ انقضا',type:'datetime-local'}]}],async()=>adminAction('admin_add_coupon',{code:val('acp_code'),discount_type:val('acp_type'),discount_value:val('acp_value'),min_order_amount:val('acp_min'),max_uses:val('acp_max'),max_uses_per_user:val('acp_per_user'),category_id:val('acp_cat'),expires_at:val('acp_expires')}))}
 function openAddInventory(){openEdit('افزودن انبار',[{title:'جزئیات آیتم',fields:[{id:'ai_product',label:'محصول مرتبط',type:'select',options:productOptions()},{id:'ai_variant',label:'پلن مرتبط',type:'select',options:variantOptions()},{id:'ai_content',label:'محتوای آیتم',type:'textarea',placeholder:'هر آیتم یک خط؛ ایمیل/پسورد، لینک ساب، کد یا متن آماده'}]}],async()=>adminAction('admin_add_inventory',{product_id:val('ai_product'),variant_id:val('ai_variant'),content:val('ai_content')}))}
 function editInventory(id){const i=adminState.inventory.find(x=>Number(x.id)===Number(id));if(!i)return;openEdit(`ویرایش آیتم انبار #${id}`,[{title:'جزئیات آیتم',fields:[{id:'ei_product',label:'محصول مرتبط',type:'select',options:productOptions(i.product_id)},{id:'ei_variant',label:'پلن مرتبط',type:'select',options:variantOptions(i.variant_id)},{id:'ei_status',label:'وضعیت فروش',type:'select',options:`<option value="available" ${i.status==='available'?'selected':''}>available</option><option value="reserved" ${i.status==='reserved'?'selected':''}>reserved</option><option value="delivered" ${i.status==='delivered'?'selected':''}>delivered</option><option value="disabled" ${i.status==='disabled'?'selected':''}>disabled</option>`},{id:'ei_content',label:'محتوای آیتم',type:'textarea',value:i.content||''}]}],async()=>adminAction('admin_update_inventory',{inventory_id:id,product_id:val('ei_product'),variant_id:val('ei_variant'),status:val('ei_status'),content:val('ei_content')}))}
 function openAddRole(){openEdit('افزودن نقش ادمین',[{title:'سطح دسترسی',fields:[{id:'ar_tid',label:'Telegram ID',type:'number',props:'inputmode="numeric"',placeholder:'مثلاً: 123456789'},{id:'ar_name',label:'نام نمایشی'},{id:'ar_role',label:'نوع دسترسی',type:'select',options:`<option value="full">ادمین کامل</option><option value="orders">فقط سفارش‌ها</option><option value="products">فقط محصولات</option><option value="finance">فقط مالی</option>`}]}],async()=>adminAction('admin_set_role',{telegram_id:val('ar_tid'),role:val('ar_role'),display_name:val('ar_name')}))}
@@ -1689,6 +1736,25 @@ setInterval(()=>{
   if(!isAdminMode && currentTab==='orders' && currentOrderId){ refreshCurrentOrderSilently(); }
   if(isAdminMode && currentAdminTab==='settings'){ loadAdmin(); }
 },60000);
+// VIP Tier Rates save handler
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-save-vip-rates]');
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  const rates = {
+    bronze: {name:'Bronze', fa:'برنز', emoji:'🥉', min_ref: 0, multiplier: Number(val('vip_bronze_mult')||1.0)},
+    silver: {name:'Silver', fa:'سیلور', emoji:'🥈', min_ref: Number(val('vip_silver_min')||10), multiplier: Number(val('vip_silver_mult')||1.1)},
+    gold: {name:'Gold', fa:'گلد', emoji:'🥇', min_ref: Number(val('vip_gold_min')||50), multiplier: Number(val('vip_gold_mult')||1.25)},
+    diamond: {name:'Diamond', fa:'دایموند', emoji:'💎', min_ref: Number(val('vip_diamond_min')||100), multiplier: Number(val('vip_diamond_mult')||1.5)}
+  };
+  try {
+    await adminAction('admin_save_vip_rates', { vip_tier_rates: rates });
+    showStatus('نرخ‌های VIP با موفقیت ذخیره شدند');
+  } catch(err) {
+    showStatus(err.message || 'خطا در ذخیره VIP', 'error');
+  }
+});
+
 // Capture-phase click handler for toggle and optimistic buy flows.
 document.addEventListener('click',async function(e){
   const t=e.target.closest('[data-buy],[data-buy-wallet]');
@@ -1752,17 +1818,28 @@ function hideSkeleton(){
   if(sk) sk.classList.add('hidden');
 }
 
-/* ===== Quick-win: flash sale live countdown ===== */
-let _flashInterval=null;
-function startFlashCountdowns(){
-  clearInterval(_flashInterval);
-  _flashInterval=setInterval(()=>{
-    document.querySelectorAll('[data-flash-pid]').forEach(el=>{
-      const p=(state?.shop_products||[]).find(x=>Number(x.id)===Number(el.dataset.flashPid));
-      if(p) el.textContent=flashSaleCountdown(p);
-    });
-  },1000);
-}
+/* ===== Coupon code click delegation ===== */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-coupon]');
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  const orderId = Number(btn.dataset.coupon);
+  if (!orderId) return;
+  openDialog('🎟️ کسر از فاکتور با کد تخفیف', 'کد تخفیف خود را وارد کنید:', 'مثلاً: BLUE10', async (code) => {
+    if (!code) return;
+    try {
+      const res = await api('apply_coupon', { order_id: orderId, code: code });
+      state = await api('me');
+      applyTheme(state);
+      currentTab = 'orders';
+      currentOrderId = orderId;
+      renderUser();
+      showStatus('کد تخفیف با موفقیت روی سفارش اعمال شد 🎉');
+    } catch (err) {
+      showStatus(err.message || 'کد تخفیف معتبر نیست', 'error');
+    }
+  });
+});
 
 /* ===== Quick-win: back-to-top button ===== */
 function initBackToTop(){
@@ -2031,7 +2108,7 @@ async function load(){
     app?.classList.remove('hidden');
   }
 }
-load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCartFab();attachLongPress();initBackToTop();setTimeout(()=>{if(!isAdminMode)showOnboarding()},800);setInterval(()=>{if(currentTab==='shop'||currentTab==='product'){renderShopSections&&0;startFlashCountdowns();}},60000);
+load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCartFab();attachLongPress();initBackToTop();setTimeout(()=>{if(!isAdminMode)showOnboarding()},800);
 
 function openBroadcast() {
   if (typeof haptic === 'function') haptic('light');
