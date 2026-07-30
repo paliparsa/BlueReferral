@@ -142,10 +142,8 @@ function product_payload(array $p, bool $activeVariants=true): array {
     }, product_variants((int)$p['id'], $activeVariants));
 
     $pm = price_meta_public($p);
-    $rawPPrice = (int)$pm['toman'];  // Original full price (flash_sale_discount is NOT baked in)
-    $flashDiscount = (int)($p['flash_sale_discount'] ?? 0);
-    // old_price = original price for display as crossed-out when flash is active
-    $pOrigPrice = ($flashDiscount > 0 && $rawPPrice > 0) ? $rawPPrice : (int)($p['old_price'] ?? 0);
+    $rawPPrice = (int)$pm['toman'];
+    $pOrigPrice = (int)($p['old_price'] ?? 0);
 
     return [
         'id' => (int)$p['id'],
@@ -153,8 +151,8 @@ function product_payload(array $p, bool $activeVariants=true): array {
         'category_title' => $p['category_title'] ?? null,
         'category_emoji' => $p['category_emoji'] ?? null,
         'name' => $p['name'],
-        'price' => $rawPPrice,      // Original price. Frontends apply flash_sale_discount at display time
-        'old_price' => $pOrigPrice, // Same as price when flash active (for crossed-out display)
+        'price' => $rawPPrice,
+        'old_price' => $pOrigPrice,
         'price_label' => product_price_label($p),
         'price_currency' => $pm['currency'],
         'price_usd' => $pm['usd'],
@@ -174,9 +172,6 @@ function product_payload(array $p, bool $activeVariants=true): array {
         'inventory_available' => (int)($p['inventory_available'] ?? 0),
         'is_featured' => (int)($p['is_featured'] ?? 0),
         'is_active' => (int)($p['is_active'] ?? 1),
-        'flash_sale_start' => $p['flash_sale_start'] ?? null,
-        'flash_sale_end' => $p['flash_sale_end'] ?? null,
-        'flash_sale_discount' => (int)($p['flash_sale_discount'] ?? 0),
         'discount_percent' => (int)($p['discount_percent'] ?? 0),
         'created_at' => $p['created_at'] ?? null,
         'updated_at' => $p['updated_at'] ?? null,
@@ -733,10 +728,7 @@ if ($action === 'admin_add_product') {
     $delivery = normalize_delivery_type((string)($input['delivery_type'] ?? 'manual'));
     $commissionType = in_array(($input['commission_type'] ?? 'none'), ['none', 'fixed', 'percent'], true) ? $input['commission_type'] : 'none';
     $commissionValue = max(0, (int)($input['commission_value'] ?? 0));
-    $flashDiscount = max(0, (int)($input['flash_sale_discount'] ?? 0));
-    $flashStart = (!empty($input['flash_sale_start']) && strtotime((string)$input['flash_sale_start'])) ? date('Y-m-d H:i:s', strtotime((string)$input['flash_sale_start'])) : null;
-    $flashEnd = (!empty($input['flash_sale_end']) && strtotime((string)$input['flash_sale_end'])) ? date('Y-m-d H:i:s', strtotime((string)$input['flash_sale_end'])) : null;
-    db()->prepare('INSERT INTO products (category_id,name,price,price_currency,price_usd,price_rate_toman,price_rate_source,price_rate_updated_at,short_description,full_description,image_url,image_srcset,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active,flash_sale_start,flash_sale_end,flash_sale_discount) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
+    db()->prepare('INSERT INTO products (category_id,name,price,price_currency,price_usd,price_rate_toman,price_rate_source,price_rate_updated_at,short_description,full_description,image_url,image_srcset,delivery_type,commission_type,commission_value,duration_days,is_featured,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
         $catId ?: null,
         $name,
         $pp['price'],
@@ -754,10 +746,7 @@ if ($action === 'admin_add_product') {
         $commissionValue,
         max(0, (int)($input['duration_days'] ?? 0)),
         !empty($input['is_featured']) ? 1 : 0,
-        1,
-        $flashStart,
-        $flashEnd,
-        $flashDiscount
+        1
     ]);
     api_out(admin_payload());
 }
@@ -767,7 +756,7 @@ if ($action === 'admin_update_product') {
     if (array_key_exists('price_currency', $input) || array_key_exists('price_usd', $input) || array_key_exists('price', $input)) {
         try { $pp = price_admin_payload_from_input($input); foreach ($pp as $k => $v) update_product_field($id, $k, $v); } catch (Throwable $e) { api_out(['ok' => false, 'message' => 'قیمت معتبر نیست یا نرخ USDT برای قیمت دلاری در دسترس نیست.'], 400); }
     }
-    foreach (['category_id', 'name', 'short_description', 'full_description', 'image_url', 'image_srcset', 'delivery_type', 'commission_type', 'commission_value', 'duration_days', 'is_active', 'is_featured', 'flash_sale_start', 'flash_sale_end', 'flash_sale_discount'] as $f) {
+    foreach (['category_id', 'name', 'short_description', 'full_description', 'image_url', 'image_srcset', 'delivery_type', 'commission_type', 'commission_value', 'duration_days', 'is_active', 'is_featured'] as $f) {
         if (array_key_exists($f, $input)) update_product_field($id, $f, $input[$f]);
     }
     api_out(admin_payload());
