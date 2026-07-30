@@ -1744,6 +1744,41 @@ $('editSubmit').addEventListener('click',async(e)=>{
     btn.disabled=false;
   }
 })
+async function load(){
+  showSkeleton();
+  initAuthHandlers();
+  try{
+    if(isAdminMode){
+      adminState=await api('admin_summary');
+      applyTheme(adminState.settings||{});
+      $('userApp')?.classList.add('hidden');
+      $('adminApp')?.classList.remove('hidden');
+      loadAdmin();
+    } else {
+      state=await api('me');
+      updateAuthUI(state);
+      render(state);
+    }
+  }catch(e){
+    hideSkeleton();
+    console.error('MiniApp startup error:', e);
+    if (!isAdminMode) {
+      try {
+        state = await api('guest_dashboard_payload');
+        if (state && state.ok) {
+          updateAuthUI(state);
+          render(state);
+          return;
+        }
+      } catch(ge) {}
+    }
+    const home = $('homePage');
+    if (home) {
+      home.classList.remove('hidden');
+      home.innerHTML = `<div class="error-state" style="padding:40px 20px;text-align:center"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h3>خطا در بارگذاری اطلاعات</h3><p class="muted" style="margin-bottom:20px;font-size:13px">${esc(e.message||'خطا در ارتباط با سرور')}</p><button class="primary" onclick="location.reload()">تلاش مجدد</button></div>`;
+    }
+  }
+}
 setInterval(()=>{
   if(!isAdminMode && currentTab==='orders' && currentOrderId){ refreshCurrentOrderSilently(); }
   if(isAdminMode && currentAdminTab==='settings'){ loadAdmin(); }
@@ -2108,27 +2143,7 @@ function initAuthHandlers() {
   });
 }
 
-async function load(){
-  showSkeleton();
-  initAuthHandlers();
-  try{
-    if(isAdminMode){
-      adminState=await api('admin_summary');
-      applyTheme(adminState.settings||{});
-      $('userApp').classList.add('hidden');
-      $('adminApp').classList.remove('hidden');
-      loadAdmin();
-    } else {
-      state=await api('me');
-      updateAuthUI(state);
-      render(state);
-    }
-  }catch(e){
-    hideSkeleton();
-    const app=$('userApp');
-    if(app) app.innerHTML=`<div class="error-state"><p>⚠️ ${esc(e.message||'خطا در بارگذاری')}</p><button class="primary" onclick="location.reload()">تلاش مجدد</button></div>`;
-    app?.classList.remove('hidden');
-  }
+
 load();
 if (typeof attachPullToRefresh === 'function') attachPullToRefresh();
 if (typeof attachLongPress === 'function') attachLongPress();
