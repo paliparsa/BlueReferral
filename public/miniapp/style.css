@@ -3695,14 +3695,3 @@ body .card-v2-submit-btn:active {
 
 
 
-
-/* Phase 1: Payment Expiry Countdown */
-.order-expiry-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800;background:color-mix(in srgb,var(--warning) 18%,#000);border:1px solid color-mix(in srgb,var(--warning) 45%,transparent);color:#fde68a;white-space:nowrap;animation:expiryPulse 2s ease-in-out infinite}
-.order-expiry-badge.expired{background:color-mix(in srgb,var(--danger) 18%,#000);border-color:color-mix(in srgb,var(--danger) 45%,transparent);color:#fecaca;animation:none}
-@keyframes expiryPulse{0%,100%{opacity:1}50%{opacity:.65}}
-.order-expiry-banner{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border-radius:18px;margin:10px 0 14px;background:color-mix(in srgb,var(--warning) 12%,#0d1828);border:1px solid color-mix(in srgb,var(--warning) 40%,transparent);animation:expiryPulse 2.5s ease-in-out infinite}
-.order-expiry-banner.expired{background:color-mix(in srgb,var(--danger) 12%,#0d1828);border-color:color-mix(in srgb,var(--danger) 40%,transparent);animation:none}
-.expiry-icon{font-size:22px;flex:0 0 auto;margin-top:1px}
-.order-expiry-banner b{color:#fef3c7;font-size:13px}
-.order-expiry-banner p{margin:3px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
-.expiry-countdown-val{font-variant-numeric:tabular-nums;letter-spacing:1px;color:#fde68a;font-size:14px;font-weight:900}
