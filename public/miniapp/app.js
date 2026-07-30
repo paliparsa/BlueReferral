@@ -253,7 +253,9 @@ function attachLongPress(){if(_lpAttached)return;_lpAttached=true;
   document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTarget=null;clearTimeout(_lpOrderTimer);_lpOrderTarget=null;});
   document.addEventListener('touchmove',()=>{clearTimeout(_lpTimer);_lpTarget=null;clearTimeout(_lpOrderTimer);_lpOrderTarget=null;},{passive:true});
 }
-function showProductPreview(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;const pv=$('previewSheet');if(!pv)return;pv.innerHTML=`<div class="preview-sheet-inner"><div class="preview-sheet-handle" data-close-preview></div><button class="preview-close-btn" data-close-preview>✕</button><div class="preview-img">${cardImage(p,'🛍')}</div><div class="preview-body"><div class="compact-title"><h3>${esc(p.name)}</h3><button class="ghost" data-preview-full="${p.id}" style="padding:4px 8px;font-size:12px;margin:0">جزئیات ‹</button></div><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge">${esc(p.delivery_type_fa)}</span>${Number(p.inventory_available||0)>0?'<span class="soon">آنی</span>':''}</div>${buyButtonsForProduct(p)}</div></div>`;pv.classList.add('open');pushRecent(pid);pv.querySelectorAll('[data-close-preview]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();closePreviewSheet()}));pv.querySelector('[data-preview-full]')?.addEventListener('click',e=>{e.stopPropagation();closePreviewSheet();showProduct(pid)});pv.addEventListener('click',function(ev){if(ev.target===pv)closePreviewSheet()})}
+function showProductPreview(pid){
+  showProduct(pid);
+}
 function closePreviewSheet(){const pv=$('previewSheet');if(pv){pv.classList.remove('open');pv.innerHTML=''}}
 function openAdminActionSheet(type,id){const pv=$('previewSheet');if(!pv)return;let title='',subtitle='',buttons='';if(type==='product'){const p=(adminState.products||[]).find(x=>Number(x.id)===Number(id));if(!p)return;title=`محصول #${nf(p.id)}`;subtitle=p.name;buttons=`<button class="ios-action-btn" data-edit-product="${p.id}">ویرایش کامل</button><button class="ios-action-btn" data-admin-toggle-product="${p.id}">${Number(p.is_active)?'غیرفعال کردن':'فعال کردن'}</button><button class="ios-action-btn danger-action" data-admin-delete-product="${p.id}">غیرفعال‌سازی</button><button class="ios-action-btn danger-action" data-admin-hard-delete-product="${p.id}">حذف کامل</button>`;}else if(type==='variant'){const v=(adminState.variants||[]).find(x=>Number(x.id)===Number(id));if(!v)return;title=`پلن #${nf(v.id)}`;subtitle=`${v.product_name||''} - ${v.title}`;buttons=`<button class="ios-action-btn" data-edit-variant="${v.id}">ویرایش پلن</button><button class="ios-action-btn danger-action" data-admin-delete-variant="${v.id}">غیرفعال‌سازی</button><button class="ios-action-btn danger-action" data-admin-hard-delete-variant="${v.id}">حذف کامل</button>`;}else if(type==='category'){const c=(adminState.categories||[]).find(x=>Number(x.id)===Number(id));if(!c)return;title=`دسته #${nf(c.id)}`;subtitle=c.title;buttons=`<button class="ios-action-btn" data-edit-category="${c.id}">ویرایش</button><button class="ios-action-btn danger-action" data-admin-delete-category="${c.id}">غیرفعال‌سازی</button><button class="ios-action-btn danger-action" data-admin-hard-delete-category="${c.id}">حذف کامل</button>`;}else if(type==='order'){const o=(adminState.orders||[]).find(x=>Number(x.id)===Number(id));if(!o)return;title=`سفارش #${nf(o.id)}`;subtitle=o.display_name;buttons=`${o.user_id?`<button class="ios-action-btn" data-customer-360="${o.user_id}">👤 پروفایل کاربر</button>`:''}${o.username?`<button class="ios-action-btn" data-chat-user="${esc(o.username)}">💬 ارسال پیام</button>`:''}<button class="ios-action-btn" data-admin-order-note="${o.id}">📝 یادداشت داخلی${o.admin_note?' (دارد)':''}</button><button class="ios-action-btn" data-admin-status="${o.id}:reviewing">در بررسی</button><button class="ios-action-btn" data-admin-status="${o.id}:payment_confirmed">تایید پرداخت</button><button class="ios-action-btn" data-admin-status="${o.id}:preparing">آماده‌سازی</button><button class="ios-action-btn" data-admin-deliver="${o.id}">ثبت تحویل</button>${o.receipt_file_id?`<button class="ios-action-btn" data-view-receipt="${o.id}">🖼 دیدن رسید تصویری</button>`:''}<button class="ios-action-btn danger-action" data-admin-status="${o.id}:rejected">رد سفارش</button><button class="ios-action-btn danger-action" data-admin-archive-order="${o.id}">آرشیو سفارش</button>${cleanupStatuses.includes(o.status)?`<button class="ios-action-btn danger-action" data-admin-delete-order="${o.id}">حذف کامل</button>`:''}`;}pv.innerHTML=`<div class="preview-sheet-inner" style="padding-top: 10px;"><div class="preview-sheet-handle" data-close-preview></div><div style="text-align:center; margin: 12px 0 16px;"><h3 style="font-size: 16px; margin-bottom: 4px;">${title}</h3><p class="muted" style="font-size: 13px;">${esc(subtitle)}</p></div><div class="ios-action-group">${buttons}</div><div class="ios-action-group" style="margin-top: -10px;"><button class="ios-action-btn" style="font-weight: 800;" data-close-preview>بستن</button></div></div>`;pv.classList.add('open');pv.querySelectorAll('[data-close-preview]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();closePreviewSheet()}));pv.addEventListener('click',function(ev){if(ev.target===pv)closePreviewSheet()})}
 /* VIP / loyalty progress (U8) */
@@ -779,7 +781,8 @@ function openShareSheet(pid){
   }
   if(typeof haptic === 'function') haptic('light');
 
-  const shareText = `🛒 ${p.name}\n${priceLabel(p)}`;
+  const pPriceText = p.price ? `${fmt(p.price)} تومان` : '';
+  const shareText = `🛍 ${p.name}\n💰 قیمت: ${pPriceText}\n\nبرای مشاهده و خرید محصول در ربات روی لینک زیر بزنید:`;
   const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(_shareUrl)}&text=${encodeURIComponent(shareText)}`;
 
   ss.innerHTML=`<div class="share-sheet-inner">
@@ -788,7 +791,7 @@ function openShareSheet(pid){
       <div class="share-product-thumb">${cardImage(p,'🛍')}</div>
       <div class="share-product-info">
         <h3>${esc(p.name)}</h3>
-        <p class="muted">${priceLabel(p)}</p>
+        <p class="muted">${pPriceText}</p>
       </div>
       <button class="ghost" id="closeShareX">✕</button>
     </div>
@@ -829,7 +832,8 @@ function openShareSheet(pid){
 
   ss.querySelector('#btnShareCopy')?.addEventListener('click', () => {
     copyText(_shareUrl);
-    showStatus('لینک محصول کپی شد 🔗');
+    showStatus('لینک محصول با موفقیت کپی شد 📋');
+    if(typeof haptic==='function') haptic('success');
     close();
   });
 
