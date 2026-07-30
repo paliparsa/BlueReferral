@@ -557,7 +557,18 @@ function handleDeepLink(){
     showProduct(pid);
   }
 }
-function hidePages(){['homePage','shopPage','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.bottom-nav [data-tab], .topbar-desktop-nav [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===currentTab));const topbar=document.querySelector('#userApp .topbar');if(topbar)topbar.style.display=(currentTab==='product')?'none':'flex'}
+function hidePages(){
+  ['homePage','shopPage','productPage','ordersPage','walletPage'].forEach(id=>$(id).classList.add('hidden'));
+  document.querySelectorAll('.bottom-nav [data-tab], .topbar-desktop-nav [data-tab]').forEach(b=>{
+    const isActive = b.dataset.tab === currentTab;
+    if(isActive && !b.classList.contains('active') && typeof haptic === 'function') {
+      haptic('light');
+    }
+    b.classList.toggle('active', isActive);
+  });
+  const topbar=document.querySelector('#userApp .topbar');
+  if(topbar)topbar.style.display=(currentTab==='product')?'none':'flex';
+}
 function renderUser(){saveAppLastState();hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
 function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);
 const isGuest = state?.is_guest || u?.is_guest;

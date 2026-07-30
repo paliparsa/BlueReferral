@@ -497,17 +497,18 @@ html,body{
 :root.device-ios .profile-photo{background:linear-gradient(145deg,rgba(255,255,255,.22),color-mix(in srgb,var(--accent) 28%,rgba(255,255,255,.08)))!important;-webkit-backdrop-filter:blur(22px) saturate(1.75)!important;backdrop-filter:blur(22px) saturate(1.75)!important;}
 :root.device-android .tile-img img,
 :root.device-other .tile-img img{background:#ffffff08!important;}
-/* Hide bottom navigation bar when user opens ANY popup, modal, sheet, or dialog */
+/* Hide bottom navigation bar when user opens ANY active popup, modal, sheet, or open dialog */
 body:has(#modal-container:not(.hidden)) .bottom-nav,
 body:has(#cart-drawer.open) .bottom-nav,
 body:has(#cart-backdrop.open) .bottom-nav,
 body:has(.presentation-sheet.open) .bottom-nav,
 body:has(.preview-sheet.open) .bottom-nav,
 body:has(.wallet-confirm-sheet.open) .bottom-nav,
-body:has(#walletConfirmSheet) .bottom-nav,
+body:has(#walletConfirmSheet.open) .bottom-nav,
 body:has(dialog[open]) .bottom-nav,
-body:has(.modal-card) .bottom-nav,
-body:has(.dialog-card) .bottom-nav,
+body:has(.modal-card.open) .bottom-nav,
+body:has(.dialog-card.open) .bottom-nav,
+body:has(.auth-modal[open]) .bottom-nav,
 body[style*="overflow: hidden"] .bottom-nav,
 body[style*="overflow:hidden"] .bottom-nav,
 body.has-open-popup .bottom-nav,
@@ -516,8 +517,9 @@ body.modal-open .bottom-nav {
   visibility: hidden !important;
   pointer-events: none !important;
   opacity: 0 !important;
-  transform: translateY(100%) !important;
+  transform: translateX(-50%) translateY(100%) !important;
 }
+
 
 
 /* USD/Toman Dynamic Pricing + soft liquid toggle redesign */
@@ -1161,28 +1163,87 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 .compact-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .compact-title h3 { margin: 0 !important; font-size: 18px !important; flex: 1; }
 
-.bottom-nav button { position: relative; z-index: 1; overflow: visible !important; }
+.bottom-nav {
+  position: fixed !important;
+  left: 50% !important;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  transform: translateX(-50%) !important;
+  z-index: 99 !important;
+  width: calc(100% - 24px) !important;
+  max-width: 440px !important;
+  border-radius: 28px !important;
+  padding: 6px 8px !important;
+  display: flex !important;
+  justify-content: space-around !important;
+  align-items: center !important;
+  background: rgba(13, 20, 36, 0.78) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(35px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(35px) saturate(200%) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  transition: transform 0.35s var(--ease-spring), opacity 0.25s ease !important;
+}
+
+.bottom-nav button {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  padding: 7px 4px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  border-radius: 20px !important;
+  border: 0 !important;
+  position: relative !important;
+  z-index: 1 !important;
+  cursor: pointer !important;
+  transition: color 0.25s ease, transform 0.25s var(--ease-spring) !important;
+  outline: none !important;
+}
+
+.bottom-nav button span {
+  font-size: 19px !important;
+  line-height: 1 !important;
+  display: block !important;
+  transition: transform 0.28s var(--ease-spring) !important;
+}
+
+.bottom-nav button:active {
+  transform: scale(0.92) !important;
+}
+
 .bottom-nav button.active {
-    background: transparent !important;
-    box-shadow: none !important;
-    transform: translateY(0) !important;
-    color: var(--accent) !important;
+  color: #ffffff !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
+.bottom-nav button.active span {
+  transform: translateY(-2px) scale(1.16) !important;
+  filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--accent) 60%, transparent)) !important;
+}
+
 .bottom-nav button.active::before {
-    content: "";
-    position: absolute;
-    inset: -2px 4px;
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.12);
-    border: none;
-    box-shadow: none;
-    z-index: -1;
-    animation: fadePill 0.25s ease-out both;
+  content: "" !important;
+  position: absolute !important;
+  inset: 2px 4px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 80%, #ffffff22), color-mix(in srgb, var(--accent) 95%, #000)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 45%, transparent) !important;
+  z-index: -1 !important;
+  animation: fadePill 0.28s var(--ease-spring) both !important;
 }
+
 @keyframes fadePill {
-    0% { opacity: 0; transform: scale(0.9); }
-    100% { opacity: 1; transform: scale(1); }
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
 }
+
 
 .order-row-stepper .order-stepper { background: transparent !important; border: none !important; padding: 0 !important; margin: 0 0 2px !important; }
 .order-row-stepper .step-circle { width: 24px !important; height: 24px !important; font-size: 11px !important; border-width: 1px !important; }
