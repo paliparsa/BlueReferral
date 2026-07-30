@@ -84,6 +84,7 @@ function blue_ref_check_crypto_payments(int $limit): array {
 }
 
 try {
+    $expiredCount = cancel_expired_orders();
     $mode = blue_ref_cron_mode();
     $limit = blue_ref_cron_limit();
 
