@@ -2489,4 +2489,13 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   font-weight: 700 !important;
 }
 
+/* Hardware Acceleration & Off-screen DOM Containment */
+.product-tile, .glowing-flash-card, .order-row, .cat-pill {
+  content-visibility: auto !important;
+  contain-intrinsic-size: 0 160px !important;
+  transform: translateZ(0) !important;
+  backface-visibility: hidden !important;
+}
+
+
 
