@@ -200,6 +200,9 @@ let _adminLastTodayCount=-1;
 function startAdminLivePolling(){if(isAdminMode&&currentAdminTab==='dashboard'){setTimeout(async()=>{if(!isAdminMode||currentAdminTab!=='dashboard')return;try{const snap=await api('admin_summary');const c=Number(snap.report?.today?.c||0);if(_adminLastTodayCount>=0&&c>_adminLastTodayCount){hapticNotify('success');playChime();const el=document.querySelector('.admin-stat-card:first-child');if(el){el.classList.add('pulse-alert');setTimeout(()=>el.classList.remove('pulse-alert'),2000)}showStatus(`🛎 سفارش جدید! (${nf(c-_adminLastTodayCount)} عدد)`)}_adminLastTodayCount=c;adminState=snap;renderAdmin()}catch(e){}},30000)}}
 /* ===== Batch 2 utilities: cart, referral tree, customer 360, CSV export ===== */
 let _cart=JSON.parse(localStorage.getItem('blue_ref_cart')||'[]');
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',updateCartFab);}else{setTimeout(updateCartFab,0);}
+setTimeout(updateCartFab,300);
+setTimeout(updateCartFab,1000);
 function saveCart(){localStorage.setItem('blue_ref_cart',JSON.stringify(_cart));updateCartFab()}
 function cartCount(){return _cart.reduce((s,i)=>s+Number(i.qty||1),0)}
 function cartTotal(){return _cart.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0)}
@@ -619,7 +622,7 @@ function hidePages(){
   const topbar=document.querySelector('#userApp .topbar');
   if(topbar)topbar.style.display=(currentTab==='product')?'none':'flex';
 }
-function renderUser(){saveAppLastState();hidePages();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
+function renderUser(){saveAppLastState();hidePages();updateCartFab();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
 function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);
 const isGuest = state?.is_guest || u?.is_guest;
 const guestBanner = isGuest ? `
