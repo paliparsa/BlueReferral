@@ -377,7 +377,35 @@ function closeCommandPalette(){const cp=$('cmdPalette');if(cp)cp.classList.remov
 /* Flash sale functions removed for Phase 1 */
 /* Chat shortcut (A16) */
 function openUserChat(username){if(username){try{Telegram?.WebApp?.openTelegramLink?.('https://t.me/'+username)}catch(e){location.href='https://t.me/'+username}}else{showStatus('این کاربر یوزرنیم ندارد','error')}}
-function openDialog(title,text,placeholder,onSubmit,initial='',showFile=false){pendingDialog=onSubmit;$('dialogTitle').textContent=title;$('dialogText').textContent=text;$('dialogInput').value=initial;$('dialogInput').placeholder=placeholder||'';const f=$('dialogFileInput');if(f){f.style.display=showFile?'block':'none';f.value='';}$('inputDialog').showModal()}
+function openDialog(title,text,placeholder,onSubmit,initial='',showFile=false){
+  openEdit(title, [{
+    title: text || '',
+    fields: [
+      {
+        id: 'dialog_inp_val',
+        label: placeholder || title,
+        type: 'textarea',
+        placeholder: placeholder || '',
+        value: initial || ''
+      },
+      ...(showFile ? [{
+        html: `<div style="margin-top:8px;"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">انتخاب تصویر (اختیاری):</label><input type="file" id="dialog_file_val" accept="image/*" style="width:100%;"></div>`
+      }] : [])
+    ]
+  }], async () => {
+    const txt = val('dialog_inp_val');
+    const fileEl = document.getElementById('dialog_file_val');
+    let b64 = null;
+    if (fileEl && fileEl.files && fileEl.files[0]) {
+      b64 = await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onload = (e) => resolve(e.target.result);
+        r.readAsDataURL(fileEl.files[0]);
+      });
+    }
+    await onSubmit(txt, b64);
+  });
+}
 function closeEdit(){const s=$('presentationSheet');if(s){s.classList.remove('open');setTimeout(()=>s.innerHTML='',300)}pendingEdit=null}
 function openEdit(title,inputFields,onSubmit){pendingEdit=onSubmit;let sheet=$('presentationSheet');if(!sheet){sheet=document.createElement('div');sheet.id='presentationSheet';sheet.className='preview-sheet presentation-sheet';document.body.appendChild(sheet)}let sections=[];if(inputFields.length>0&&typeof inputFields[0]==='string'){sections=[{title:'',fields:inputFields.map(html=>({html}))}]}else{sections=inputFields}let html=`<div class="presentation-inner"><div class="presentation-header"><button class="ghost" onclick="if(typeof haptic==='function')haptic('light'); closeEdit()">لغو</button><h3>${title}</h3><button class="primary" id="presentationSaveBtn" onclick="if(typeof haptic==='function')haptic('medium')">ذخیره</button></div><div class="presentation-body">`;sections.forEach(sec=>{if(sec.title)html+=`<div class="presentation-section-title">${sec.title}</div>`;html+=`<div class="form-grid">`;sec.fields.forEach(f=>{if(f.html)html+=f.html;else if(f.type==='checkbox')html+=`<label class="switch-line"><span>${f.label}</span><input id="${f.id}" type="checkbox" onchange="if(typeof haptic==='function')haptic('light')" ${f.value?'checked':''}></label>`;else if(f.type==='select')html+=`<label><span>${f.label}</span><select id="${f.id}">${f.options}</select></label>`;else if(f.type==='textarea')html+=`<label class="full"><span>${f.label}</span><textarea id="${f.id}" placeholder="${f.placeholder||f.label}">${esc(f.value||'')}</textarea></label>`;else html+=`<label><span>${f.label}</span><input id="${f.id}" type="${f.type||'text'}" value="${esc(f.value||'')}" placeholder="${f.placeholder||f.label}" ${f.props||''}></label>`});html+=`</div>`});html+=`</div></div>`;sheet.innerHTML=html;sheet.classList.add('open');const saveBtn=sheet.querySelector('#presentationSaveBtn');saveBtn.addEventListener('click',async(e)=>{if(!pendingEdit)return;e.preventDefault();saveBtn.disabled=true;saveBtn.textContent='...';try{await pendingEdit();closeEdit()}catch(err){showStatus(err.message||'خطا','error');saveBtn.disabled=false;saveBtn.textContent='ذخیره'}})}
 function val(id){const el=$(id);return el?.type==='checkbox'?el.checked:el?.value}

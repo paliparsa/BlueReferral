@@ -4008,11 +4008,31 @@ body .card-v2-submit-btn:active {
   flex: 1 !important;
 }
 
-.presentation-sheet .presentation-header button {
-  border-radius: 12px !important;
+.presentation-sheet .presentation-header button.ghost {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: #cbd5e1 !important;
+  border-radius: 14px !important;
   font-size: 12.5px !important;
   font-weight: 800 !important;
-  padding: 7px 14px !important;
+  padding: 7px 16px !important;
+  transition: transform 0.2s ease, background 0.2s ease !important;
+}
+
+.presentation-sheet .presentation-header button.primary {
+  background: linear-gradient(135deg, var(--accent, #1d9bf0), #2563eb) !important;
+  border: none !important;
+  color: #ffffff !important;
+  border-radius: 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 900 !important;
+  padding: 7px 20px !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent, #1d9bf0) 40%, transparent) !important;
+  transition: transform 0.2s ease !important;
+}
+
+.presentation-sheet .presentation-header button:active {
+  transform: scale(0.95) !important;
 }
 
 .presentation-sheet .presentation-body {
