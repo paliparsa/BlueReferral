@@ -127,17 +127,41 @@ const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
 const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const textBlock = (s) => esc(s || '').replace(/\n/g,'<br>');
 
+function parseServerDate(str) {
+  if (!str) return null;
+  const clean = String(str).trim().replace(' ', 'T');
+  let dt = new Date(clean);
+  if (!isNaN(dt.getTime())) return dt;
+  const parts = clean.split(/[T:\- \/]/);
+  if (parts.length >= 6) {
+    dt = new Date(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5]);
+    if (!isNaN(dt.getTime())) return dt;
+  }
+  return null;
+}
+
 function getOrderRemainingSeconds(o) {
   if (!o) return 0;
-  if (typeof o.payment_remaining_seconds === 'number' && o.payment_remaining_seconds >= 0) return o.payment_remaining_seconds;
+  if (typeof o.payment_remaining_seconds === 'number' && o.payment_remaining_seconds > 0) {
+    return o.payment_remaining_seconds;
+  }
   if (o.payment_expires_at) {
-    const exp = new Date(String(o.payment_expires_at).replace(/-/g, '/')).getTime();
-    return Math.max(0, Math.floor((exp - Date.now()) / 1000));
+    const exp = parseServerDate(o.payment_expires_at);
+    if (exp) {
+      const rem = Math.floor((exp.getTime() - Date.now()) / 1000);
+      if (rem > 0) return rem;
+    }
   }
   if (o.created_at) {
-    const created = new Date(String(o.created_at).replace(/-/g, '/')).getTime();
-    const exp = created + 20 * 60 * 1000;
-    return Math.max(0, Math.floor((exp - Date.now()) / 1000));
+    const created = parseServerDate(o.created_at);
+    if (created) {
+      const expTime = created.getTime() + 20 * 60 * 1000;
+      const rem = Math.floor((expTime - Date.now()) / 1000);
+      if (rem > 0) return rem;
+    }
+  }
+  if (o.status === 'pending_payment') {
+    return 20 * 60;
   }
   return 0;
 }
@@ -159,8 +183,8 @@ function startOrderCountdownTicker() {
       const expStr = badge.dataset.expiresAt;
       let rem = 0;
       if (expStr) {
-        const exp = new Date(expStr.replace(/-/g, '/')).getTime();
-        rem = Math.max(0, Math.floor((exp - Date.now()) / 1000));
+        const exp = parseServerDate(expStr);
+        if (exp) rem = Math.max(0, Math.floor((exp.getTime() - Date.now()) / 1000));
       } else {
         const valEl = badge.querySelector('.timer-val');
         if (valEl) {
@@ -723,7 +747,16 @@ function orderDetailHtml(o){
     </div>
   ` : '';
 
-  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}${savingsCard}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
+  const remSec = getOrderRemainingSeconds(o);
+  const topTimerHtml = (o.status === 'pending_payment' && remSec > 0) ? `
+    <div class="payment-countdown-badge" data-order-timer="${o.id}" data-expires-at="${esc(o.payment_expires_at || '')}" style="margin: 12px 0;">
+      <span class="timer-icon">⏳</span>
+      <span class="timer-label">مهلت پرداخت:</span>
+      <b class="timer-val">${formatMMSS(remSec)}</b>
+    </div>
+  ` : '';
+
+  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${topTimerHtml}${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}${savingsCard}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
 }
 function setTab(tab){currentTab=tab;saveAppLastState();renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;saveAppLastState();renderAdmin()}
