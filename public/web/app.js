@@ -29,6 +29,7 @@
   /* ── Utility Helpers ── */
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+  const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
   const priceLabel = (p) => {
     if (typeof p === 'number' || typeof p === 'string') return `${nf(p)} تومان`;
     if (!p) return '0 تومان';
@@ -749,30 +750,22 @@
 
         <div class="glowing-flash-products-row">
           ${specialProducts.slice(0, 6).map(p => {
-            const flash = flashSaleActive(p);
-            const flashDisc = Number(p.flash_sale_discount || 0);
-
-            // For flash sale: p.price is original, realPrice = p.price * (1 - flashDisc/100)
-            // For variant discount: show the cheapest variant's discounted vs original
             let realPrice = Number(p.price);
             let crossedPrice = 0;
             let discLabel = '';
 
-            if (flash && flashDisc > 0) {
-              realPrice = Math.round(Number(p.price) * (1 - flashDisc / 100));
-              crossedPrice = Number(p.price);
-              discLabel = `⚡ −${flashDisc}٪`;
-            } else {
-              // Find best variant discount
-              const discountedVariants = (p.variants || []).filter(v => Number(v.discount_percent) > 0);
-              if (discountedVariants.length > 0) {
-                // Sort by most discount
-                const best = discountedVariants.sort((a, b) => Number(b.discount_percent) - Number(a.discount_percent))[0];
-                const d = Number(best.discount_percent);
-                realPrice = Number(best.price); // already discounted
-                crossedPrice = Number(best.old_price) || Math.round(Number(best.price) / (1 - d / 100));
-                discLabel = `−${d}٪`;
-              }
+            // Find best variant discount
+            const discountedVariants = (p.variants || []).filter(v => Number(v.discount_percent) > 0);
+            if (discountedVariants.length > 0) {
+              const bestV = discountedVariants.sort((a, b) => Number(b.discount_percent) - Number(a.discount_percent))[0];
+              realPrice = Number(bestV.price);
+              crossedPrice = Number(bestV.old_price) || (bestV.discount_percent > 0 ? Math.round(realPrice / (1 - Number(bestV.discount_percent) / 100)) : 0);
+              if (crossedPrice <= realPrice) crossedPrice = 0;
+              discLabel = `🔥 −${bestV.discount_percent}٪`;
+            } else if (Number(p.discount_percent || 0) > 0) {
+              const d = Number(p.discount_percent);
+              crossedPrice = (p.old_price && Number(p.old_price) > realPrice) ? Number(p.old_price) : Math.round(realPrice / (1 - d / 100));
+              discLabel = `🔥 −${d}٪`;
             }
 
             return `
@@ -836,67 +829,42 @@
   }
 
   /* ── Flash Sale Active Check — mirrors miniapp flashSaleActive(p) ── */
-  function flashSaleActive(p) {
-    if (!p.flash_sale_start || !p.flash_sale_end || !Number(p.flash_sale_discount)) return false;
-    const now = Date.now();
-    const start = String(p.flash_sale_start).replace(' ', 'T');
-    const end = String(p.flash_sale_end).replace(' ', 'T');
-    return now >= new Date(start).getTime() && now <= new Date(end).getTime();
-  }
-
-  function flashSaleCountdown(p) {
-    if (!flashSaleActive(p)) return '';
-    const end = String(p.flash_sale_end).replace(' ', 'T');
-    const ms = new Date(end).getTime() - Date.now();
-    if (ms <= 0) return '';
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    return `⚡ فلش فروش −${p.flash_sale_discount}٪ · ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  }
+  function flashSaleActive(p) { return false; }
+  function flashSaleCountdown(p) { return ''; }
 
   /* ── Product Card Component ── */
   function renderProductCard(p) {
     const title = p.title || p.name || 'محصول بدون عنوان';
     const isWished = state.wishlist.includes(Number(p.id));
-    const flash = flashSaleActive(p);
-    const flashDiscount = Number(p.flash_sale_discount || 0);
 
     // Find best variant discount (highest %) for display on the card
     const discountedVariants = (p.variants || []).filter(v => Number(v.discount_percent) > 0);
     const bestVariant = discountedVariants.sort((a, b) => Number(b.discount_percent) - Number(a.discount_percent))[0];
     const variantDiscount = bestVariant ? Number(bestVariant.discount_percent) : 0;
-    const hasSale = flash || variantDiscount > 0;
+    const prodDiscount = Number(p.discount_percent || 0);
+    const discPct = Math.max(variantDiscount, prodDiscount);
+    const hasSale = discPct > 0;
 
     let origPrice = 0;   // crossed-out price
     let salePrice = 0;   // actual price to pay
-    let discPct = 0;
 
-    if (flash && flashDiscount > 0) {
-      // Flash sale on the product itself
-      origPrice = Number(p.price);
-      salePrice = Math.round(origPrice * (1 - flashDiscount / 100));
-      discPct = flashDiscount;
-    } else if (bestVariant) {
-      // Variant-level discount: v.price already discounted, v.old_price = original
-      origPrice = Number(bestVariant.old_price) || 0;
+    if (bestVariant) {
+      origPrice = Number(bestVariant.old_price) || (bestVariant.discount_percent > 0 ? Math.round(Number(bestVariant.price) / (1 - Number(bestVariant.discount_percent) / 100)) : 0);
       salePrice = Number(bestVariant.price);
-      discPct = variantDiscount;
       if (origPrice <= salePrice) origPrice = 0;
-    } else if (Number(p.discount_percent || 0) > 0) {
-      discPct = Number(p.discount_percent);
+    } else if (prodDiscount > 0) {
       salePrice = Number(p.price);
-      origPrice = Math.round(salePrice / (1 - discPct / 100));
+      origPrice = (p.old_price && Number(p.old_price) > salePrice) ? Number(p.old_price) : Math.round(salePrice / (1 - prodDiscount / 100));
+    } else {
+      salePrice = Number(p.price);
     }
 
     const priceHtml = (origPrice > 0 && salePrice > 0)
-      ? `<s style="color:var(--text-muted); font-size:11px; text-decoration:line-through;">${priceLabel(origPrice)}</s>
-         <b style="color:var(--cyan); font-weight:900; display:block; margin-top:2px;">${priceLabel(salePrice)}</b>`
-      : `<b style="color:var(--cyan); font-weight:900;">${priceLabel(p.price)}</b>`;
+      ? `<s style="color:#9fb0c8; font-size:11px; text-decoration:line-through;">${priceLabel(origPrice)}</s>
+         <b style="color:#ffffff; font-weight:900; display:block; margin-top:2px;">${priceLabel(salePrice)}</b>`
+      : `<b style="color:#ffffff; font-weight:900;">${priceLabel(p.price)}</b>`;
 
-    const badgeHtml = flash
-      ? `<div class="flash-sale-badge"><span>⚡</span><b class="flash-sale-timer" data-pid="${p.id}">${flashSaleCountdown(p)}</b></div>`
-      : (discPct > 0 ? `<span class="card-discount-badge">−${discPct}٪ تخفیف</span>` : '');
+    const badgeHtml = discPct > 0 ? `<span class="card-discount-badge">−${nf(discPct)}٪ تخفیف</span>` : '';
 
     const imgContent = p.image_url
       ? `<img src="${esc(p.image_url)}" alt="${esc(title)}" loading="lazy" decoding="async" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-fallback-img\\'><span>⚡</span><b>${esc(title.slice(0, 15))}</b></div>';">`
@@ -931,20 +899,7 @@
     localStorage.setItem('bg_web_recent', JSON.stringify(state.recent));
   }
 
-  /* getFlashTimeRemaining kept for timer pill in banner only */
-  function getFlashTimeRemaining(p = null) {
-    if (p && p.flash_sale_end) {
-      const end = String(p.flash_sale_end).replace(' ', 'T');
-      const ms = new Date(end).getTime() - Date.now();
-      if (ms > 0) {
-        const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
-        const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
-        const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
-        return `${nf(h)}:${nf(m)}:${nf(s)}`;
-      }
-    }
-    return '';
-  }
+  function getFlashTimeRemaining(p = null) { return ''; }
 
   function recentProductsHtml() {
     if (!state.recent || !state.recent.length) return '';
