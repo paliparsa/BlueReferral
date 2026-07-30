@@ -762,7 +762,7 @@ function hidePages(){
   if(topbar)topbar.style.display=(currentTab==='product')?'none':'flex';
 }
 function renderUser(){saveAppLastState();hidePages();updateCartFab();if(currentTab==='home'){ $('homePage').classList.remove('hidden'); renderHome(); }if(currentTab==='shop'){ $('shopPage').classList.remove('hidden'); renderShop(); }if(currentTab==='orders'){ $('ordersPage').classList.remove('hidden'); renderOrders(); }if(currentTab==='wallet'){ $('walletPage').classList.remove('hidden'); renderWallet(); }if(currentTab==='product'){ $('productPage').classList.remove('hidden'); showProduct(currentProductId); }}
-function renderHome(){const u=state.user;const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);
+function renderHome(){const u=state?.user||{};const c=u.customer?.tier||{};const today=Number(u.today_referrals||0);
 const isGuest = state?.is_guest || u?.is_guest;
 const guestBanner = isGuest ? `
   <div class="guest-banner">
@@ -1203,7 +1203,17 @@ function showProduct(pid){
   });
 }
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); setTimeout(startCountdownTimers,50); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
-function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;const timerBadge=countdownTimerHtml(o,true);return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}${timerBadge}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
+function orderRowHtml(o){
+  const paid = Number(o.wallet_amount||0) > 0 ? ` · کیف پول ${fmt(o.wallet_amount)}` : '';
+  const d = Number(o.variant_discount_percent) || 0;
+  let priceStr = `مانده ${fmt(o.final_amount)}`;
+  if (d > 0) {
+    const orig = Math.round(Number(o.amount) / (1 - d / 100));
+    priceStr = `<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;
+  }
+  const timerBadge = countdownTimerHtml(o, true);
+  return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}${timerBadge}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`;
+}
 
 function wheelGradient(rewards=[]){const colors=['#1d9bf0','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#ef4444','#84cc16'];const list=rewards.length?rewards:[{title:'جایزه'}];const step=100/list.length;return `conic-gradient(${list.map((_,i)=>`${colors[i%colors.length]} ${i*step}% ${(i+1)*step}%`).join(',')})`}
 function wheelPrizeList(rewards=[]){return (rewards||[]).slice(0,8).map(r=>`<div class="wheel-prize"><b>${esc(r.title||'جایزه')}</b><br><span>${Number(r.amount||0)>0?fmt(r.amount):'جایزه دستی'}</span></div>`).join('') || '<p class="muted">جایزه‌ای تعریف نشده.</p>'}
@@ -1269,8 +1279,7 @@ function _walletHistory(u){
     </article>
   </div>`;
 }
-function renderWallet(){
-  const u=state.user;
+function renderWallet(){ const u=state?.user||{};
   $('walletPage').innerHTML=_walletSubNav()+`<div id="walletContent"></div>`;
   const panel=$('walletContent');
   if(walletTab==='overview'){panel.innerHTML=_walletOverview(u);triggerBalanceAnims();loadReferralTree().then(refs=>{const ph=$('referralTreePlaceholder');if(ph)ph.innerHTML=referralTreeHtml(refs)});}
