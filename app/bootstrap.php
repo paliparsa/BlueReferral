@@ -175,13 +175,20 @@ function migrate(): void {
     add_column_if_missing('orders', 'crypto_amount', 'DECIMAL(24,8) NULL AFTER stars_amount');
     add_column_if_missing('orders', 'crypto_asset', 'VARCHAR(32) NULL AFTER crypto_amount');
     add_column_if_missing('orders', 'crypto_network', 'VARCHAR(32) NULL AFTER crypto_asset');
-    add_column_if_missing('crypto_payment_checks', 'rate_toman', 'DECIMAL(24,6) NULL AFTER expected_amount');
-    add_column_if_missing('crypto_payment_checks', 'rate_updated_at', 'DATETIME NULL AFTER rate_toman');
     add_column_if_missing('crypto_payment_checks', 'rate_source', 'VARCHAR(32) NULL AFTER rate_updated_at');
     add_column_if_missing('swapwallet_invoices', 'request_url', 'TEXT NULL AFTER payment_links_json');
     add_column_if_missing('swapwallet_invoices', 'request_body', 'LONGTEXT NULL AFTER request_url');
     add_column_if_missing('swapwallet_invoices', 'api_version', 'VARCHAR(64) NULL AFTER request_body');
     add_column_if_missing('swapwallet_invoices', 'callback_raw', 'LONGTEXT NULL AFTER raw_response');
+    add_column_if_missing('coupons', 'min_order_amount', 'BIGINT NOT NULL DEFAULT 0 AFTER value');
+    add_column_if_missing('coupons', 'max_uses_per_user', 'INT NOT NULL DEFAULT 1 AFTER max_uses');
+    add_column_if_missing('coupons', 'category_id', 'BIGINT UNSIGNED NULL AFTER max_uses_per_user');
+    seed_setting('vip_tier_rates', [
+        'bronze'  => ['name'=>'Bronze',  'fa'=>'برنز',    'emoji'=>'🥉', 'min_ref'=>0,   'multiplier'=>1.00],
+        'silver'  => ['name'=>'Silver',  'fa'=>'سیلور',  'emoji'=>'🥈', 'min_ref'=>10,  'multiplier'=>1.10],
+        'gold'    => ['name'=>'Gold',    'fa'=>'گلد',    'emoji'=>'🥇', 'min_ref'=>50,  'multiplier'=>1.25],
+        'diamond' => ['name'=>'Diamond', 'fa'=>'دایموند', 'emoji'=>'💎', 'min_ref'=>100, 'multiplier'=>1.50],
+    ]);
 
     // Batch 3 — flash sale, activity log, admin roles
     add_column_if_missing('products', 'flash_sale_start', 'DATETIME NULL AFTER is_featured');
@@ -1576,10 +1583,21 @@ function referral_link(array $user): string {
     return "https://t.me/{$bot}?start=ref_{$user['ref_code']}";
 }
 function vip_info(int $referrals): array {
-    if ($referrals >= 100) return ['name'=>'Diamond', 'fa'=>'دایموند', 'emoji'=>'💎', 'next'=>null, 'multiplier'=>1.50];
-    if ($referrals >= 50)  return ['name'=>'Gold', 'fa'=>'گلد', 'emoji'=>'🥇', 'next'=>100, 'multiplier'=>1.25];
-    if ($referrals >= 10)  return ['name'=>'Silver', 'fa'=>'سیلور', 'emoji'=>'🥈', 'next'=>50, 'multiplier'=>1.10];
-    return ['name'=>'Bronze', 'fa'=>'برنز', 'emoji'=>'🥉', 'next'=>10, 'multiplier'=>1.00];
+    $rates = setting_json('vip_tier_rates', [
+        'bronze'  => ['name'=>'Bronze',  'fa'=>'برنز',    'emoji'=>'🥉', 'min_ref'=>0,   'multiplier'=>1.00],
+        'silver'  => ['name'=>'Silver',  'fa'=>'سیلور',  'emoji'=>'🥈', 'min_ref'=>10,  'multiplier'=>1.10],
+        'gold'    => ['name'=>'Gold',    'fa'=>'گلد',    'emoji'=>'🥇', 'min_ref'=>50,  'multiplier'=>1.25],
+        'diamond' => ['name'=>'Diamond', 'fa'=>'دایموند', 'emoji'=>'💎', 'min_ref'=>100, 'multiplier'=>1.50],
+    ]);
+    $d = $rates['diamond'] ?? ['name'=>'Diamond', 'fa'=>'دایموند', 'emoji'=>'💎', 'min_ref'=>100, 'multiplier'=>1.50];
+    $g = $rates['gold'] ?? ['name'=>'Gold', 'fa'=>'گلد', 'emoji'=>'🥇', 'min_ref'=>50, 'multiplier'=>1.25];
+    $s = $rates['silver'] ?? ['name'=>'Silver', 'fa'=>'سیلور', 'emoji'=>'🥈', 'min_ref'=>10, 'multiplier'=>1.10];
+    $b = $rates['bronze'] ?? ['name'=>'Bronze', 'fa'=>'برنز', 'emoji'=>'🥉', 'min_ref'=>0, 'multiplier'=>1.00];
+
+    if ($referrals >= (int)($d['min_ref'] ?? 100)) return ['name'=>$d['name']??'Diamond', 'fa'=>$d['fa']??'دایموند', 'emoji'=>$d['emoji']??'💎', 'next'=>null, 'multiplier'=>(float)($d['multiplier']??1.5)];
+    if ($referrals >= (int)($g['min_ref'] ?? 50))  return ['name'=>$g['name']??'Gold', 'fa'=>$g['fa']??'گلد', 'emoji'=>$g['emoji']??'🥇', 'next'=>(int)($d['min_ref']??100), 'multiplier'=>(float)($g['multiplier']??1.25)];
+    if ($referrals >= (int)($s['min_ref'] ?? 10))  return ['name'=>$s['name']??'Silver', 'fa'=>$s['fa']??'سیلور', 'emoji'=>$s['emoji']??'🥈', 'next'=>(int)($g['min_ref']??50), 'multiplier'=>(float)($s['multiplier']??1.1)];
+    return ['name'=>$b['name']??'Bronze', 'fa'=>$b['fa']??'برنز', 'emoji'=>$b['emoji']??'🥉', 'next'=>(int)($s['min_ref']??10), 'multiplier'=>(float)($b['multiplier']??1.0)];
 }
 function vip_line(array $user): string {
     $vip = vip_info((int)$user['referrals_count']);
@@ -2404,11 +2422,40 @@ function coupon_by_code(string $code) {
     $code=normalize_coupon_code($code); if ($code==='') return false;
     $q=db()->prepare('SELECT * FROM coupons WHERE code=?'); $q->execute([$code]); return $q->fetch();
 }
-function calculate_coupon_discount(array $coupon, int $amount): int {
-    if (!(int)$coupon['is_active']) return 0;
-    if ((int)$coupon['max_uses'] > 0 && (int)$coupon['used_count'] >= (int)$coupon['max_uses']) return 0;
-    if (!empty($coupon['expires_at']) && strtotime($coupon['expires_at']) < time()) return 0;
-    if ($coupon['type'] === 'fixed') return min($amount, max(0, (int)$coupon['value']));
+function calculate_coupon_discount(array|false $coupon, int $amount, int $userId = 0, ?int $productId = null): int {
+    if (!$coupon || !is_array($coupon)) throw new RuntimeException('کد تخفیف وارد شده معتبر نیست.');
+    if (!(int)$coupon['is_active']) throw new RuntimeException('این کد تخفیف غیرفعال شده است.');
+    if ((int)$coupon['max_uses'] > 0 && (int)$coupon['used_count'] >= (int)$coupon['max_uses']) throw new RuntimeException('ظرفیت استفاده از این کد تخفیف به پایان رسیده است.');
+    if (!empty($coupon['expires_at']) && strtotime($coupon['expires_at']) < time()) throw new RuntimeException('این کد تخفیف منقضی شده است.');
+    
+    // Minimum spend threshold check
+    $minAmount = (int)($coupon['min_order_amount'] ?? 0);
+    if ($minAmount > 0 && $amount < $minAmount) {
+        throw new RuntimeException('حداقل مبلغ سفارش برای استفاده از این کد تخفیف ' . number_format($minAmount) . ' تومان است.');
+    }
+
+    // Per-user usage limit check
+    $maxPerUser = (int)($coupon['max_uses_per_user'] ?? 1);
+    if ($userId > 0 && $maxPerUser > 0) {
+        $q = db()->prepare('SELECT COUNT(*) c FROM orders WHERE user_id=? AND LOWER(coupon_code)=LOWER(?) AND status NOT IN ("canceled","rejected")');
+        $q->execute([$userId, $coupon['code']]);
+        $userUses = (int)($q->fetch()['c'] ?? 0);
+        if ($userUses >= $maxPerUser) {
+            throw new RuntimeException('شما قبلاً از این کد تخفیف استفاده کرده‌اید (سقف استفاده برای هر کاربر ' . $maxPerUser . ' بار).');
+        }
+    }
+
+    // Category scoping check
+    if (!empty($coupon['category_id']) && (int)$coupon['category_id'] > 0 && $productId > 0) {
+        $pq = db()->prepare('SELECT category_id FROM products WHERE id=?');
+        $pq->execute([$productId]);
+        $prod = $pq->fetch();
+        if (!$prod || (int)($prod['category_id'] ?? 0) !== (int)$coupon['category_id']) {
+            throw new RuntimeException('این کد تخفیف برای محصولات این دسته‌بندی قابل استفاده نیست.');
+        }
+    }
+
+    if (($coupon['type'] ?? '') === 'fixed' || ($coupon['type'] ?? '') === 'toman') return min($amount, max(0, (int)$coupon['value']));
     return min($amount, (int)floor($amount * max(0, (int)$coupon['value']) / 100));
 }
 
@@ -2467,7 +2514,7 @@ function apply_coupon_to_order(int $orderId, int $userId, string $code): array {
     if (!$order || (int)$order['user_id'] !== $userId) throw new RuntimeException('ORDER_NOT_FOUND');
     if (normalize_order_status($order['status']) !== 'pending_payment') throw new RuntimeException('ORDER_LOCKED');
     $coupon=coupon_by_code($code);
-    $discount=calculate_coupon_discount($coupon, (int)$order['amount']);
+    $discount=calculate_coupon_discount($coupon, (int)$order['amount'], $userId, (int)($order['product_id']??0));
     $base=max(0, (int)$order['amount'] - $discount);
     $wallet=(int)($order['wallet_amount'] ?? 0);
     if ($wallet > $base) {
@@ -2746,13 +2793,14 @@ function admin_act_withdrawal(int $withdrawalId, string $action): array {
 function admin_list_coupons(): array {
     return db()->query('SELECT * FROM coupons ORDER BY id DESC LIMIT 200')->fetchAll();
 }
-function admin_add_coupon(string $code, string $type, int $value, int $maxUses, string $expiresAt=''): array {
+function admin_add_coupon(string $code, string $type, int $value, int $maxUses, string $expiresAt='', int $minOrderAmount=0, int $maxUsesPerUser=1, ?int $categoryId=null): array {
     $code=normalize_coupon_code($code); if($code==='') throw new RuntimeException('INVALID_CODE');
     if(!in_array($type,['percent','fixed'],true)) $type='percent';
     if($value<0) $value=0;
     $exists=coupon_by_code($code); if($exists) throw new RuntimeException('CODE_TAKEN');
     $exp=$expiresAt&&strtotime($expiresAt)?date('Y-m-d H:i:s',strtotime($expiresAt)):null;
-    db()->prepare('INSERT INTO coupons (code,type,value,max_uses,used_count,is_active,expires_at) VALUES (?,?,?,?,0,1,?)')->execute([$code,$type,$value,$maxUses,$exp]);
+    db()->prepare('INSERT INTO coupons (code,type,value,min_order_amount,max_uses,max_uses_per_user,category_id,used_count,is_active,expires_at) VALUES (?,?,?,?,?,?,?,0,1,?)')
+        ->execute([$code,$type,$value,max(0,$minOrderAmount),max(0,$maxUses),max(1,$maxUsesPerUser),$categoryId?:null,$exp]);
     return admin_list_coupons();
 }
 function admin_update_coupon(int $couponId, array $fields): array {
