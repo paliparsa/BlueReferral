@@ -1915,6 +1915,16 @@ function closeAuthModal() {
   }
 }
 
+function updateAuthUI(data) {
+  const btn = $('openAuthModalBtn');
+  if (!btn) return;
+  if (data?.user && !data?.is_guest && !data?.user?.is_guest) {
+    btn.textContent = `👤 ${data.user.first_name || data.user.username || 'حساب کاربری'}`;
+  } else {
+    btn.textContent = '🔑 ورود / ثبت‌نام';
+  }
+}
+
 function switchAuthTab(tabName) {
   document.querySelector('.auth-tabs')?.classList.remove('hidden');
   $('otpVerificationForm')?.classList.add('hidden');
@@ -2107,8 +2117,11 @@ async function load(){
     if(app) app.innerHTML=`<div class="error-state"><p>⚠️ ${esc(e.message||'خطا در بارگذاری')}</p><button class="primary" onclick="location.reload()">تلاش مجدد</button></div>`;
     app?.classList.remove('hidden');
   }
-}
-load();attachPullToRefresh();setInterval(startAdminLivePolling,30000);updateCartFab();attachLongPress();initBackToTop();setTimeout(()=>{if(!isAdminMode)showOnboarding()},800);
+load();
+if (typeof attachPullToRefresh === 'function') attachPullToRefresh();
+if (typeof attachLongPress === 'function') attachLongPress();
+if (typeof initBackToTop === 'function') initBackToTop();
+setInterval(() => { if (isAdminMode && typeof loadAdmin === 'function') loadAdmin(); }, 30000);
 
 function openBroadcast() {
   if (typeof haptic === 'function') haptic('light');
