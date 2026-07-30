@@ -2214,6 +2214,8 @@ function applyTheme(data={}){
   document.documentElement.style.setProperty('--success', data && (data.button_colors?.success || (data.settings && data.settings.button_colors?.success)) || '#22c55e');
   document.documentElement.style.setProperty('--warning', data && (data.button_colors?.warning || (data.settings && data.settings.button_colors?.warning)) || '#f59e0b');
   try{tg?.setHeaderColor?.(accent);tg?.setBackgroundColor?.('#08111f');tg?.MainButton?.setParams?.({color:accent,text_color:'#ffffff'});}catch(e){}
+}
+
 window.handleCardReceiptFileChange = function(input, oid) {
   const preview = document.getElementById('cardReceiptFilePreview_' + oid);
   if(!preview) return;
