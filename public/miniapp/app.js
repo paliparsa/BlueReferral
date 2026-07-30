@@ -582,58 +582,6 @@ function paymentMethodsHtml(o){
           <span class="card-v2-title-text">اطلاعات شماره کارت</span>
           <span class="card-v2-card-icon">💳</span>
         </div>
-      </div>`;>
-      <span class="timer-icon">⏳</span>
-      <span class="timer-label">مهلت پرداخت:</span>
-      <b class="timer-val">${formatMMSS(remSec)}</b>
-    </div>
-  ` : '';
-
-  let html=`<article class="payment-box">
-    ${timerBadgeHtml}
-    ${supportWarningHtml}
-    <div class="section-title compact">
-      <h3>💳 روش پرداخت</h3>
-      <span class="badge">${esc(o.payment_method_fa||'انتخاب نشده')}</span>
-    </div>`;
-
-  // 1. Selector Buttons Grid (Shown when method is NOT chosen yet)
-  if(!o.payment_method || o.payment_method === 'none'){
-    html+=`<p class="muted" style="margin-bottom:10px">یکی از روش‌های زیر را برای پرداخت انتخاب کن:</p><div class="payment-grid">`;
-    if(methods.wallet?.enabled) html+=`<button class="pay-method success" data-wallet-order="${o.id}"><b>💰 کیف پول</b><span>موجودی: ${fmt(bal)}</span></button>`;
-    if(methods.card?.enabled) html+=`<button class="pay-method" data-select-card="${o.id}"><b>💳 کارت به کارت</b><span>پرداخت دستی با رسید</span></button>`;
-    if(methods.stars?.enabled) html+=`<button class="pay-method warning" data-pay-stars="${o.id}"><b>⭐ Telegram Stars</b><span>${nf(Math.max(1,Math.ceil(Number(o.final_amount||0)/Number(methods.stars?.rate_toman||3200))))} استار</span></button>`;
-    if(methods.crypto?.enabled) html+=`<button class="pay-method crypto" data-select-crypto-tab="${o.id}"><b>🪙 رمزارز</b><span>USDT / TRX / TON با TXID</span></button>`;
-    if(!methods.wallet?.enabled && !methods.card?.enabled && !methods.stars?.enabled && !methods.crypto?.enabled) html+=`<p class="muted empty-state">فعلاً هیچ روش پرداختی فعال نیست. لطفاً به پشتیبانی پیام بده.</p>`;
-    html+=`</div>`;
-  }
-
-  // 2. Card Payment Panel (Shown ONLY when o.payment_method === 'card')
-  if(o.payment_method === 'card' && methods.card?.enabled){
-    let cardAccounts = methods.card?.accounts || [];
-    if(!cardAccounts.length && state.settings?.card_accounts_text){
-      cardAccounts = parsePipeLines(state.settings.card_accounts_text, ['title','card','owner','sheba']);
-    }
-    if(!cardAccounts.length && state.card_accounts_text){
-      cardAccounts = parsePipeLines(state.card_accounts_text, ['title','card','owner','sheba']);
-    }
-    if(!cardAccounts.length && (state.payment_instructions || methods.card?.instructions)){
-      const txt = String(methods.card?.instructions || state.payment_instructions || '');
-      const m = txt.match(/\d{16}/);
-      if(m) cardAccounts = [{title:'کارت بانکی سفارشات', card: m[0], owner:'پشتیبانی', sheba:''}];
-    }
-    if(!cardAccounts.length) cardAccounts = [{title:'کارت بانکی', card:'6037997412345678', owner:'پشتیبانی فروشگاه', sheba:''}];
-
-    html+=`<div class="card-v2-container">
-      <div class="card-v2-topbar">
-        <button type="button" class="card-v2-reset-btn" data-reset-payment-method="${o.id}">
-          <span>🔄</span> تغییر روش
-        </button>
-
-        <div class="card-v2-title">
-          <span class="card-v2-title-text">اطلاعات شماره کارت</span>
-          <span class="card-v2-card-icon">💳</span>
-        </div>
       </div>`+cardAccounts.map(c=>{
         const rawCard = String(c.card||'').replace(/\D/g,'');
         const formattedCard = rawCard.length===16 ? rawCard.match(/.{1,4}/g).join('  -  ') : esc(c.card||'');
