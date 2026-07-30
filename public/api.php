@@ -1,10 +1,12 @@
-<?php
+﻿<?php
 if (!ob_start('ob_gzhandler')) { ob_start(); }
 require_once __DIR__ . '/../app/bootstrap.php';
 try {
     if (!setting('schema_migrated_v3')) { migrate(); set_setting('schema_migrated_v3', '1'); }
 } catch (Throwable $e) {}
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 header('Vary: Accept-Encoding');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -598,11 +600,15 @@ if ($action === 'admin_broadcast') {
     
     if (function_exists('fastcgi_finish_request')) {
         header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
         echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         session_write_close();
         fastcgi_finish_request();
     } else {
         header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
         header('Connection: close');
         ob_start();
         echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
