@@ -541,6 +541,7 @@ function orderDetailHtml(o){
     nativeCurrencyPill = `<span class="badge" style="margin-right:6px">💎 ${nf(o.price_crypto || 0)} TON</span>`;
   } else if (cur === 'STARS') {
     nativeCurrencyPill = `<span class="badge" style="margin-right:6px">⭐ ${nf(o.price_stars || 0)} Stars</span>`;
+  }
   const totalSavings = Number(o.discount_amount||0) + Number(o.wallet_amount||0);
   const savingsCard = totalSavings > 0 ? `
     <div class="savings-breakdown-card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:16px;padding:14px;margin:12px 0;">
