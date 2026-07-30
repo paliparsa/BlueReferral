@@ -526,7 +526,7 @@ function paymentMethodsHtml(o){
 
 function orderDetailHtml(o){
   const bal=Number(state.user?.balance||0);
-  const d=Number(o.variant_discount_percent)||Number(o.product_flash_sale_discount)||0;
+  const d=Number(o.variant_discount_percent)||0;
   let basePriceHtml=`${fmt(o.amount)}`;
   if(d>0){
     const orig=Math.round(Number(o.amount)/(1-d/100));
@@ -748,7 +748,7 @@ window.applyProductColor = function(imgEl) {
 
 function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';currentProductId=Number(pid);hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div id="productPageBg" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background:#0b0f17;transition:background 0.5s ease"></div><div style="display:flex;justify-content:space-between;padding:16px 20px;align-items:center;"><button class="icon-btn" data-share-product="${p.id}" style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:22px;border:1px solid rgba(255,255,255,0.1)">🔗</button><button class="icon-btn" data-back-shop style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:34px;border:1px solid rgba(255,255,255,0.1);padding-bottom:6px">‹</button></div><div class="detail-hero product-hero">${p.image_url?`<img src="${esc(p.image_url)}" crossorigin="anonymous" onload="window.applyProductColor(this)" ${p.image_srcset?`srcset="${esc(p.image_srcset)}"`:''} alt="product">`:`<div class="tile-placeholder">🛍</div>`}</div><article class="detail-card product-detail"><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
-function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||Number(o.product_flash_sale_discount)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;}return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
+function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;}return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
 
 function wheelGradient(rewards=[]){const colors=['#1d9bf0','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#ef4444','#84cc16'];const list=rewards.length?rewards:[{title:'جایزه'}];const step=100/list.length;return `conic-gradient(${list.map((_,i)=>`${colors[i%colors.length]} ${i*step}% ${(i+1)*step}%`).join(',')})`}
 function wheelPrizeList(rewards=[]){return (rewards||[]).slice(0,8).map(r=>`<div class="wheel-prize"><b>${esc(r.title||'جایزه')}</b><br><span>${Number(r.amount||0)>0?fmt(r.amount):'جایزه دستی'}</span></div>`).join('') || '<p class="muted">جایزه‌ای تعریف نشده.</p>'}
@@ -1484,7 +1484,6 @@ function editProduct(id){
       {id:'ep_commission_value',label:'مقدار پورسانت',value:p.commission_value||0},
       {id:'ep_duration',label:'مدت روز',type:'number',value:p.duration_days||0}
     ]},
-    {title:'فروش ویژه (اختیاری)',fields:[{id:'ep_flash_discount',label:'درصد تخفیف',type:'number',props:'inputmode="numeric"',value:p.flash_sale_discount||0},{id:'ep_flash_start',label:'شروع فلش',type:'datetime-local',value:p.flash_sale_start?String(p.flash_sale_start).slice(0,16):''},{id:'ep_flash_end',label:'پایان فلش',type:'datetime-local',value:p.flash_sale_end?String(p.flash_sale_end).slice(0,16):''}]},
     {title:'تنظیمات پیشرفته',fields:[{id:'ep_img',label:'لینک عکس',value:p.image_url||''},{id:'ep_active',label:'فعال باشد؟',type:'checkbox',value:Number(p.is_active)},{id:'ep_featured',label:'ویژه باشد؟',type:'checkbox',value:Number(p.is_featured)},{id:'ep_short',label:'توضیح کوتاه',type:'textarea',value:p.short_description||''},{id:'ep_full',label:'توضیح کامل',type:'textarea',value:p.full_description||''}]}
   ],async()=>{
     const c = val('ep_currency');
@@ -1503,9 +1502,6 @@ function editProduct(id){
       image_url:val('ep_img'),
       is_active:val('ep_active')?1:0,
       is_featured:val('ep_featured')?1:0,
-      flash_sale_discount:val('ep_flash_discount'),
-      flash_sale_start:val('ep_flash_start'),
-      flash_sale_end:val('ep_flash_end'),
       short_description:val('ep_short'),
       full_description:val('ep_full')
     });
@@ -1562,7 +1558,6 @@ function openAddProduct(){
       {id:'ap_commission_value',label:'مقدار پورسانت',value:0},
       {id:'ap_duration',label:'مدت روز',type:'number',value:0}
     ]},
-    {title:'فروش ویژه (اختیاری)',fields:[{id:'ap_flash_discount',label:'درصد تخفیف',type:'number',props:'inputmode="numeric"',value:0},{id:'ap_flash_start',label:'شروع فلش',type:'datetime-local'},{id:'ap_flash_end',label:'پایان فلش',type:'datetime-local'}]},
     {title:'تنظیمات پیشرفته',fields:[{id:'ap_img',label:'لینک عکس',placeholder:'https://...'},{id:'ap_featured',label:'ویژه باشد؟',type:'checkbox',value:0},{id:'ap_short',label:'توضیح کوتاه',type:'textarea'},{id:'ap_full',label:'توضیح کامل',type:'textarea'}]}
   ],async()=>{
     const c = val('ap_currency');
@@ -1579,9 +1574,6 @@ function openAddProduct(){
       duration_days:val('ap_duration'),
       image_url:val('ap_img'),
       is_featured:val('ap_featured')?1:0,
-      flash_sale_discount:val('ap_flash_discount'),
-      flash_sale_start:val('ap_flash_start'),
-      flash_sale_end:val('ap_flash_end'),
       short_description:val('ap_short'),
       full_description:val('ap_full')
     });
