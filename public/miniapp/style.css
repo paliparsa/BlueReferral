@@ -2603,6 +2603,11 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   justify-content: center !important;
 }
 
+#shareSheet, .share-sheet {
+  z-index: 100000 !important;
+}
+
+
 
 
 

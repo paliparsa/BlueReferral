@@ -770,23 +770,89 @@ function openShareSheet(pid){
   const tgLink = bot ? `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}` : null;
   const webLink = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
   _shareUrl = tgLink || webLink;
-  const ss=$('shareSheet');
-  if(!ss){ shareProductLegacy(pid); return; }
-  haptic('light');
-  ss.innerHTML=`<div class="share-sheet-inner"><div class="share-sheet-handle" data-close-share></div><div class="share-sheet-head"><div class="share-product-thumb">${cardImage(p,'\uD83D\uDECD')}</div><div class="share-product-info"><h3>${esc(p.name)}</h3><p class="muted">${priceLabel(p)}</p></div><button class="ghost" data-close-share>\u2715</button></div><p class="share-hint muted">\u0627\u06CC\u0646 \u0645\u062D\u0635\u0648\u0644 \u0631\u0627 \u0628\u0627 \u062F\u0648\u0633\u062A\u0627\u0646\u062A \u0628\u0647 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0630\u0627\u0631 \u062A\u0627 \u0645\u0633\u062A\u0642\u06CC\u0645 \u062A\u0648\u06CC \u0628\u0627\u062A \u0628\u0627\u0632 \u0634\u0648\u062F.</p><div class="share-actions">${tgLink?`<button class="share-btn share-tg" data-share-tg-url="${esc(tgLink)}"><span class="share-btn-icon">\u2708\uFE0F</span><div><b>\u0627\u0634\u062A\u0631\u0627\u06A9\u200C\u06AF\u0630\u0627\u0631\u06CC \u062F\u0631 \u062A\u0644\u06AF\u0631\u0627\u0645</b><small>\u0628\u0627\u0632 \u06A9\u0631\u062F\u0646 \u0645\u0633\u062A\u0642\u06CC\u0645 \u062F\u0631 \u0628\u0627\u062A</small></div></button>`:''}<button class="share-btn share-copy" data-share-copy-url><span class="share-btn-icon">\uD83D\uDD17</span><div><b>\u06A9\u067E\u06CC \u0644\u06CC\u0646\u06A9 \u0645\u062D\u0635\u0648\u0644</b><small>${esc(_shareUrl.slice(0,48))}\u2026</small></div></button>${navigator.share?`<button class="share-btn share-native" data-share-native><span class="share-btn-icon">\u2B06\uFE0F</span><div><b>\u0627\u0634\u062A\u0631\u0627\u06A9\u200C\u06AF\u0630\u0627\u0631\u06CC \u0633\u06CC\u0633\u062A\u0645\u06CC</b><small>\u0648\u0627\u062A\u0633\u0627\u067E\u060C \u067E\u06CC\u0627\u0645\u060C \u0627\u06CC\u0645\u06CC\u0644 \u0648...</small></div></button>`:''}</div></div>`;
+  let ss=$('shareSheet');
+  if(!ss){
+    ss = document.createElement('div');
+    ss.id = 'shareSheet';
+    ss.className = 'share-sheet';
+    document.body.appendChild(ss);
+  }
+  if(typeof haptic === 'function') haptic('light');
+
+  const shareText = `🛒 ${p.name}\n${priceLabel(p)}`;
+  const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(_shareUrl)}&text=${encodeURIComponent(shareText)}`;
+
+  ss.innerHTML=`<div class="share-sheet-inner">
+    <div class="share-sheet-handle" id="closeShareHandle"></div>
+    <div class="share-sheet-head">
+      <div class="share-product-thumb">${cardImage(p,'🛍')}</div>
+      <div class="share-product-info">
+        <h3>${esc(p.name)}</h3>
+        <p class="muted">${priceLabel(p)}</p>
+      </div>
+      <button class="ghost" id="closeShareX">✕</button>
+    </div>
+    <p class="share-hint muted">این محصول را با دوستانت به اشتراک بذار تا مستقیم وارد برنامه شوند.</p>
+    <div class="share-actions">
+      <button class="share-btn share-tg" id="btnShareTg">
+        <span class="share-btn-icon">✈️</span>
+        <div><b>اشتراک‌گذاری در تلگرام</b><small>ارسال مستقیم به مخاطبین یا چت‌ها</small></div>
+      </button>
+      <button class="share-btn share-copy" id="btnShareCopy">
+        <span class="share-btn-icon">🔗</span>
+        <div><b>کپی لینک محصول</b><small>${esc(_shareUrl.slice(0,40))}…</small></div>
+      </button>
+      ${navigator.share ? `
+      <button class="share-btn share-native" id="btnShareNative">
+        <span class="share-btn-icon">⬆️</span>
+        <div><b>اشتراک‌گذاری در گوشی</b><small>واتساپ، اینستاگرام، پیامک و...</small></div>
+      </button>` : ''}
+    </div>
+  </div>`;
+
   ss.classList.add('open');
-  ss.addEventListener('click',ev=>{ if(ev.target===ss) closeShareSheet(); },{once:true});
+  ss.style.display = 'block';
+
+  const close = () => { ss.classList.remove('open'); ss.style.display = 'none'; };
+  ss.querySelector('#closeShareHandle')?.addEventListener('click', close);
+  ss.querySelector('#closeShareX')?.addEventListener('click', close);
+  ss.addEventListener('click', (e) => { if (e.target === ss) close(); });
+
+  ss.querySelector('#btnShareTg')?.addEventListener('click', () => {
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(tgShareUrl);
+    } else {
+      window.open(tgShareUrl, '_blank');
+    }
+    close();
+  });
+
+  ss.querySelector('#btnShareCopy')?.addEventListener('click', () => {
+    copyText(_shareUrl);
+    showStatus('لینک محصول کپی شد 🔗');
+    close();
+  });
+
+  ss.querySelector('#btnShareNative')?.addEventListener('click', async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: p.name, text: p.name, url: _shareUrl });
+        showStatus('اشتراک‌گذاری انجام شد 🚀');
+      }
+    } catch(err) {}
+    close();
+  });
 }
-function closeShareSheet(){const ss=$('shareSheet');if(ss){ss.classList.remove('open');ss.innerHTML='';_shareUrl=''}}
+function closeShareSheet(){const ss=$('shareSheet');if(ss){ss.classList.remove('open');ss.style.display='none';_shareUrl=''}}
 async function shareProductLegacy(pid){
   const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
-  const title = p? (p.name||'\u0645\u062D\u0635\u0648\u0644') : '\u0645\u062D\u0635\u0648\u0644';
+  const title = p? (p.name||'محصول') : 'محصول';
   const bot = state?.bot_username || '';
   const tgLink = bot ? `https://t.me/${encodeURIComponent(bot)}?startapp=product_${encodeURIComponent(pid)}` : null;
   const webLink = location.origin + location.pathname + '?product=' + encodeURIComponent(pid);
   const shareUrl = tgLink || webLink;
   try{
-    if(navigator.share){ await navigator.share({title, text: title, url: shareUrl}); showStatus('\u0644\u06CC\u0646\u06A9 \u0628\u0647 \u0627\u0634\u062A\u0631\u0627\u06A9 \u06AF\u0630\u0627\u0634\u062A\u0647 \u0634\u062F'); return; }
+    if(navigator.share){ await navigator.share({title, text: title, url: shareUrl}); showStatus('لینک به اشتراک گذاشته شد'); return; }
   }catch(e){}
   copyText(shareUrl);
 }
