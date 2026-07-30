@@ -815,7 +815,51 @@ window.applyProductColor = function(imgEl) {
   } catch(e) {}
 };
 
-function showProduct(pid){const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));if(!p)return;currentTab='product';currentProductId=Number(pid);hidePages();$('productPage').classList.remove('hidden');$('productPage').innerHTML=`<div id="productPageBg" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background:#0b0f17;transition:background 0.5s ease"></div><div style="display:flex;justify-content:space-between;padding:16px 20px;align-items:center;"><button class="icon-btn" data-share-product="${p.id}" style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:22px;border:1px solid rgba(255,255,255,0.1)">🔗</button><button class="icon-btn" data-back-shop style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:34px;border:1px solid rgba(255,255,255,0.1);padding-bottom:6px">‹</button></div><div class="detail-hero product-hero">${p.image_url?`<img src="${esc(p.image_url)}" crossorigin="anonymous" onload="window.applyProductColor(this)" ${p.image_srcset?`srcset="${esc(p.image_srcset)}"`:''} alt="product">`:`<div class="tile-placeholder">🛍</div>`}</div><article class="detail-card product-detail"><h2>${esc(p.name)}</h2><div class="product-price-row"><span class="big-price">${priceLabel(p)}</span><span class="badge live-price-badge">${p.price_currency==='USD'?'نرخ لحظه‌ای':'قیمت ثابت'}</span><span class="badge">${esc(p.delivery_type_fa)}</span><span class="badge">موجودی آماده: ${nf(p.inventory_available||0)}</span></div><div class="description-box">${textBlock(p.full_description||p.short_description||'بدون توضیح')}</div>${buyButtonsForProduct(p)}</article>`;window.scrollTo({top:0,behavior:'instant'})}
+function showProduct(pid){
+  const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
+  if(!p) return;
+  currentTab='product';
+  currentProductId=Number(pid);
+  hidePages();
+
+  const title = p.name || p.title || 'جزئیات محصول';
+  const w = getWishlist();
+  const isWished = w.includes(Number(p.id));
+  const rawDesc = (p.full_description || p.short_description || '').trim();
+  const hasDesc = rawDesc && rawDesc !== '-' && rawDesc !== '.';
+
+  const page = $('productPage');
+  page.classList.remove('hidden');
+
+  page.innerHTML = `
+    <div id="productPageBg" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background:#0b0f17;transition:background 0.5s ease"></div>
+    <div style="display:flex;justify-content:space-between;padding:16px 20px;align-items:center;">
+      <h2 style="font-size:18px;font-weight:900;color:#ffffff;margin:0;">${esc(title)}</h2>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="icon-btn" data-share-product="${p.id}" style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:18px;border:1px solid rgba(255,255,255,0.1)">🔗</button>
+        <button class="icon-btn ${isWished ? 'active' : ''}" data-wishlist-pid="${p.id}" style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:18px;border:1px solid rgba(255,255,255,0.1)">${isWished ? '❤️' : '🤍'}</button>
+        <button class="icon-btn" data-back-shop style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:20px;border:1px solid rgba(255,255,255,0.1);">✕</button>
+      </div>
+    </div>
+    
+    <div class="detail-hero product-hero" style="margin:10px 20px 16px;max-height:220px;display:flex;justify-content:center;align-items:center;border-radius:20px;overflow:hidden;background:rgba(0,0,0,0.3);border:1px solid rgba(0,242,254,0.15)">
+      ${p.image_url ? `<img src="${esc(p.image_url)}" crossorigin="anonymous" onload="window.applyProductColor(this)" ${p.image_srcset ? `srcset="${esc(p.image_srcset)}"` : ''} alt="${esc(title)}" style="max-height:200px;object-fit:contain;border-radius:16px;">` : `<div class="tile-placeholder" style="font-size:48px;">🛍</div>`}
+    </div>
+
+    <div style="display:flex;justify-content:space-around;background:rgba(0,242,254,0.04);border:1px solid rgba(0,242,254,0.2);border-radius:14px;padding:12px;margin:0 20px 16px;font-size:12px;color:var(--cyan);">
+      <span>⚡ <b>تحویل آنی ۲۴ ساعته</b></span>
+      <span>🛡️ <b>ضمانت سلامت اکانت</b></span>
+      <span>🎧 <b>پشتیبانی اختصاصی</b></span>
+    </div>
+
+    <article class="detail-card product-detail" style="margin:0 20px 30px;">
+      ${hasDesc ? `<div class="description-box" style="margin-bottom:18px;background:rgba(255,255,255,0.03);border-radius:14px;padding:14px;border:1px solid rgba(255,255,255,0.08);">${textBlock(rawDesc)}</div>` : ''}
+      ${buyButtonsForProduct(p)}
+    </article>
+  `;
+
+  window.scrollTo({top:0, behavior:'instant'});
+}
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
 function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;}return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
 
