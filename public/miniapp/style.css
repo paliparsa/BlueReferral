@@ -3793,6 +3793,160 @@ body .card-v2-submit-btn:active {
   transform: scale(0.96);
 }
 
+/* ===== Redesigned Order Details UI (v2) ===== */
+.order-detail-v2 {
+  background: rgba(14, 23, 42, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 28px !important;
+  padding: 20px 18px 24px !important;
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+.od-top-bar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-bottom: 4px !important;
+}
+
+.od-back-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 14px !important;
+  padding: 7px 14px !important;
+  color: #ffffff !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: transform 0.2s ease, background 0.2s ease !important;
+}
+.od-back-btn:active {
+  transform: scale(0.95) !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.od-order-id {
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  color: var(--muted) !important;
+  letter-spacing: 0.5px !important;
+}
+
+.od-head-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  text-align: right !important;
+}
+
+.od-title {
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+}
+
+.od-badges-row {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.od-price-hero {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 20px !important;
+  padding: 16px 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.od-price-hero-main {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.od-price-hero-main span {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: var(--muted) !important;
+}
+
+.od-price-hero-main b {
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  letter-spacing: 0.5px !important;
+}
+
+.od-info-grid-v2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 10px !important;
+  margin: 4px 0 !important;
+}
+
+.od-info-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 18px !important;
+  padding: 14px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  gap: 4px !important;
+  transition: border-color 0.2s ease !important;
+}
+
+.od-info-card:hover {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.od-info-card small {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--muted) !important;
+}
+
+.od-info-card b {
+  font-size: 13.5px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  word-break: break-all !important;
+}
+
+.od-sticky-actions {
+  display: flex !important;
+  gap: 8px !important;
+  padding-top: 10px !important;
+}
+
+.od-sticky-actions .btn-v2 {
+  flex: 1 !important;
+  border-radius: 16px !important;
+  padding: 12px 10px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  justify-content: center !important;
+}
+
 
 
 

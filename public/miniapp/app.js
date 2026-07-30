@@ -763,7 +763,90 @@ function orderDetailHtml(o){
     </div>
   ` : '';
 
-  return `<section class="detail-card order-detail-page"><button class="secondary" data-order-back>بازگشت به سفارش‌ها</button><div class="order-detail-head"><div><small>سفارش #${nf(o.id)}</small><h2>${esc(o.display_name)}</h2></div><div style="display:flex;align-items:center;gap:6px">${nativeCurrencyPill}${orderStatusBadge(o)}</div></div>${topTimerHtml}${orderStepperHtml(o)}<div class="price-panel"><span>مانده قابل پرداخت</span><b>${fmt(o.final_amount)}</b></div>${orderUsdHint(o)}${savingsCard}<div class="order-money-grid"><p><b>قیمت پایه</b><br>${basePriceHtml}</p><p><b>تخفیف (کد)</b><br>${fmt(o.discount_amount||0)}</p><p><b>پرداخت از کیف پول</b><br>${fmt(o.wallet_amount||0)}</p></div><div class="order-info-grid"><p><b>روش پرداخت</b><br>${esc(o.payment_method_fa||'انتخاب نشده')}</p><p><b>نوع تحویل</b><br>${esc(o.delivery_type_fa||'-')}</p><p><b>تاریخ ثبت</b><br>${esc(o.created_at||'-')}</p>${o.expires_at?`<p><b>انقضا</b><br>${esc(o.expires_at)}</p>`:''}</div>${paymentMethodsHtml(o)}${o.timeline?.length?`<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش</summary>${timeline(o.timeline)}</details>`:''}${o.payment_note?`<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>`:''}${o.customer_note?`<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>`:''}${o.delivery_text?`<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>`:''}<div class="actions sticky-actions">${(o.status==='pending_payment'||o.status==='rejected')&&Number(o.final_amount||0)>0?`<button class="primary" data-receipt="${o.id}">ارسال رسید</button>`:''}${o.receipt_file_id?`<button class="secondary" data-view-receipt="${o.id}">🖼 دیدن رسید</button>`:''}<button class="secondary" data-customer-note="${o.id}">یادداشت سفارش</button>${o.status==='pending_payment'?`<button class="secondary" data-coupon="${o.id}">کد تخفیف</button><button class="danger" data-cancel="${o.id}">لغو</button>`:''}${canHideOrder(o)?`<button class="danger" data-hide-order="${o.id}">حذف از لیست من</button>`:''}</div></section>`
+  return `<section class="detail-card order-detail-page order-detail-v2">
+    <!-- Top Action Bar -->
+    <div class="od-top-bar">
+      <button class="od-back-btn" data-order-back>
+        <span class="od-back-icon">🚪</span> بازگشت به سفارش‌ها
+      </button>
+      <span class="od-order-id">سفارش #${nf(o.id)}</span>
+    </div>
+
+    <!-- Main Header -->
+    <div class="od-head-section">
+      <h2 class="od-title">${esc(o.display_name)}</h2>
+      <div class="od-badges-row">
+        ${orderStatusBadge(o)}
+        ${nativeCurrencyPill}
+      </div>
+      ${topTimerHtml}
+    </div>
+
+    <!-- Stepper Timeline -->
+    ${orderStepperHtml(o)}
+
+    <!-- Price Hero Card -->
+    <div class="od-price-hero">
+      <div class="od-price-hero-main">
+        <span>مانده قابل پرداخت</span>
+        <b>${fmt(o.final_amount)}</b>
+      </div>
+      ${orderUsdHint(o)}
+    </div>
+
+    ${savingsCard}
+
+    <!-- 2-Column Info Grid Cards -->
+    <div class="od-info-grid-v2">
+      <div class="od-info-card">
+        <small>قیمت پایه</small>
+        <b>${basePriceHtml}</b>
+      </div>
+      <div class="od-info-card">
+        <small>تخفیف (کد)</small>
+        <b>${fmt(o.discount_amount||0)}</b>
+      </div>
+      <div class="od-info-card">
+        <small>نوع تحویل</small>
+        <b>${esc(o.delivery_type_fa||'-')}</b>
+      </div>
+      <div class="od-info-card">
+        <small>روش پرداخت</small>
+        <b>${esc(o.payment_method_fa||'انتخاب نشده')}</b>
+      </div>
+      <div class="od-info-card">
+        <small>تاریخ ثبت</small>
+        <b>${esc(o.created_at||'-')}</b>
+      </div>
+      ${o.expires_at ? `
+      <div class="od-info-card">
+        <small>انقضا</small>
+        <b>${esc(o.expires_at)}</b>
+      </div>` : `
+      <div class="od-info-card">
+        <small>پرداخت از کیف پول</small>
+        <b>${fmt(o.wallet_amount||0)}</b>
+      </div>`}
+    </div>
+
+    <!-- Payment Section -->
+    ${paymentMethodsHtml(o)}
+
+    <!-- Timeline & Notes -->
+    ${o.timeline?.length ? `<details class="timeline-details"><summary>🗓 تاریخچه کامل سفارش ▾</summary>${timeline(o.timeline)}</details>` : ''}
+    ${o.payment_note ? `<div class="note-box"><b>رسید/توضیح پرداخت:</b><br>${textBlock(o.payment_note)}</div>` : ''}
+    ${o.customer_note ? `<div class="note-box customer"><b>یادداشت شما:</b><br>${textBlock(o.customer_note)}</div>` : ''}
+    ${o.delivery_text ? `<div class="delivery-box clean-delivery">${textBlock(o.delivery_text)}</div>` : ''}
+
+    <!-- Sticky Bottom Actions Bar -->
+    <div class="actions sticky-actions od-sticky-actions">
+      ${(isPendingDetail || o.status==='rejected') && Number(o.final_amount||0)>0 ? `<button class="primary btn-v2" data-receipt="${o.id}">ارسال رسید</button>` : ''}
+      ${o.receipt_file_id ? `<button class="secondary btn-v2" data-view-receipt="${o.id}">🖼 دیدن رسید</button>` : ''}
+      <button class="secondary btn-v2" data-customer-note="${o.id}">یادداشت سفارش</button>
+      ${isPendingDetail ? `<button class="secondary btn-v2" data-coupon="${o.id}">کد تخفیف</button><button class="danger btn-v2" data-cancel="${o.id}">لغو</button>` : ''}
+      ${canHideOrder(o) ? `<button class="danger btn-v2" data-hide-order="${o.id}">حذف از لیست من</button>` : ''}
+    </div>
+  </section>`
 }
 function setTab(tab){currentTab=tab;saveAppLastState();renderUser()}
 function setAdminTab(tab){currentAdminTab=tab;saveAppLastState();renderAdmin()}
