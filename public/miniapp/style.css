@@ -2497,5 +2497,65 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   backface-visibility: hidden !important;
 }
 
+/* Web-matched Variant Option Cards Grid */
+.variant-cards-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+  gap: 10px !important;
+  margin-top: 8px !important;
+}
+.variant-option-card {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  padding: 12px 14px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-align: right !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+  outline: none !important;
+  width: 100% !important;
+}
+.variant-option-card:active {
+  transform: scale(0.98) !important;
+}
+.variant-option-card.selected {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.15) 0%, rgba(29, 155, 240, 0.2) 100%) !important;
+  border: 1.5px solid var(--cyan) !important;
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.25) !important;
+}
+.variant-card-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 6px !important;
+}
+.variant-title {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+}
+.variant-badge {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: rgba(0, 242, 254, 0.15) !important;
+  color: var(--cyan) !important;
+  padding: 2px 8px !important;
+  border-radius: 8px !important;
+}
+.variant-price {
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  color: var(--cyan) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+
 
 
