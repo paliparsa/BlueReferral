@@ -2423,19 +2423,6 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4) !important;
   z-index: 3 !important;
 }
-.flash-card-img {
-  width: 100% !important;
-  height: 90px !important;
-  border-radius: 14px !important;
-  overflow: hidden !important;
-  margin-bottom: 8px !important;
-  background: rgba(0, 0, 0, 0.3) !important;
-  display: grid !important;
-  place-items: center !important;
-}
-.flash-card-img img {
-  width: 100% !important;
-  height: 100% !important;
   object-fit: cover !important;
 }
 .flash-card-title {
@@ -2610,24 +2597,27 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 /* Ultimate Top-Layer Toast Notification */
 #status, .toast {
   position: fixed !important;
-  top: 24px !important;
+  top: 18px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
   z-index: 999999 !important;
-  background: rgba(15, 24, 44, 0.96) !important;
+  background: rgba(15, 24, 44, 0.98) !important;
   border: 1.5px solid #00f2fe !important;
   color: #ffffff !important;
-  padding: 12px 24px !important;
-  border-radius: 16px !important;
-  font-size: 13.5px !important;
+  padding: 10px 18px !important;
+  border-radius: 18px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 242, 254, 0.35) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.9), 0 0 24px rgba(0, 242, 254, 0.4) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
   text-align: center !important;
   pointer-events: none !important;
-  max-width: 90% !important;
-  white-space: nowrap !important;
+  width: max-content !important;
+  max-width: 82vw !important;
+  white-space: normal !important;
+  line-height: 1.4 !important;
+  box-sizing: border-box !important;
 }
 #status.hidden, .toast.hidden {
   display: none !important;
