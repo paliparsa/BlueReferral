@@ -2556,6 +2556,54 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
   gap: 4px !important;
 }
 
+/* Floating Modal Overlay matching Standalone Web App */
+.modal-container {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  z-index: 99000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  overflow-y: auto !important;
+}
+.modal-container.hidden {
+  display: none !important;
+}
+.modal-card {
+  background: linear-gradient(180deg, rgba(15, 24, 44, 0.98), rgba(7, 12, 24, 0.99)) !important;
+  border: 1px solid rgba(0, 242, 254, 0.3) !important;
+  border-radius: 24px !important;
+  width: 100% !important;
+  max-width: 580px !important;
+  max-height: calc(100vh - 40px) !important;
+  overflow-y: auto !important;
+  padding: 24px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8) !important;
+  color: #ffffff !important;
+  box-sizing: border-box !important;
+}
+.product-modal-hero {
+  position: relative !important;
+  width: 100% !important;
+  max-height: 220px !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  margin-bottom: 16px !important;
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.08) 0%, rgba(29, 155, 240, 0.15) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+
 
 
 

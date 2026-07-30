@@ -815,50 +815,180 @@ window.applyProductColor = function(imgEl) {
   } catch(e) {}
 };
 
+function closeProductModal(){
+  const modal = $('miniappProductModal');
+  if(modal) {
+    modal.classList.add('hidden');
+    modal.innerHTML = '';
+  }
+}
+
 function showProduct(pid){
   const p=(state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
   if(!p) return;
-  currentTab='product';
-  currentProductId=Number(pid);
-  hidePages();
 
   const title = p.name || p.title || 'جزئیات محصول';
+  const variants = p.variants || [];
   const w = getWishlist();
   const isWished = w.includes(Number(p.id));
   const rawDesc = (p.full_description || p.short_description || '').trim();
   const hasDesc = rawDesc && rawDesc !== '-' && rawDesc !== '.';
 
-  const page = $('productPage');
-  page.classList.remove('hidden');
+  let selectedVariant = variants.length > 0 ? variants[0] : null;
+  let selectedQty = 1;
 
-  page.innerHTML = `
-    <div id="productPageBg" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background:#0b0f17;transition:background 0.5s ease"></div>
-    <div style="display:flex;justify-content:space-between;padding:16px 20px;align-items:center;">
-      <h2 style="font-size:18px;font-weight:900;color:#ffffff;margin:0;">${esc(title)}</h2>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="icon-btn" data-share-product="${p.id}" style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:18px;border:1px solid rgba(255,255,255,0.1)">🔗</button>
-        <button class="icon-btn ${isWished ? 'active' : ''}" data-wishlist-pid="${p.id}" style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:18px;border:1px solid rgba(255,255,255,0.1)">${isWished ? '❤️' : '🤍'}</button>
-        <button class="icon-btn" data-back-shop style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);font-size:20px;border:1px solid rgba(255,255,255,0.1);">✕</button>
+  let modal = $('miniappProductModal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'miniappProductModal';
+    modal.className = 'modal-container hidden';
+    document.body.appendChild(modal);
+  }
+
+  function updateModalPrice() {
+    const basePrice = selectedVariant ? Number(selectedVariant.price) : Number(p.price || 0);
+    const baseOrig = selectedVariant ? Number(selectedVariant.old_price || 0) : Number(p.old_price || 0);
+
+    const totalPrice = basePrice * selectedQty;
+    const totalOrig = baseOrig && baseOrig > basePrice ? baseOrig * selectedQty : null;
+
+    const lbl = $('mp-price-lbl');
+    if (lbl) {
+      lbl.innerHTML = `${totalOrig ? `<s style="color:var(--muted); font-size:12px; margin-left:6px; text-decoration:line-through; font-weight:normal;">${fmt(totalOrig)}</s>` : ''}${fmt(totalPrice)}`;
+    }
+  }
+
+  modal.innerHTML = `
+    <div class="modal-card" style="max-width:580px; width:95%; max-height:calc(100vh - 40px); overflow-y:auto; border-radius:24px; padding:20px; background:linear-gradient(180deg, rgba(15, 24, 44, 0.98), rgba(7, 12, 24, 0.99)); border:1px solid rgba(0, 242, 254, 0.3); box-shadow:0 20px 60px rgba(0, 0, 0, 0.8);">
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="font-size:18px; font-weight:900; color:#fff; margin:0;">${esc(title)}</h3>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="icon-btn-circle" id="m-wish-btn" title="علاقه‌مندی" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:14px;cursor:pointer;">${isWished ? '❤️' : '🤍'}</button>
+          <button class="icon-btn-circle" id="m-share-btn" title="اشتراک‌گذاری" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:14px;cursor:pointer;">🔗</button>
+          <button class="icon-btn-circle" id="m-close-btn" title="بستن" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:16px;cursor:pointer;color:#fff;">✕</button>
+        </div>
+      </div>
+
+      ${p.image_url ? `
+        <div class="product-modal-hero" style="margin-bottom:16px; max-height:220px; display:flex; justify-content:center; align-items:center; border-radius:18px; overflow:hidden; background:linear-gradient(135deg, rgba(0,242,254,0.08), rgba(29,155,240,0.15)); border:1px solid rgba(255,255,255,0.12); padding:10px;">
+          <img src="${esc(p.image_url)}" crossorigin="anonymous" onload="window.applyProductColor(this)" ${p.image_srcset ? `srcset="${esc(p.image_srcset)}"` : ''} alt="${esc(title)}" style="max-height:200px; object-fit:contain; border-radius:16px;">
+        </div>
+      ` : ''}
+
+      <div style="display:flex; justify-content:space-around; background:rgba(0,242,254,0.04); border:1px solid rgba(0,242,254,0.2); border-radius:14px; padding:12px; margin-bottom:16px; font-size:12px; color:var(--cyan);">
+        <span>⚡ <b>تحویل آنی ۲۴ ساعته</b></span>
+        <span>🛡️ <b>ضمانت سلامت اکانت</b></span>
+        <span>🎧 <b>پشتیبانی اختصاصی</b></span>
+      </div>
+
+      ${hasDesc ? `<div style="margin-bottom:16px; background:rgba(255,255,255,0.03); border-radius:14px; padding:14px; border:1px solid rgba(255,255,255,0.08); font-size:13px; color:var(--muted); line-height:1.7;">${textBlock(rawDesc)}</div>` : ''}
+
+      ${variants.length > 0 ? `
+        <div style="margin-bottom:18px;">
+          <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:8px;">انتخاب پلن / مدت زمان اشتراک:</label>
+          <div class="variant-cards-grid">
+            ${variants.map((v, idx) => {
+              const vDisc = Number(v.discount_percent || 0);
+              const vOrig = Number(v.old_price || 0);
+              return `
+                <button class="variant-option-card ${idx === 0 ? 'selected' : ''}" data-v-idx="${idx}" data-v-id="${v.id}">
+                  <div class="variant-card-header">
+                    <span class="variant-title">${esc(v.title)}</span>
+                    <span class="variant-badge">${v.duration_days ? `${v.duration_days} روز` : 'پلن ویژه'}</span>
+                  </div>
+                  <div class="variant-price">
+                    ${vOrig > 0 && vOrig > Number(v.price) ? `<s style="color:var(--muted); font-size:11px; margin-left:4px; text-decoration:line-through;">${fmt(vOrig)}</s>` : ''}
+                    <span>${fmt(v.price)}</span>
+                    ${vDisc > 0 ? `<span class="flash-pill" style="font-size:10px; background:rgba(239,68,68,0.2); color:#fca5a5; padding:2px 6px; border-radius:6px; margin-right:4px;">−${nf(vDisc)}٪</span>` : ''}
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:10px;">
+        <div>
+          <small style="color:var(--muted); font-size:11px; display:block;">مبلغ کل:</small>
+          <b id="mp-price-lbl" style="font-size:20px; color:var(--cyan); font-weight:900;">${fmt((selectedVariant ? selectedVariant.price : p.price) * selectedQty)}</b>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="modal-qty-control" style="display:flex; align-items:center; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:3px;">
+            <button id="m-qty-minus" style="background:none; border:none; color:#fff; width:28px; height:28px; font-size:16px; cursor:pointer;">-</button>
+            <span id="m-qty-val" style="width:24px; text-align:center; font-weight:700; font-size:14px; color:#fff;">1</span>
+            <button id="m-qty-plus" style="background:none; border:none; color:#fff; width:28px; height:28px; font-size:16px; cursor:pointer;">+</button>
+          </div>
+          <button id="m-buy-btn" style="background:linear-gradient(135deg, #00f2fe, #1d9bf0); color:#000; font-weight:900; padding:12px 18px; font-size:13px; border-radius:14px; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(0, 242, 254, 0.3);">⚡ افزودن به سبد خرید</button>
+        </div>
       </div>
     </div>
-    
-    <div class="detail-hero product-hero" style="margin:10px 20px 16px;max-height:220px;display:flex;justify-content:center;align-items:center;border-radius:20px;overflow:hidden;background:rgba(0,0,0,0.3);border:1px solid rgba(0,242,254,0.15)">
-      ${p.image_url ? `<img src="${esc(p.image_url)}" crossorigin="anonymous" onload="window.applyProductColor(this)" ${p.image_srcset ? `srcset="${esc(p.image_srcset)}"` : ''} alt="${esc(title)}" style="max-height:200px;object-fit:contain;border-radius:16px;">` : `<div class="tile-placeholder" style="font-size:48px;">🛍</div>`}
-    </div>
-
-    <div style="display:flex;justify-content:space-around;background:rgba(0,242,254,0.04);border:1px solid rgba(0,242,254,0.2);border-radius:14px;padding:12px;margin:0 20px 16px;font-size:12px;color:var(--cyan);">
-      <span>⚡ <b>تحویل آنی ۲۴ ساعته</b></span>
-      <span>🛡️ <b>ضمانت سلامت اکانت</b></span>
-      <span>🎧 <b>پشتیبانی اختصاصی</b></span>
-    </div>
-
-    <article class="detail-card product-detail" style="margin:0 20px 30px;">
-      ${hasDesc ? `<div class="description-box" style="margin-bottom:18px;background:rgba(255,255,255,0.03);border-radius:14px;padding:14px;border:1px solid rgba(255,255,255,0.08);">${textBlock(rawDesc)}</div>` : ''}
-      ${buyButtonsForProduct(p)}
-    </article>
   `;
 
-  window.scrollTo({top:0, behavior:'instant'});
+  modal.classList.remove('hidden');
+
+  // Close handlers
+  modal.querySelector('#m-close-btn')?.addEventListener('click', closeProductModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeProductModal();
+  });
+
+  // Wishlist handler
+  modal.querySelector('#m-wish-btn')?.addEventListener('click', () => {
+    toggleWishlist(p.id);
+    const btn = modal.querySelector('#m-wish-btn');
+    if (btn) {
+      const w = getWishlist();
+      btn.textContent = w.includes(Number(p.id)) ? '❤️' : '🤍';
+    }
+  });
+
+  // Share handler
+  modal.querySelector('#m-share-btn')?.addEventListener('click', () => openShareSheet(p.id));
+
+  // Variant selection
+  modal.querySelectorAll('.variant-option-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      modal.querySelectorAll('.variant-option-card').forEach(c => c.classList.remove('selected'));
+      const btn = e.currentTarget;
+      btn.classList.add('selected');
+      const idx = Number(btn.dataset.vIdx);
+      selectedVariant = variants[idx] || null;
+      updateModalPrice();
+    });
+  });
+
+  // Quantity handlers
+  modal.querySelector('#m-qty-plus')?.addEventListener('click', () => {
+    selectedQty++;
+    modal.querySelector('#m-qty-val').textContent = selectedQty;
+    updateModalPrice();
+  });
+
+  modal.querySelector('#m-qty-minus')?.addEventListener('click', () => {
+    if (selectedQty > 1) {
+      selectedQty--;
+      modal.querySelector('#m-qty-val').textContent = selectedQty;
+      updateModalPrice();
+    }
+  });
+
+  // Buy handler
+  modal.querySelector('#m-buy-btn')?.addEventListener('click', () => {
+    for (let i = 0; i < selectedQty; i++) {
+      if (typeof addToCart === 'function') {
+        addToCart(
+          p.id,
+          selectedVariant ? selectedVariant.id : null,
+          selectedVariant ? selectedVariant.title : '',
+          selectedVariant ? selectedVariant.price : p.price
+        );
+      }
+    }
+    showStatus('محصول به سبد خرید اضافه شد 🛒');
+    closeProductModal();
+  });
 }
 function renderOrders(){const all=state.orders||[];const filters=[['all','همه'],['active','فعال'],['pending_payment','در انتظار پرداخت'],['receipt_submitted','رسید ارسال شده'],['delivered','تحویل‌شده'],['cleanup','لغو/رد شده']];if(currentOrderId){const o=orderById(currentOrderId); if(!o){currentOrderId=null; return renderOrders()} $('ordersPage').innerHTML=orderDetailHtml(o); return;}const orders=all.filter(o=>orderFilter==='all'||(orderFilter==='active'&&!canHideOrder(o)&&o.status!=='delivered')||(orderFilter==='cleanup'&&canHideOrder(o))||o.status===orderFilter);$('ordersPage').innerHTML=`<section class="orders-header"><div><h2>🧾 سفارش‌های من</h2><p class="muted">روی هر سفارش بزن تا جزئیات تمیز و کاملش باز شود.</p></div><button class="secondary" data-clear-canceled>پاکسازی لغو/رد شده‌ها</button></section><div class="order-filters">${filters.map(f=>`<button class="filter-chip ${orderFilter===f[0]?'active':''}" data-order-filter="${f[0]}">${f[1]}</button>`).join('')}</div><div class="order-list">${orders.map(orderRowHtml).join('')||'<p class="muted empty-state">سفارشی در این بخش نیست.</p>'}</div>`}
 function orderRowHtml(o){const paid=Number(o.wallet_amount||0)>0?` · کیف پول ${fmt(o.wallet_amount)}`:'';const d=Number(o.variant_discount_percent)||0;let priceStr=`مانده ${fmt(o.final_amount)}`;if(d>0){const orig=Math.round(Number(o.amount)/(1-d/100));priceStr=`<s class="muted" style="font-size:0.85em">${fmt(orig)}</s> <span style="font-weight:600;color:var(--text)">${fmt(o.final_amount)}</span> <span class="flash-pill" style="padding:2px 4px;font-size:10px">−${nf(d)}٪</span>`;}return `<article class="order-row" data-order-open="${o.id}" style="flex-direction:column;align-items:stretch"><div class="order-row-main" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px"><div class="order-icon">${o.image_url?`<img src="${esc(o.image_url)}">`:'🧾'}</div><div style="flex:1"><h3>#${nf(o.id)} · ${esc(o.display_name)}</h3><p class="muted" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:4px">${esc(o.created_at||'')} · ${priceStr}${paid}</p></div><div style="display:flex;align-items:center;gap:6px">${orderStatusBadge(o)}<span class="chev" style="font-size:20px;color:var(--muted)">‹</span></div></div><div class="order-row-stepper" style="width:100%">${orderStepperHtml(o)}</div></article>`}
