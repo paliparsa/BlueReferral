@@ -1561,8 +1561,7 @@ function renderAdminBackups(){
     <article class="admin-card">
       <h3>🗂 بکاپ‌های روی سرور</h3>
       ${rows.length?rows.map(b=>`<div class="admin-item"><h4>${esc(b.filename)}</h4><p class="muted">${bytesLabel(b.size)} · ${esc(b.created_at||'')}</p><div class="admin-actions"><button class="secondary" data-open-url="${esc(b.download_url||'')}">دانلود</button><button class="warning" data-admin-backup-restore-server="${esc(b.filename)}">Restore همین فایل</button><button class="danger" data-admin-backup-delete="${esc(b.filename)}">حذف</button></div></div>`).join(''):'<p class="muted">هنوز بکاپی روی سرور نیست.</p>'}
-    </article>
-  </section>`
+    </section>`
 }
 async function uploadBackupRestore(){
   const input=$('backupUpload');
@@ -1578,8 +1577,155 @@ async function uploadBackupRestore(){
   await loadAdmin();
 }
 
+let miniappSpinRewards = [];
+
+function parseSpinRewardsText(raw){
+  if(Array.isArray(raw)) return raw.map(r=>({title:r.title||'جایزه گردونه', amount:Number(r.amount||0), weight:Number(r.weight||10), notify_admin:!!r.notify_admin}));
+  const text = String(raw||'').trim();
+  if(!text) return [];
+  return text.split('\n').map(line=>{
+    const parts = line.split('|').map(s=>s.trim());
+    const title = parts[0] || 'جایزه گردونه';
+    const amount = Number(parts[1]||0);
+    const weight = Number(parts[2]||10);
+    const notify = parts[3] === '1' || parts[3] === 'true';
+    return { title, amount, weight, notify_admin: notify };
+  }).filter(r=>r.title);
+}
+
+function serializeSpinRewards(arr){
+  return (arr||[]).map(r=>`${r.title}|${r.amount||0}|${r.weight||1}|${r.notify_admin?1:0}`).join('\n');
+}
+
+function renderSpinRewardsCards(rewards){
+  if(!rewards || !rewards.length){
+    return `<div style="grid-column:1/-1;text-align:center;padding:24px 12px;" class="muted">هیچ جایزه‌ای برای گردونه ثبت نشده است. دکمه «افزودن جایزه جدید» را بزنید.</div>`;
+  }
+  return rewards.map((sr, idx) => `
+    <div class="spin-reward-card">
+      <div class="spin-reward-card-top">
+        <div class="spin-reward-title-row">
+          <b class="spin-reward-title">${esc(sr.title)} 💰</b>
+          ${sr.notify_admin ? `<span class="spin-admin-notify-badge">🔔 اعلان ادمین</span>` : ''}
+        </div>
+        <div class="spin-reward-amount-row">
+          💰 مبلغ: <b class="cyan-val">${sr.amount > 0 ? (fmt(sr.amount)) : 'بدون مبلغ (پاداش غیرنقدی)'}</b>
+        </div>
+        <div class="spin-reward-weight-row">
+          🎲 وزن شانس: <b>${nf(sr.weight||1)}</b>
+        </div>
+      </div>
+      <div class="spin-reward-card-actions">
+        <button type="button" class="spin-reward-btn edit" data-edit-spin-reward="${idx}">✏️ ویرایش</button>
+        <button type="button" class="spin-reward-btn delete" data-del-spin-reward="${idx}">🗑️ حذف</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openSpinRewardModal(index = null) {
+  const sr = index === null ? { title: '', amount: 0, weight: 10, notify_admin: false } : (miniappSpinRewards[index] || {});
+  const isNew = index === null;
+
+  const existing = $('spinRewardModalBackdrop');
+  if(existing) existing.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'spinRewardModalBackdrop';
+  backdrop.className = 'spin-reward-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="spin-reward-modal-card">
+      <div class="spin-reward-modal-head">
+        <h3>${isNew ? '🎁 افزودن جایزه جدید' : '✏️ ویرایش جایزه گردونه'}</h3>
+        <button type="button" class="spin-reward-modal-close" id="spinRewardModalClose">✕</button>
+      </div>
+      <form id="spinRewardForm">
+        <div class="spin-reward-form-group">
+          <label>عنوان جایزه:</label>
+          <input type="text" id="sr_title" value="${esc(sr.title || '')}" placeholder="مثلاً ۱۰,۰۰۰ تومان اعتبار کیف پول 💰" required>
+        </div>
+
+        <div class="spin-reward-form-group">
+          <label>مبلغ اعتبار کیف پول (تومان):</label>
+          <input type="number" id="sr_amount" value="${sr.amount || 0}" placeholder="10000" inputmode="numeric">
+          <small class="form-hint">عدد ۰ یعنی جایزه غیرنقدی است و کیف پول شارژ نمی‌شود.</small>
+        </div>
+
+        <div class="spin-reward-form-group">
+          <label>وزن شانس (Probability Weight):</label>
+          <input type="number" id="sr_weight" value="${sr.weight || 10}" placeholder="18" required inputmode="numeric">
+          <small class="form-hint">هرچه این عدد بالاتر باشد، احتمال برنده شدن این جایزه بیشتر است.</small>
+        </div>
+
+        <div class="spin-reward-form-group checkbox-group">
+          <label class="pretty-checkbox-label">
+            <input type="checkbox" id="sr_notify" ${sr.notify_admin ? 'checked' : ''}>
+            <span>🔔 ارسال پیام به ادمین هنگام برنده شدن</span>
+          </label>
+        </div>
+
+        <button type="submit" class="spin-reward-submit-btn">
+          💾 ذخیره جایزه
+        </button>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+  setTimeout(() => backdrop.classList.add('open'), 10);
+
+  const closeFn = () => {
+    backdrop.classList.remove('open');
+    setTimeout(() => backdrop.remove(), 250);
+  };
+
+  backdrop.querySelector('#spinRewardModalClose')?.addEventListener('click', closeFn);
+  backdrop.addEventListener('click', (e) => {
+    if(e.target === backdrop) closeFn();
+  });
+
+  backdrop.querySelector('#spinRewardForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = backdrop.querySelector('#sr_title')?.value.trim();
+    if(!title) return showStatus('عنوان جایزه الزامی است', 'error');
+
+    const item = {
+      title,
+      amount: Number(backdrop.querySelector('#sr_amount')?.value || 0),
+      weight: Number(backdrop.querySelector('#sr_weight')?.value || 1),
+      notify_admin: !!backdrop.querySelector('#sr_notify')?.checked
+    };
+
+    if(isNew) {
+      miniappSpinRewards.push(item);
+    } else {
+      miniappSpinRewards[index] = item;
+    }
+
+    const hiddenTxt = $('as_spin_rewards');
+    if(hiddenTxt) hiddenTxt.value = serializeSpinRewards(miniappSpinRewards);
+
+    const grid = $('miniappSpinRewardsGrid');
+    if(grid) grid.innerHTML = renderSpinRewardsCards(miniappSpinRewards);
+
+    closeFn();
+    showStatus(isNew ? 'جایزه جدید اضافه شد' : 'جایزه ویرایش شد');
+  });
+}
+
+function deleteSpinReward(index) {
+  if(!confirm('این جایزه از لیست گردونه حذف شود؟')) return;
+  miniappSpinRewards.splice(index, 1);
+  const hiddenTxt = $('as_spin_rewards');
+  if(hiddenTxt) hiddenTxt.value = serializeSpinRewards(miniappSpinRewards);
+  const grid = $('miniappSpinRewardsGrid');
+  if(grid) grid.innerHTML = renderSpinRewardsCards(miniappSpinRewards);
+  showStatus('جایزه حذف شد');
+}
+
 function renderAdminSettings(){
   const s=adminState.settings||{};
+  miniappSpinRewards = parseSpinRewardsText(s.spin_rewards_text || s.spin_rewards || []);
   const bc=s.button_colors||{};
   const pm=s.payment_methods_enabled||{};
   const starsActive=pm.stars===true || pm.stars===1 || pm.stars==='1';
@@ -1705,12 +1851,27 @@ function renderAdminSettings(){
     <!-- PANE 5: GAMIFICATION -->
     <div class="settings-subtab-pane ${isGam?'':'hidden'}" data-pane="gamification">
       <article class="settings-card admin-card">
-        <div class="admin-card-head"><div class="admin-card-icon"><span>🎡</span></div><div><h3>گردونه شانس و مأموریت‌ها</h3><p class="muted">شانس گردونه و جایزه‌های قابل تنظیم.</p></div></div>
-        <div class="form-grid settings-form">
-          <label><span>هر چند دعوت = ۱ شانس</span><input id="as_spin_every" value="${esc(s.spin_referrals_per_chance||5)}" inputmode="numeric"></label>
-          <label class="full"><span>جایزه‌های گردونه</span><textarea id="as_spin_rewards" placeholder="هر خط: عنوان|مبلغ|وزن|اعلان ادمین">${esc(s.spin_rewards_text||'')}</textarea></label>
+        <div class="spin-rewards-header-row">
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div class="admin-card-icon"><span>🎡</span></div>
+            <div>
+              <h3 style="font-size:16px;font-weight:800;margin:0;">مدیریت جوایز گردونه شانس (${miniappSpinRewards.length})</h3>
+              <p class="muted" style="margin-top:2px;font-size:12px;">تعریف جوایز، شانس احتمال و اعلان ادمین</p>
+            </div>
+          </div>
+          <button type="button" class="primary" id="btnAddSpinReward" style="background:linear-gradient(135deg,#00f2fe,#1d9bf0);color:#000;font-size:12px;padding:8px 14px;border-radius:12px;font-weight:900;border:0;cursor:pointer;">➕ افزودن جایزه جدید</button>
         </div>
-        <div class="hint-box">فرمت جایزه: <code>عنوان|مبلغ کیف پول|وزن احتمال|اعلان ادمین ۰/۱</code></div>
+
+        <div style="margin:14px 0 16px;">
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;">تعداد زیرمجموعه برای دریافت ۱ شانس گردونه:</label>
+          <input id="as_spin_every" value="${esc(s.spin_referrals_per_chance||5)}" inputmode="numeric" style="max-width:240px;">
+        </div>
+
+        <textarea id="as_spin_rewards" style="display:none;">${esc(serializeSpinRewards(miniappSpinRewards))}</textarea>
+
+        <div id="miniappSpinRewardsGrid" class="spin-rewards-admin-grid">
+          ${renderSpinRewardsCards(miniappSpinRewards)}
+        </div>
       </article>
 
       <article class="settings-card admin-card" style="margin-top:14px">
@@ -1991,6 +2152,11 @@ function applyTheme(data={}){
   try{tg?.setHeaderColor?.(accent);tg?.setBackgroundColor?.('#08111f');tg?.MainButton?.setParams?.({color:accent,text_color:'#ffffff'});}catch(e){}
 }
 document.addEventListener('click',async(e)=>{
+  if(e.target.closest('#btnAddSpinReward')){ openSpinRewardModal(null); return; }
+  const editSpin = e.target.closest('[data-edit-spin-reward]');
+  if(editSpin){ openSpinRewardModal(Number(editSpin.dataset.editSpinReward)); return; }
+  const delSpin = e.target.closest('[data-del-spin-reward]');
+  if(delSpin){ deleteSpinReward(Number(delSpin.dataset.delSpinReward)); return; }
   const cartBtn = e.target.closest('#cartFab, .cart-fab');
   if(cartBtn){
     if(typeof haptic === 'function') haptic('light');
