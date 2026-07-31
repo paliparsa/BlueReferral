@@ -4085,8 +4085,15 @@ body .card-v2-submit-btn:active {
 }
 
 /* ===== Ultra-Premium Auth Modal Design (Matching Mockup Screenshot) ===== */
-.auth-modal,
-.dialog-card.auth-modal {
+.auth-modal:not([open]):not(.open),
+.dialog-card.auth-modal:not([open]):not(.open) {
+  display: none !important;
+}
+
+.auth-modal[open],
+.dialog-card.auth-modal[open],
+.auth-modal.open,
+.dialog-card.auth-modal.open {
   position: fixed !important;
   inset: 0 !important;
   background: rgba(0, 0, 0, 0.75) !important;

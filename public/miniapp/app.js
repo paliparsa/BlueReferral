@@ -2914,20 +2914,20 @@ function openAuthModal(tab = 'login') {
   const modal = $('authModal');
   if (!modal) return;
   switchAuthTab(tab);
+  modal.classList.add('open');
+  modal.setAttribute('open', '');
   if (typeof modal.showModal === 'function') {
-    try { modal.showModal(); } catch (e) { modal.classList.add('open'); }
-  } else {
-    modal.classList.add('open');
+    try { modal.showModal(); } catch (e) {}
   }
 }
 
 function closeAuthModal() {
   const modal = $('authModal');
   if (!modal) return;
+  modal.classList.remove('open');
+  modal.removeAttribute('open');
   if (typeof modal.close === 'function') {
-    try { modal.close(); } catch (e) { modal.classList.remove('open'); }
-  } else {
-    modal.classList.remove('open');
+    try { modal.close(); } catch (e) {}
   }
 }
 
