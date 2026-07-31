@@ -2897,20 +2897,16 @@ document.addEventListener('click',e=>{
 function updateAuthUI(st) {
   const btn = $('openAuthModalBtn');
   if (!btn) return;
-  const isGuest = st?.is_guest || st?.user?.is_guest;
+  const isGuest = Boolean(st?.is_guest || st?.user?.is_guest || !st?.user);
   if (isGuest) {
     btn.innerHTML = '🔑 ورود / ثبت‌نام';
-    btn.onclick = () => openAuthModal();
+    btn.title = 'ورود / ثبت‌نام';
+    btn._isGuest = true;
   } else {
     const name = st?.user?.first_name || st?.user?.username || 'حساب من';
     btn.innerHTML = `👤 ${esc(name)} (خروج)`;
-    btn.onclick = async () => {
-      if (confirm('آیا می‌خواهید از حساب کاربری خارج شوید؟')) {
-        try { await api('logout'); } catch(e) {}
-        localStorage.removeItem('web_token');
-        location.reload();
-      }
-    };
+    btn.title = 'خروج از حساب';
+    btn._isGuest = false;
   }
 }
 
@@ -2932,16 +2928,6 @@ function closeAuthModal() {
     try { modal.close(); } catch (e) { modal.classList.remove('open'); }
   } else {
     modal.classList.remove('open');
-  }
-}
-
-function updateAuthUI(data) {
-  const btn = $('openAuthModalBtn');
-  if (!btn) return;
-  if (data?.user && !data?.is_guest && !data?.user?.is_guest) {
-    btn.textContent = `👤 ${data.user.first_name || data.user.username || 'حساب کاربری'}`;
-  } else {
-    btn.textContent = '🔑 ورود / ثبت‌نام';
   }
 }
 
@@ -2996,7 +2982,18 @@ let _authHandlersInited = false;
 function initAuthHandlers() {
   if (_authHandlersInited) return;
   _authHandlersInited = true;
-  $('openAuthModalBtn')?.addEventListener('click', () => openAuthModal());
+  $('openAuthModalBtn')?.addEventListener('click', async () => {
+    const btn = $('openAuthModalBtn');
+    if (btn._isGuest === false) {
+      if (confirm('آیا می‌خواهید از حساب کاربری خود خارج شوید؟')) {
+        try { await api('logout'); } catch(e) {}
+        localStorage.removeItem('web_token');
+        location.reload();
+      }
+    } else {
+      openAuthModal();
+    }
+  });
   $('closeAuthModal')?.addEventListener('click', () => closeAuthModal());
 
   document.querySelectorAll('.auth-tab').forEach(btn => {
