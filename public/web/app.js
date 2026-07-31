@@ -4437,101 +4437,80 @@
     const botName = String(state.bot_username || 'BlueGateBot').replace(/^@/, '').trim();
 
     modalContainer.innerHTML = `
-      <div class="modal-card auth-modal">
-        <!-- Header -->
-        <div class="auth-header">
-          <button type="button" class="close-drawer-btn" id="close-modal-btn" aria-label="بستن">✕</button>
-          <h3 id="authTitle">ورود</h3>
+      <div class="modal-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:900;">🔑 ورود / ثبت‌نام در BlueGate</h3>
+          <button class="close-drawer-btn" id="close-modal-btn">✕</button>
         </div>
 
-        <!-- Segment Tabs -->
-        <div class="auth-tabs">
-          <button type="button" id="tab-login-btn" class="auth-tab active" data-auth-tab="login">Login</button>
-          <button type="button" id="tab-register-btn" class="auth-tab" data-auth-tab="register">Sign Up</button>
-          <button type="button" id="tab-telegram-btn" class="auth-tab" data-auth-tab="telegram">Telegram</button>
+        <div style="display:flex; gap:6px; margin-bottom:20px; background:rgba(255,255,255,0.04); padding:4px; border-radius:14px;">
+          <button id="tab-login-btn" class="nav-link active" style="flex:1; justify-content:center; font-size:12px; padding:6px 4px;">ورود</button>
+          <button id="tab-register-btn" class="nav-link" style="flex:1; justify-content:center; font-size:12px; padding:6px 4px;">ثبت‌نام</button>
+          <button id="tab-telegram-btn" class="nav-link" style="flex:1; justify-content:center; font-size:12px; padding:6px 4px; color:var(--cyan);">✈️ تلگرام</button>
         </div>
 
         <!-- Login Form -->
-        <form id="login-form" class="auth-form">
-          <div class="field-with-icon">
-            <label for="login-username">نام ایمیل</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">✉️</span>
-              <input type="text" id="login-username" placeholder="your.email@example.com" required autocomplete="username" />
-            </div>
+        <form id="login-form">
+          <div style="margin-bottom:14px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">نام کاربری یا ایمیل</label>
+            <input type="text" id="login-username" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <div class="field-with-icon">
-            <label for="login-password">رمز عبور</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">🔒</span>
-              <input type="password" id="login-password" placeholder="******" required autocomplete="current-password" />
+          <div style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label style="font-size:13px; color:var(--text-muted);">رمز عبور</label>
+              <a id="btn-show-forgot-pass" style="font-size:12px; color:var(--cyan); text-decoration:none; cursor:pointer;">فراموشی رمز عبور؟</a>
             </div>
+            <input type="password" id="login-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <a id="btn-show-forgot-pass" class="auth-forgot-link">فراموشی رمز عبور؟</a>
-          <button type="submit" class="auth-submit-btn">ورود به حساب</button>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">ورود به حساب</button>
+        </form>
+
+        <!-- Forgot Password Form (Initial Step) -->
+        <form id="forgot-pass-form" class="hidden">
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">ایمیل یا نام کاربری حساب خود را وارد کنید تا کد ۶ رقمی بازیابی ارسال شود:</p>
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">ایمیل یا نام کاربری</label>
+            <input type="text" id="forgot-email-input" required placeholder="example@mail.com" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none;">
+          </div>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center; background:var(--cyan); color:#000;">📧 ارسال کد بازیابی به ایمیل</button>
+          <button type="button" id="btn-back-to-login" class="nav-link" style="width:100%; justify-content:center; margin-top:10px;">بازگشت به فرم ورود</button>
         </form>
 
         <!-- Register Form -->
-        <form id="register-form" class="auth-form hidden">
-          <div class="field-with-icon">
-            <label for="reg-username">نام کاربری (انگلیسی)</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">👤</span>
-              <input type="text" id="reg-username" placeholder="مثلاً: john_doe" required autocomplete="username" />
-            </div>
+        <form id="register-form" class="hidden">
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">نام کاربری (انگلیسی)</label>
+            <input type="text" id="reg-username" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <div class="field-with-icon">
-            <label for="reg-email">ایمیل (جهت ورود و بازیابی)</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">✉️</span>
-              <input type="email" id="reg-email" placeholder="مثلاً: user@example.com" autocomplete="email" />
-            </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">رمز عبور</label>
+            <input type="password" id="reg-password" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <div class="field-with-icon">
-            <label for="reg-firstname">نام شما</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">🪪</span>
-              <input type="text" id="reg-firstname" placeholder="مثلاً: علی" />
-            </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">ایمیل (جهت ارسال کد OTP)</label>
+            <input type="email" id="reg-email" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <div class="field-with-icon">
-            <label for="reg-password">رمز عبور (حداقل ۶ کاراکتر)</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">🔒</span>
-              <input type="password" id="reg-password" placeholder="******" required autocomplete="new-password" />
-            </div>
+          <div style="margin-bottom:18px;">
+            <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:4px;">نام یا نام خانوادگی</label>
+            <input type="text" id="reg-firstname" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:10px; border-radius:12px; font-family:inherit; outline:none;">
           </div>
-          <div class="field-with-icon">
-            <label for="reg-refcode">کد معرف (اختیاری)</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">&lt;/&gt;</span>
-              <input type="text" id="reg-refcode" placeholder="کد معرف" />
-            </div>
-          </div>
-          <button type="submit" class="auth-submit-btn">ایجاد حساب کاربری</button>
-        </form>
-
-        <!-- Forgot Password Form -->
-        <form id="forgot-pass-form" class="auth-form hidden text-center">
-          <div class="field-with-icon" style="margin-bottom: 8px;">
-            <label for="forgot-email-input">آدرس ایمیل</label>
-            <div class="input-icon-wrapper">
-              <span class="input-left-icon">✉️</span>
-              <input type="text" id="forgot-email-input" placeholder="your.email@example.com" required />
-            </div>
-          </div>
-          <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin: 6px 0 14px; text-align: center;">We'll send you a recovery link.</p>
-          <button type="submit" class="auth-submit-btn">ارسال لینک بازیابی</button>
-          <button type="button" id="btn-back-to-login" class="auth-back-link" style="margin-top: 12px; background: none; border: none; color: #38bdf8; font-weight: 700; cursor: pointer;">بازگشت به ورود</button>
+          <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">ثبت‌نام حساب جدید</button>
         </form>
 
         <!-- Telegram Auth Container -->
-        <div id="telegram-form" class="auth-form hidden text-center" style="padding:10px 0;">
-          <p style="color:rgba(255,255,255,0.7); font-size:13px; margin-bottom:14px;">جهت ورود سریع با تلگرام، کلیک کنید:</p>
+        <div id="telegram-form" class="hidden" style="text-align:center; padding:16px 0;">
+          <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">جهت ورود با تلگرام، روی دکمه رسمی زیر کلیک کنید:</p>
           <div id="telegram-widget-wrapper" style="display:flex; justify-content:center; min-height:48px; margin-bottom:16px;"></div>
-          <a id="tg-direct-bot-link" href="https://t.me/${botName}" target="_blank" class="auth-submit-btn" style="display:block; text-decoration:none; font-size:13px; text-align:center;">
-            ✈️ ورود مستقیم از طریق ربات تلگرام
-          </a>
+          
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:14px; padding:14px; text-align:right;">
+            <small style="color:var(--text-muted); font-size:12px; display:block; margin-bottom:8px;">⚠️ پیام «Bot domain invalid» دریافت می‌کنید؟</small>
+            <p style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">
+              مطمئن شوید در @BotFather با دستور <code>/setdomain</code> دامنه دقیق سایت را (بدون https://) برای ربات ثبت کرده‌اید.
+            </p>
+            <a id="tg-direct-bot-link" href="https://t.me/${botName}" target="_blank" class="user-account-btn" style="width:100%; justify-content:center; text-decoration:none; font-size:12px;">
+              ✈️ ورود مستقیم از طریق ربات تلگرام
+            </a>
+          </div>
         </div>
       </div>
     `;
@@ -4549,42 +4528,37 @@
     const loginForm = $('login-form');
     const regForm = $('register-form');
     const tgForm = $('telegram-form');
-    const forgotForm = $('forgot-pass-form');
-    const authTitle = $('authTitle');
 
     loginTab?.addEventListener('click', () => {
       loginTab.classList.add('active');
       regTab.classList.remove('active');
       tgTab?.classList.remove('active');
-      loginForm?.classList.remove('hidden');
-      regForm?.classList.add('hidden');
-      tgForm?.classList.add('hidden');
-      forgotForm?.classList.add('hidden');
-      if (authTitle) authTitle.textContent = 'ورود';
+      loginForm.classList.remove('hidden');
+      regForm.classList.add('hidden');
+      tgForm.classList.add('hidden');
     });
 
     regTab?.addEventListener('click', () => {
       regTab.classList.add('active');
       loginTab.classList.remove('active');
       tgTab?.classList.remove('active');
-      regForm?.classList.remove('hidden');
-      loginForm?.classList.add('hidden');
-      tgForm?.classList.add('hidden');
-      forgotForm?.classList.add('hidden');
-      if (authTitle) authTitle.textContent = 'ثبت نام';
+      regForm.classList.remove('hidden');
+      loginForm.classList.add('hidden');
+      tgForm.classList.add('hidden');
     });
 
     tgTab?.addEventListener('click', () => {
       tgTab.classList.add('active');
       loginTab.classList.remove('active');
       regTab.classList.remove('active');
-      tgForm?.classList.remove('hidden');
-      loginForm?.classList.add('hidden');
-      regForm?.classList.add('hidden');
-      forgotForm?.classList.add('hidden');
-      if (authTitle) authTitle.textContent = 'ورود با تلگرام';
+      tgForm.classList.remove('hidden');
+      loginForm.classList.add('hidden');
+      regForm.classList.add('hidden');
 
+      // Get fresh bot name from state (already populated by initApp)
       const freshBotName = String(state.bot_username || botName || '').replace(/^@/, '').trim();
+      console.log('[BlueGate] Telegram widget bot:', freshBotName, '| domain:', window.location.hostname);
+
       const wrapper = $('telegram-widget-wrapper');
       if (wrapper && !wrapper.hasChildNodes() && freshBotName) {
         const script = document.createElement('script');
@@ -4595,7 +4569,10 @@
         script.setAttribute('data-onauth', 'onTelegramAuth(user)');
         script.setAttribute('data-request-access', 'write');
         script.async = true;
+        script.onerror = () => console.error('[BlueGate] Telegram widget script failed to load');
         wrapper.appendChild(script);
+      } else if (!freshBotName) {
+        if (wrapper) wrapper.innerHTML = '<p style="color:#f87171;font-size:12px;">نام ربات تنظیم نشده. لطفاً با پشتیبانی تماس بگیرید.</p>';
       }
     });
 
@@ -4604,43 +4581,25 @@
     function showOtpForm(userId, message) {
       pendingUserId = userId;
       modalContainer.innerHTML = `
-        <div class="modal-card auth-modal">
-          <div class="auth-header">
-            <button type="button" class="close-drawer-btn" id="close-modal-btn" aria-label="بستن">✕</button>
-            <h3>تأیید ایمیل</h3>
+        <div class="modal-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:14px;">
+            <h3 style="font-size:18px; font-weight:900;">✉️ تایید ایمیل</h3>
+            <button class="close-drawer-btn" id="close-modal-btn">✕</button>
           </div>
-          <p style="font-size: 13px; color: rgba(255,255,255,0.7); margin: 0 0 14px 0; text-align: center;">${esc(message)}</p>
+          <p style="color:var(--text-muted); font-size:14px; margin-bottom:20px; text-align:center;">${esc(message)}</p>
           <form id="otp-form">
-            <div class="otp-digit-row">
-              <input type="text" maxlength="1" class="otp-box" data-otp-widx="0" inputmode="numeric" />
-              <input type="text" maxlength="1" class="otp-box" data-otp-widx="1" inputmode="numeric" />
-              <input type="text" maxlength="1" class="otp-box" data-otp-widx="2" inputmode="numeric" />
-              <input type="text" maxlength="1" class="otp-box" data-otp-widx="3" inputmode="numeric" />
-              <input type="text" maxlength="1" class="otp-box" data-otp-widx="4" inputmode="numeric" />
-              <input type="text" maxlength="1" class="otp-box" data-otp-widx="5" inputmode="numeric" />
-              <input type="hidden" id="otp-code" />
+            <div style="margin-bottom:20px;">
+              <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">کد تایید ۶ رقمی</label>
+              <input type="text" id="otp-code" required style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; padding:12px; border-radius:12px; font-family:inherit; outline:none; text-align:center; font-size:24px; letter-spacing:4px;">
             </div>
-            <button type="submit" class="auth-submit-btn">تأیید و ورود</button>
+            <button type="submit" class="user-account-btn" style="width:100%; justify-content:center;">تایید کد</button>
           </form>
         </div>
       `;
       $('close-modal-btn')?.addEventListener('click', closeModal);
-
-      const otpBoxes = document.querySelectorAll('.otp-box');
-      otpBoxes.forEach((box, idx) => {
-        box.addEventListener('input', (e) => {
-          if (e.target.value && idx < otpBoxes.length - 1) otpBoxes[idx + 1].focus();
-          const code = Array.from(otpBoxes).map(b => b.value).join('');
-          if ($('otp-code')) $('otp-code').value = code;
-        });
-        box.addEventListener('keydown', (e) => {
-          if (e.key === 'Backspace' && !box.value && idx > 0) otpBoxes[idx - 1].focus();
-        });
-      });
-
       $('otp-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const otp = $('otp-code')?.value.trim();
+        const otp = $('otp-code').value.trim();
         const res = await api('verify_email_otp', {}, 'POST', { user_id: pendingUserId, otp });
         if (res && res.ok) {
           if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
@@ -4661,64 +4620,16 @@
       regForm?.classList.add('hidden');
       tgForm?.classList.add('hidden');
       forgotForm?.classList.remove('hidden');
-      if (authTitle) authTitle.textContent = 'بازیابی رمز عبور';
     });
 
     $('btn-back-to-login')?.addEventListener('click', () => {
       forgotForm?.classList.add('hidden');
       loginForm?.classList.remove('hidden');
-      if (authTitle) authTitle.textContent = 'ورود';
-    });
-
-    loginForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const username = $('login-username')?.value.trim();
-      const password = $('login-password')?.value;
-      if (!username || !password) return showToast('لطفاً همه فیلدها را پر کنید.', 'error');
-      showToast('در حال بررسی...', 'info');
-      const res = await api('login', {}, 'POST', { username, password });
-      if (res && (res.ok || res.auth_token)) {
-        if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
-        state.user = res.user || res;
-        showToast('ورود با موفقیت انجام شد! 🎉', 'success');
-        closeModal();
-        initApp();
-      } else if (res && (res.requires_email_verification || res.error === 'EMAIL_VERIFICATION_REQUIRED')) {
-        showOtpForm(res.user_id, res.message || 'کد تایید به ایمیل شما ارسال شد');
-      } else {
-        showToast(res ? (res.message || res.error) : 'نام کاربری یا رمز عبور اشتباه است.', 'error');
-      }
-    });
-
-    regForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const username = $('reg-username')?.value.trim();
-      const email = $('reg-email')?.value.trim();
-      const first_name = $('reg-firstname')?.value.trim();
-      const password = $('reg-password')?.value;
-      const ref_code = $('reg-refcode')?.value.trim();
-
-      if (!username || !password) return showToast('نام کاربری و رمز عبور الزامی است.', 'error');
-      showToast('در حال ثبت‌نام...', 'info');
-      const res = await api('register', {}, 'POST', { username, email, first_name, password, ref_code });
-      if (res && (res.ok || res.auth_token || res.requires_email_verification)) {
-        if (res.requires_email_verification) {
-          showOtpForm(res.user_id, res.message || 'کد تایید به ایمیل شما ارسال شد');
-        } else {
-          if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
-          state.user = res.user || res;
-          showToast('ثبت‌نام با موفقیت انجام شد! 🎉', 'success');
-          closeModal();
-          initApp();
-        }
-      } else {
-        showToast(res ? (res.message || res.error) : 'خطا در ثبت‌نام.', 'error');
-      }
     });
 
     forgotForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = $('forgot-email-input')?.value.trim();
+      const email = $('forgot-email-input').value.trim();
       showToast('در حال ارسال کد بازیابی...', 'info');
       const res = await api('forgot_password_request', {}, 'POST', { email });
       if (res && res.ok) {
