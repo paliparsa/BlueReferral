@@ -4661,16 +4661,64 @@
       regForm?.classList.add('hidden');
       tgForm?.classList.add('hidden');
       forgotForm?.classList.remove('hidden');
+      if (authTitle) authTitle.textContent = 'بازیابی رمز عبور';
     });
 
     $('btn-back-to-login')?.addEventListener('click', () => {
       forgotForm?.classList.add('hidden');
       loginForm?.classList.remove('hidden');
+      if (authTitle) authTitle.textContent = 'ورود';
+    });
+
+    loginForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = $('login-username')?.value.trim();
+      const password = $('login-password')?.value;
+      if (!username || !password) return showToast('لطفاً همه فیلدها را پر کنید.', 'error');
+      showToast('در حال بررسی...', 'info');
+      const res = await api('login', {}, 'POST', { username, password });
+      if (res && (res.ok || res.auth_token)) {
+        if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+        state.user = res.user || res;
+        showToast('ورود با موفقیت انجام شد! 🎉', 'success');
+        closeModal();
+        initApp();
+      } else if (res && (res.requires_email_verification || res.error === 'EMAIL_VERIFICATION_REQUIRED')) {
+        showOtpForm(res.user_id, res.message || 'کد تایید به ایمیل شما ارسال شد');
+      } else {
+        showToast(res ? (res.message || res.error) : 'نام کاربری یا رمز عبور اشتباه است.', 'error');
+      }
+    });
+
+    regForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = $('reg-username')?.value.trim();
+      const email = $('reg-email')?.value.trim();
+      const first_name = $('reg-firstname')?.value.trim();
+      const password = $('reg-password')?.value;
+      const ref_code = $('reg-refcode')?.value.trim();
+
+      if (!username || !password) return showToast('نام کاربری و رمز عبور الزامی است.', 'error');
+      showToast('در حال ثبت‌نام...', 'info');
+      const res = await api('register', {}, 'POST', { username, email, first_name, password, ref_code });
+      if (res && (res.ok || res.auth_token || res.requires_email_verification)) {
+        if (res.requires_email_verification) {
+          showOtpForm(res.user_id, res.message || 'کد تایید به ایمیل شما ارسال شد');
+        } else {
+          if (res.auth_token) localStorage.setItem('bg_web_token', res.auth_token);
+          state.user = res.user || res;
+          showToast('ثبت‌نام با موفقیت انجام شد! 🎉', 'success');
+          closeModal();
+          initApp();
+        }
+      } else {
+        showToast(res ? (res.message || res.error) : 'خطا در ثبت‌نام.', 'error');
+      }
     });
 
     forgotForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = $('forgot-email-input').value.trim();
+      const email = $('forgot-email-input')?.value.trim();
       showToast('در حال ارسال کد بازیابی...', 'info');
       const res = await api('forgot_password_request', {}, 'POST', { email });
       if (res && res.ok) {
