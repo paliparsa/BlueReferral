@@ -2914,46 +2914,33 @@ function openAuthModal(tab = 'login') {
   const modal = $('authModal');
   if (!modal) return;
   switchAuthTab(tab);
-  modal.classList.add('open');
-  modal.setAttribute('open', '');
   if (typeof modal.showModal === 'function') {
-    try { modal.showModal(); } catch (e) {}
+    try { modal.showModal(); } catch (e) { modal.classList.add('open'); }
+  } else {
+    modal.classList.add('open');
   }
 }
 
 function closeAuthModal() {
   const modal = $('authModal');
   if (!modal) return;
-  modal.classList.remove('open');
-  modal.removeAttribute('open');
   if (typeof modal.close === 'function') {
-    try { modal.close(); } catch (e) {}
+    try { modal.close(); } catch (e) { modal.classList.remove('open'); }
+  } else {
+    modal.classList.remove('open');
   }
 }
 
 function switchAuthTab(tabName) {
   document.querySelector('.auth-tabs')?.classList.remove('hidden');
   $('otpVerificationForm')?.classList.add('hidden');
-  $('forgotPassForm')?.classList.add('hidden');
-
   document.querySelectorAll('.auth-tab').forEach(b => {
     b.classList.toggle('active', b.dataset.authTab === tabName);
   });
-
-  const titleEl = $('authTitle');
-  if (titleEl) {
-    if (tabName === 'login') titleEl.textContent = 'ورود';
-    else if (tabName === 'register') titleEl.textContent = 'ثبت نام';
-    else if (tabName === 'telegram') titleEl.textContent = 'ورود با تلگرام';
-    else if (tabName === 'forgot') titleEl.textContent = 'بازیابی رمز عبور';
-    else if (tabName === 'otp') titleEl.textContent = 'تأیید ایمیل';
-  }
-
   $('loginForm')?.classList.toggle('hidden', tabName !== 'login');
   $('registerForm')?.classList.toggle('hidden', tabName !== 'register');
   $('telegramTab')?.classList.toggle('hidden', tabName !== 'telegram');
-  $('forgotPassForm')?.classList.toggle('hidden', tabName !== 'forgot');
-
+  
   if (tabName === 'telegram') {
     renderTelegramWidget();
   }
@@ -3013,69 +3000,18 @@ function initAuthHandlers() {
     btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
   });
 
-  // OTP 6-digit box auto-tabbing
-  const otpBoxes = document.querySelectorAll('.otp-box');
-  otpBoxes.forEach((box, idx) => {
-    box.addEventListener('input', (e) => {
-      if (e.target.value && idx < otpBoxes.length - 1) {
-        otpBoxes[idx + 1].focus();
-      }
-      const code = Array.from(otpBoxes).map(b => b.value).join('');
-      if ($('otpCodeInput')) $('otpCodeInput').value = code;
-    });
-    box.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && !box.value && idx > 0) {
-        otpBoxes[idx - 1].focus();
-      }
-    });
-  });
-
-  // Forgot password screen handlers
-  $('openForgotPassBtn')?.addEventListener('click', () => {
-    switchAuthTab('forgot');
-    document.querySelector('.auth-tabs')?.classList.add('hidden');
-  });
-
-  $('backToLoginFromForgot')?.addEventListener('click', () => {
-    switchAuthTab('login');
-  });
-
-  $('forgotPassForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = $('forgotEmailInput')?.value;
-    const errEl = $('forgotError');
-    if (errEl) errEl.classList.add('hidden');
-    if (!email) return;
-
-    try {
-      await api('forgot_password', { email });
-      showStatus('لینک بازیابی رمز عبور به ایمیل شما ارسال شد 📩');
-      switchAuthTab('login');
-    } catch (err) {
-      if (errEl) {
-        errEl.textContent = err.message || 'خطا در بازیابی رمز عبور';
-        errEl.classList.remove('hidden');
-      }
-    }
-  });
-
   let pendingVerifUserId = null;
 
   function showOtpVerificationScreen(userId, email, message) {
     pendingVerifUserId = userId;
     openAuthModal('login');
-    const titleEl = $('authTitle');
-    if (titleEl) titleEl.textContent = 'تأیید ایمیل';
     document.querySelector('.auth-tabs')?.classList.add('hidden');
     $('loginForm')?.classList.add('hidden');
     $('registerForm')?.classList.add('hidden');
     $('telegramTab')?.classList.add('hidden');
-    $('forgotPassForm')?.classList.add('hidden');
     
     if ($('otpEmailTarget')) $('otpEmailTarget').textContent = email || '';
-    if ($('otpCodeInput')) { $('otpCodeInput').value = ''; }
-    otpBoxes.forEach(b => b.value = '');
-    setTimeout(() => otpBoxes[0]?.focus(), 100);
+    if ($('otpCodeInput')) { $('otpCodeInput').value = ''; setTimeout(() => $('otpCodeInput').focus(), 100); }
     if ($('otpError')) $('otpError').classList.add('hidden');
     
     $('otpVerificationForm')?.classList.remove('hidden');
@@ -3084,20 +3020,15 @@ function initAuthHandlers() {
 
   $('loginForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = $('loginUsername')?.value?.trim();
-    const password = $('loginPassword')?.value;
+    const username = $('loginUsername').value;
+    const password = $('loginPassword').value;
     const errEl = $('loginError');
     if (errEl) errEl.classList.add('hidden');
 
-    if (!username || !password) {
-      if (errEl) { errEl.textContent = 'لطفاً نام کاربری و رمز عبور را وارد کنید'; errEl.classList.remove('hidden'); }
-      return;
-    }
-
     try {
       const res = await api('login', { username, password });
-      if (res && (res.auth_token || res.ok)) {
-        if (res.auth_token) localStorage.setItem('web_token', res.auth_token);
+      if (res.auth_token) {
+        localStorage.setItem('web_token', res.auth_token);
         showStatus('ورود موفقیت‌آمیز بود!');
         closeAuthModal();
         location.reload();
@@ -3108,7 +3039,7 @@ function initAuthHandlers() {
         return;
       }
       if (errEl) {
-        errEl.textContent = err.message || err.error || 'خطا در ورود';
+        errEl.textContent = err.message || 'خطا در ورود';
         errEl.classList.remove('hidden');
       }
     }
@@ -3116,18 +3047,13 @@ function initAuthHandlers() {
 
   $('registerForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = $('regUsername')?.value?.trim();
-    const email = $('regEmail')?.value?.trim() || '';
-    const first_name = $('regFirstName')?.value?.trim() || '';
-    const password = $('regPassword')?.value;
-    const ref_code = $('regRefCode')?.value?.trim() || '';
+    const username = $('regUsername').value;
+    const email = $('regEmail')?.value || '';
+    const first_name = $('regFirstName').value;
+    const password = $('regPassword').value;
+    const ref_code = $('regRefCode').value;
     const errEl = $('regError');
     if (errEl) errEl.classList.add('hidden');
-
-    if (!username || !password) {
-      if (errEl) { errEl.textContent = 'لطفاً نام کاربری و رمز عبور را وارد کنید'; errEl.classList.remove('hidden'); }
-      return;
-    }
 
     try {
       const res = await api('register', { username, email, first_name, password, ref_code });
@@ -3135,15 +3061,15 @@ function initAuthHandlers() {
         showOtpVerificationScreen(res.user_id, res.email, res.message);
         return;
       }
-      if (res && (res.auth_token || res.ok)) {
-        if (res.auth_token) localStorage.setItem('web_token', res.auth_token);
+      if (res.auth_token) {
+        localStorage.setItem('web_token', res.auth_token);
         showStatus('حساب کاربری با موفقیت ساخته شد 🎉');
         closeAuthModal();
         location.reload();
       }
     } catch (err) {
       if (errEl) {
-        errEl.textContent = err.message || err.error || 'خطا در ثبت‌نام';
+        errEl.textContent = err.message || 'خطا در ثبت‌نام';
         errEl.classList.remove('hidden');
       }
     }

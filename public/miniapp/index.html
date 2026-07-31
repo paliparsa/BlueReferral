@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Vazirmatn:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Cache Buster Version: v110-fully-functional-auth -->
-  <link rel="stylesheet" href="style.css?v=v110-fully-functional-auth">
+  <!-- Cache Buster Version: v107-fix-profile-topbar-btn -->
+  <link rel="stylesheet" href="style.css?v=v107-fix-profile-topbar-btn">
 </head>
 <body>
   <div id="status" class="toast hidden" role="status" aria-live="polite"></div>
@@ -113,126 +113,76 @@
     </form>
   </dialog>
 
-  <dialog id="authModal" class="dialog-card auth-modal">
+  <dialog id="authModal" class="dialog-card auth-modal bottom-sheet">
     <div class="auth-modal-content">
-      <!-- Header -->
       <div class="auth-header">
+        <h3 id="authTitle">ورود / ثبت‌نام</h3>
         <button type="button" class="close-btn" id="closeAuthModal" aria-label="بستن">✕</button>
-        <h3 id="authTitle">ورود</h3>
       </div>
 
-      <!-- Segment Tabs -->
       <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-auth-tab="login">Login</button>
-        <button type="button" class="auth-tab" data-auth-tab="register">Sign Up</button>
-        <button type="button" class="auth-tab" data-auth-tab="telegram">Telegram</button>
+        <button type="button" class="auth-tab active" data-auth-tab="login">ورود</button>
+        <button type="button" class="auth-tab" data-auth-tab="register">ثبت‌نام</button>
+        <button type="button" class="auth-tab" data-auth-tab="telegram">تلگرام ⚡</button>
       </div>
 
-      <!-- Login Form -->
       <form id="loginForm" class="auth-form">
-        <div class="field-with-icon">
-          <label for="loginUsername">نام ایمیل</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">✉️</span>
-            <input type="text" id="loginUsername" placeholder="your.email@example.com" required autocomplete="username" />
-          </div>
+        <div class="field">
+          <label for="loginUsername">ایمیل یا نام کاربری</label>
+          <input type="text" id="loginUsername" placeholder="مثلاً: user@example.com یا john_doe" required autocomplete="username" />
         </div>
-        <div class="field-with-icon">
+        <div class="field">
           <label for="loginPassword">رمز عبور</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">🔒</span>
-            <input type="password" id="loginPassword" placeholder="******" required autocomplete="current-password" />
-          </div>
+          <input type="password" id="loginPassword" placeholder="******" required autocomplete="current-password" />
         </div>
-        <a id="openForgotPassBtn" class="auth-forgot-link">فراموشی رمز عبور؟</a>
         <div id="loginError" class="auth-error hidden"></div>
-        <button type="submit" class="auth-submit-btn">ورود به حساب</button>
+        <button type="submit" class="primary block-btn">ورود به حساب</button>
       </form>
 
-      <!-- Register Form -->
       <form id="registerForm" class="auth-form hidden">
-        <div class="field-with-icon">
+        <div class="field">
           <label for="regUsername">نام کاربری (انگلیسی)</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">👤</span>
-            <input type="text" id="regUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
-          </div>
+          <input type="text" id="regUsername" placeholder="مثلاً: john_doe" required autocomplete="username" />
         </div>
-        <div class="field-with-icon">
+        <div class="field">
           <label for="regEmail">ایمیل (جهت ورود و بازیابی)</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">✉️</span>
-            <input type="email" id="regEmail" placeholder="مثلاً: user@example.com" autocomplete="email" />
-          </div>
+          <input type="email" id="regEmail" placeholder="مثلاً: user@example.com" autocomplete="email" />
         </div>
-        <div class="field-with-icon">
+        <div class="field">
           <label for="regFirstName">نام شما</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">🪪</span>
-            <input type="text" id="regFirstName" placeholder="مثلاً: علی" />
-          </div>
+          <input type="text" id="regFirstName" placeholder="مثلاً: علی" />
         </div>
-        <div class="field-with-icon">
+        <div class="field">
           <label for="regPassword">رمز عبور (حداقل ۶ کاراکتر)</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">🔒</span>
-            <input type="password" id="regPassword" placeholder="******" required autocomplete="new-password" />
-          </div>
+          <input type="password" id="regPassword" placeholder="******" required autocomplete="new-password" />
         </div>
-        <div class="field-with-icon">
+        <div class="field">
           <label for="regRefCode">کد معرف (اختیاری)</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">&lt;/&gt;</span>
-            <input type="text" id="regRefCode" placeholder="کد معرف" />
-          </div>
+          <input type="text" id="regRefCode" placeholder="کد معرف" />
         </div>
         <div id="regError" class="auth-error hidden"></div>
-        <button type="submit" class="auth-submit-btn">ایجاد حساب کاربری</button>
+        <button type="submit" class="primary block-btn">ایجاد حساب کاربری</button>
       </form>
 
-      <!-- Forgot Password Form -->
-      <form id="forgotPassForm" class="auth-form hidden text-center">
-        <div class="field-with-icon" style="margin-bottom: 8px;">
-          <label for="forgotEmailInput">آدرس ایمیل</label>
-          <div class="input-icon-wrapper">
-            <span class="input-left-icon">✉️</span>
-            <input type="text" id="forgotEmailInput" placeholder="your.email@example.com" required />
-          </div>
-        </div>
-        <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin: 6px 0 14px; text-align: center;">We'll send you a recovery link.</p>
-        <div id="forgotError" class="auth-error hidden"></div>
-        <button type="submit" class="auth-submit-btn">ارسال لینک بازیابی</button>
-        <button type="button" id="backToLoginFromForgot" class="auth-back-link" style="margin-top: 12px; background: none; border: none; color: #38bdf8; font-weight: 700; cursor: pointer;">بازگشت به ورود</button>
-      </form>
-
-      <!-- Telegram Tab -->
       <div id="telegramTab" class="auth-form hidden text-center">
         <p class="muted" style="margin-bottom: 12px; font-size: 13px;">ورود سریع بدون نیاز به رمز عبور با اکانت تلگرام:</p>
         <div id="tgWidgetContainer"></div>
       </div>
 
-      <!-- OTP Email Verification Form -->
       <form id="otpVerificationForm" class="auth-form hidden text-center">
-        <p style="font-size: 13px; color: rgba(255,255,255,0.7); margin: 0 0 4px 0; text-align: center;">Enter the 6-digit code sent to your email.</p>
-        <p style="font-size: 13px; color: #fff; font-weight: 800; margin: 0 0 12px 0; text-align: center;" id="otpEmailTarget"></p>
-        
-        <div class="otp-digit-row">
-          <input type="text" maxlength="1" class="otp-box" data-otp-idx="0" inputmode="numeric" />
-          <input type="text" maxlength="1" class="otp-box" data-otp-idx="1" inputmode="numeric" />
-          <input type="text" maxlength="1" class="otp-box" data-otp-idx="2" inputmode="numeric" />
-          <input type="text" maxlength="1" class="otp-box" data-otp-idx="3" inputmode="numeric" />
-          <input type="text" maxlength="1" class="otp-box" data-otp-idx="4" inputmode="numeric" />
-          <input type="text" maxlength="1" class="otp-box" data-otp-idx="5" inputmode="numeric" />
-          <input type="hidden" id="otpCodeInput" />
+        <div style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 6px 0; font-size: 16px; color: #fff;">کد تایید ایمیل 📩</h4>
+          <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5;">
+            کد ۶ رقمی به ایمیل <strong id="otpEmailTarget" style="color: #fff;"></strong> ارسال شد.<br>
+            <span style="color: #f59e0b; font-size: 11px; display: inline-block; margin-top: 4px;">⚠️ (لطفاً پوشه اسپم / Spam ایمیل خود را نیز بررسی کنید)</span>
+          </p>
         </div>
-
-        <div class="otp-resend-row">
-          <span id="otpCountdownTimer" class="otp-timer-val">0:59</span>
-          <button type="button" id="resendOtpBtn" class="otp-resend-btn">ارسال مجدد کد</button>
+        <div class="field">
+          <input type="text" id="otpCodeInput" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 10px; font-size: 24px; font-weight: 900; text-align: center; width: 100%; box-sizing: border-box;" required />
         </div>
-
         <div id="otpError" class="auth-error hidden"></div>
-        <button type="submit" class="auth-submit-btn">تأیید و ورود</button>
+        <button type="submit" class="primary block-btn">تایید و ورود به حساب</button>
+        <button type="button" id="resendOtpBtn" class="secondary block-btn" style="margin-top: 6px; font-size: 12px;">ارسال مجدد کد تایید</button>
       </form>
     </div>
   </dialog>
@@ -252,7 +202,7 @@
       document.head.appendChild(s);
     }
   </script>
-  <script src="app.js?v=v110-fully-functional-auth"></script>
+  <script src="app.js?v=v107-fix-profile-topbar-btn"></script>
   <!-- <script src="builder.js?v=v51-add-forms"></script> -->
   <script>
     // Remove the in-page palette quick-button if present (restore original layout)
