@@ -2934,13 +2934,26 @@ function closeAuthModal() {
 function switchAuthTab(tabName) {
   document.querySelector('.auth-tabs')?.classList.remove('hidden');
   $('otpVerificationForm')?.classList.add('hidden');
+  $('forgotPassForm')?.classList.add('hidden');
+
   document.querySelectorAll('.auth-tab').forEach(b => {
     b.classList.toggle('active', b.dataset.authTab === tabName);
   });
+
+  const titleEl = $('authTitle');
+  if (titleEl) {
+    if (tabName === 'login') titleEl.textContent = 'ورود';
+    else if (tabName === 'register') titleEl.textContent = 'ثبت نام';
+    else if (tabName === 'telegram') titleEl.textContent = 'ورود با تلگرام';
+    else if (tabName === 'forgot') titleEl.textContent = 'بازیابی رمز عبور';
+    else if (tabName === 'otp') titleEl.textContent = 'تأیید ایمیل';
+  }
+
   $('loginForm')?.classList.toggle('hidden', tabName !== 'login');
   $('registerForm')?.classList.toggle('hidden', tabName !== 'register');
   $('telegramTab')?.classList.toggle('hidden', tabName !== 'telegram');
-  
+  $('forgotPassForm')?.classList.toggle('hidden', tabName !== 'forgot');
+
   if (tabName === 'telegram') {
     renderTelegramWidget();
   }
@@ -3000,18 +3013,69 @@ function initAuthHandlers() {
     btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
   });
 
+  // OTP 6-digit box auto-tabbing
+  const otpBoxes = document.querySelectorAll('.otp-box');
+  otpBoxes.forEach((box, idx) => {
+    box.addEventListener('input', (e) => {
+      if (e.target.value && idx < otpBoxes.length - 1) {
+        otpBoxes[idx + 1].focus();
+      }
+      const code = Array.from(otpBoxes).map(b => b.value).join('');
+      if ($('otpCodeInput')) $('otpCodeInput').value = code;
+    });
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !box.value && idx > 0) {
+        otpBoxes[idx - 1].focus();
+      }
+    });
+  });
+
+  // Forgot password screen handlers
+  $('openForgotPassBtn')?.addEventListener('click', () => {
+    switchAuthTab('forgot');
+    document.querySelector('.auth-tabs')?.classList.add('hidden');
+  });
+
+  $('backToLoginFromForgot')?.addEventListener('click', () => {
+    switchAuthTab('login');
+  });
+
+  $('forgotPassForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('forgotEmailInput')?.value;
+    const errEl = $('forgotError');
+    if (errEl) errEl.classList.add('hidden');
+    if (!email) return;
+
+    try {
+      await api('forgot_password', { email });
+      showStatus('لینک بازیابی رمز عبور به ایمیل شما ارسال شد 📩');
+      switchAuthTab('login');
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message || 'خطا در بازیابی رمز عبور';
+        errEl.classList.remove('hidden');
+      }
+    }
+  });
+
   let pendingVerifUserId = null;
 
   function showOtpVerificationScreen(userId, email, message) {
     pendingVerifUserId = userId;
     openAuthModal('login');
+    const titleEl = $('authTitle');
+    if (titleEl) titleEl.textContent = 'تأیید ایمیل';
     document.querySelector('.auth-tabs')?.classList.add('hidden');
     $('loginForm')?.classList.add('hidden');
     $('registerForm')?.classList.add('hidden');
     $('telegramTab')?.classList.add('hidden');
+    $('forgotPassForm')?.classList.add('hidden');
     
     if ($('otpEmailTarget')) $('otpEmailTarget').textContent = email || '';
-    if ($('otpCodeInput')) { $('otpCodeInput').value = ''; setTimeout(() => $('otpCodeInput').focus(), 100); }
+    if ($('otpCodeInput')) { $('otpCodeInput').value = ''; }
+    otpBoxes.forEach(b => b.value = '');
+    setTimeout(() => otpBoxes[0]?.focus(), 100);
     if ($('otpError')) $('otpError').classList.add('hidden');
     
     $('otpVerificationForm')?.classList.remove('hidden');
