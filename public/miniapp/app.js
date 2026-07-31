@@ -3084,15 +3084,20 @@ function initAuthHandlers() {
 
   $('loginForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = $('loginUsername').value;
-    const password = $('loginPassword').value;
+    const username = $('loginUsername')?.value?.trim();
+    const password = $('loginPassword')?.value;
     const errEl = $('loginError');
     if (errEl) errEl.classList.add('hidden');
 
+    if (!username || !password) {
+      if (errEl) { errEl.textContent = 'لطفاً نام کاربری و رمز عبور را وارد کنید'; errEl.classList.remove('hidden'); }
+      return;
+    }
+
     try {
       const res = await api('login', { username, password });
-      if (res.auth_token) {
-        localStorage.setItem('web_token', res.auth_token);
+      if (res && (res.auth_token || res.ok)) {
+        if (res.auth_token) localStorage.setItem('web_token', res.auth_token);
         showStatus('ورود موفقیت‌آمیز بود!');
         closeAuthModal();
         location.reload();
@@ -3103,7 +3108,7 @@ function initAuthHandlers() {
         return;
       }
       if (errEl) {
-        errEl.textContent = err.message || 'خطا در ورود';
+        errEl.textContent = err.message || err.error || 'خطا در ورود';
         errEl.classList.remove('hidden');
       }
     }
@@ -3111,13 +3116,18 @@ function initAuthHandlers() {
 
   $('registerForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = $('regUsername').value;
-    const email = $('regEmail')?.value || '';
-    const first_name = $('regFirstName').value;
-    const password = $('regPassword').value;
-    const ref_code = $('regRefCode').value;
+    const username = $('regUsername')?.value?.trim();
+    const email = $('regEmail')?.value?.trim() || '';
+    const first_name = $('regFirstName')?.value?.trim() || '';
+    const password = $('regPassword')?.value;
+    const ref_code = $('regRefCode')?.value?.trim() || '';
     const errEl = $('regError');
     if (errEl) errEl.classList.add('hidden');
+
+    if (!username || !password) {
+      if (errEl) { errEl.textContent = 'لطفاً نام کاربری و رمز عبور را وارد کنید'; errEl.classList.remove('hidden'); }
+      return;
+    }
 
     try {
       const res = await api('register', { username, email, first_name, password, ref_code });
@@ -3125,15 +3135,15 @@ function initAuthHandlers() {
         showOtpVerificationScreen(res.user_id, res.email, res.message);
         return;
       }
-      if (res.auth_token) {
-        localStorage.setItem('web_token', res.auth_token);
+      if (res && (res.auth_token || res.ok)) {
+        if (res.auth_token) localStorage.setItem('web_token', res.auth_token);
         showStatus('حساب کاربری با موفقیت ساخته شد 🎉');
         closeAuthModal();
         location.reload();
       }
     } catch (err) {
       if (errEl) {
-        errEl.textContent = err.message || 'خطا در ثبت‌نام';
+        errEl.textContent = err.message || err.error || 'خطا در ثبت‌نام';
         errEl.classList.remove('hidden');
       }
     }
