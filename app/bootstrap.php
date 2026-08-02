@@ -154,7 +154,8 @@ function migrate(): void {
     add_column_if_missing('product_variants', 'price_rate_toman', 'DECIMAL(24,6) NULL AFTER price_usd');
     add_column_if_missing('product_variants', 'price_rate_source', 'VARCHAR(32) NULL AFTER price_rate_toman');
     add_column_if_missing('product_variants', 'price_rate_updated_at', 'DATETIME NULL AFTER price_rate_source');
-    add_column_if_missing('product_variants', 'discount_percent', 'INT NOT NULL DEFAULT 0 AFTER duration_days');
+    add_column_if_missing('product_variants', 'discount_percent', 'DECIMAL(5,2) NOT NULL DEFAULT 0.00 AFTER duration_days');
+    try { db()->exec("ALTER TABLE product_variants MODIFY COLUMN discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00"); } catch (Throwable $e) {}
     add_column_if_missing('products', 'is_featured', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active');
     add_column_if_missing('products', 'sort_order', 'INT NOT NULL DEFAULT 0 AFTER is_featured');
     add_column_if_missing('orders', 'variant_id', 'BIGINT UNSIGNED NULL AFTER product_id');
@@ -2259,7 +2260,7 @@ function price_runtime_meta(array $row, string $prefix=''): array {
     $currency = normalize_price_currency($row[$prefix.'price_currency'] ?? 'IRT');
     $storedToman = max(0, (int)($row[$prefix.'price'] ?? 0));
     $usd = decimal_price($row[$prefix.'price_usd'] ?? 0);
-    $discount = max(0, min(100, (int)($row[$prefix.'discount_percent'] ?? 0)));
+    $discount = max(0.0, min(100.0, (float)($row[$prefix.'discount_percent'] ?? 0)));
     
     if ($discount > 0) {
         $usd = $usd * (1 - $discount / 100);
@@ -2949,6 +2950,10 @@ function admin_revenue_forecast(): array {
 
 // Admin Shop UX v2 helpers: image upload, delete-safe management and step-by-step wizards.
 function parse_amount($value): int { return max(0, (int)preg_replace('/\D+/', '', (string)$value)); }
+function parse_float_amount($value): float {
+    $val = str_replace(',', '.', trim((string)$value));
+    return max(0.0, (float)preg_replace('/[^0-9.]/', '', $val));
+}
 function step_payload_array(array $user): array {
     $raw = (string)($user['step_payload'] ?? '');
     $d = json_decode($raw, true);
@@ -3071,7 +3076,7 @@ function update_category_field(int $id, string $field, $value): bool {
 }
 function update_variant_field(int $id, string $field, $value): bool {
     $allowed=['title','price','price_currency','price_usd','price_rate_toman','price_rate_source','price_rate_updated_at','duration_days','discount_percent','sort_order','is_active']; if(!in_array($field,$allowed,true)) return false;
-    if ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','duration_days','discount_percent','sort_order','is_active'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
+    if ($field==='discount_percent') $value=max(0.0, min(100.0, parse_float_amount($value))); elseif ($field==='price_usd') $value=decimal_price($value); elseif (in_array($field,['price','duration_days','sort_order','is_active'],true)) $value=(int)parse_amount($value); if ($field==='price_currency') $value=normalize_price_currency($value);
     $q=db()->prepare("UPDATE product_variants SET {$field}=? WHERE id=?"); $q->execute([$value,$id]); return true;
 }
 function update_inventory_field(int $id, string $field, $value): bool {
