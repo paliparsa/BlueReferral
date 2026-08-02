@@ -1364,13 +1364,10 @@ function showProduct(pid){
                     <span>${fmt(v.price)}</span>
                     ${vDisc > 0 ? `<span class="flash-pill" style="font-size:10px; background:rgba(239,68,68,0.2); color:#fca5a5; padding:2px 6px; border-radius:6px; margin-right:4px;">−${nf(vDisc)}٪</span>` : ''}
                   </div>
+                  <div style="margin-top:6px; font-size:11px; color:var(--accent); text-align:left; font-weight:700;">ℹ️ مشاهده جزئیات و مشخصات پلن ↗</div>
                 </button>
               `;
             }).join('')}
-          </div>
-          <div id="variant-desc-box" style="margin-top:12px; background:rgba(29,155,240,0.06); border:1px solid rgba(29,155,240,0.2); border-radius:14px; padding:12px; font-size:13px; color:#e2e8f0; line-height:1.6;">
-            <div style="font-weight:800; color:var(--accent); font-size:12px; margin-bottom:4px; display:flex; align-items:center; gap:6px;"><span>📋</span> <span>توضیحات پلن انتخاب‌شده:</span></div>
-            <div id="variant-desc-text">${textBlock((selectedVariant?.description && String(selectedVariant.description).trim()) || rawDesc || 'مشخصاتی ثبت نشده است.')}</div>
           </div>
         </div>
       ` : ''}
@@ -1413,7 +1410,7 @@ function showProduct(pid){
   // Share handler
   modal.querySelector('#m-share-btn')?.addEventListener('click', () => openShareSheet(p.id));
 
-  // Variant selection
+  // Variant selection & pop-up opener
   modal.querySelectorAll('.variant-option-card').forEach(card => {
     card.addEventListener('click', (e) => {
       modal.querySelectorAll('.variant-option-card').forEach(c => c.classList.remove('selected'));
@@ -1422,10 +1419,8 @@ function showProduct(pid){
       const idx = Number(btn.dataset.vIdx);
       selectedVariant = variants[idx] || null;
       updateModalPrice();
-      const descEl = modal.querySelector('#variant-desc-text');
-      if (descEl) {
-        const vDesc = (selectedVariant?.description && String(selectedVariant.description).trim()) || rawDesc || 'مشخصاتی ثبت نشده است.';
-        descEl.innerHTML = textBlock(vDesc);
+      if(selectedVariant){
+        openVariantDetails(p.id, selectedVariant.id);
       }
     });
   });
