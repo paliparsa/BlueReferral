@@ -1044,13 +1044,13 @@ function openVariantDetails(pid, vid){
   const v = (p.variants || []).find(x => Number(x.id) === vid);
   if(!v) return;
 
-  const bal = Number(state?.user?.balance || 0);
   const d = Number(v.discount_percent || 0);
   const origPrice = (v.old_price && Number(v.old_price) > Number(v.price)) ? Number(v.old_price) : (d > 0 ? Math.round(Number(v.price) / (1 - d / 100)) : Number(v.price));
   const savings = origPrice - Number(v.price);
   
-  const descText = (v.description && String(v.description).trim()) || p.short_description || p.full_description || 'توضیح بیشتری برای این پلن ثبت نشده است.';
-  const deliveryTypeFa = { manual: 'دستی', account: 'اکانت اختصاصی', vpn: 'VPN / لینک اتصال', code: 'کد دیجیتال', file: 'فایل / متن آماده' }[p.delivery_type] || p.delivery_type_fa || 'تحویل آنی';
+  const descText = (v.description && String(v.description).trim()) || p.short_description || p.full_description || '';
+  const deliveryTypeFa = { manual: 'دستی', account: 'اکانت اختصاصی', vpn: 'مولتی لوکیشن • سرعت عالی', code: 'کد دیجیتال', file: 'فایل / متن آماده' }[p.delivery_type] || p.delivery_type_fa || 'تحویل آنی';
+  const brandName = state?.brand || 'BlueGate';
 
   let sheet = $('variantDetailSheet');
   if(!sheet){
@@ -1060,54 +1060,65 @@ function openVariantDetails(pid, vid){
     document.body.appendChild(sheet);
   }
 
-  sheet.innerHTML = `<div class="variant-detail-inner">
-    <div class="variant-detail-header">
-      <div class="variant-detail-title-group">
-        <div class="variant-detail-thumb">${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : '<span>🛍</span>'}</div>
-        <div>
-          <h3>${esc(v.title)}</h3>
-          <p class="muted">${esc(p.name)}</p>
+  sheet.innerHTML = `<div class="invoice-modal-inner">
+    <div class="invoice-modal-header">
+      <button class="invoice-close-btn" onclick="closeVariantDetails()" title="بستن">✕</button>
+      <div class="invoice-brand-group">
+        <div class="invoice-brand-info">
+          <h3>فاکتور رسمی خرید ${esc(brandName)}</h3>
+          <p class="invoice-ref-code">کد پیگیری: <b>#BG-${p.id}${v.id}</b></p>
         </div>
-      </div>
-      <button class="ghost close-sheet-btn" onclick="closeVariantDetails()">✕</button>
-    </div>
-
-    <div class="variant-detail-body">
-      <div class="variant-detail-pills">
-        <div class="vdp-item">
-          <span class="vdp-icon">📅</span>
-          <div><small>مدت اعتبار</small><b>${v.duration_days > 0 ? `${nf(v.duration_days)} روز` : 'دائمی / بدون انقضا'}</b></div>
+        <div class="invoice-brand-avatar">
+          ${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : '<span>⚡</span>'}
         </div>
-        <div class="vdp-item">
-          <span class="vdp-icon">⚡</span>
-          <div><small>نوع تحویل</small><b>${esc(deliveryTypeFa)}</b></div>
-        </div>
-      </div>
-
-      <div class="variant-detail-price-box">
-        <div class="vd-price-row">
-          <span class="vd-price-lbl">مبلغ قابل پرداخت:</span>
-          <b class="vd-price-main">${fmt(v.price)}</b>
-        </div>
-        ${d > 0 ? `
-          <div class="vd-discount-row">
-            <span class="discount-badge">−${nf(d)}٪ تخفیف</span>
-            <s class="muted-strike">${fmt(origPrice)}</s>
-            ${savings > 0 ? `<span class="savings-tag">سود شما: ${fmt(savings)}</span>` : ''}
-          </div>
-        ` : ''}
-      </div>
-
-      <div class="variant-detail-desc-box">
-        <div class="vd-desc-title">📝 مشخصات و توضیحات این پلن</div>
-        <div class="vd-desc-content">${textBlock(descText)}</div>
       </div>
     </div>
 
-    <div class="variant-detail-actions">
-      <button class="primary wide pulse" data-buy="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails()">⚡ ثبت سفارش (${fmt(v.price)})</button>
-      ${bal > 0 ? `<button class="secondary wide" data-buy-wallet="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails()">💰 پرداخت با کیف پول</button>` : ''}
-      <button class="ghost wide" data-cart-add="${p.id}" data-cart-variant="${v.id}" onclick="closeVariantDetails()">🛒 افزودن به سبد خرید</button>
+    <div class="invoice-spec-list">
+      <div class="invoice-spec-item">
+        <div class="isi-label"><span>📚</span> <span>سرویس انتخابی:</span></div>
+        <div class="isi-val cyan-bold">${esc(p.name)}</div>
+      </div>
+      <div class="invoice-spec-item">
+        <div class="isi-label"><span>📐</span> <span>نام پلن:</span></div>
+        <div class="isi-val white-bold">${esc(v.title)}</div>
+      </div>
+      <div class="invoice-spec-item">
+        <div class="isi-label"><span>⚡</span> <span>نوع / خصوصیت:</span></div>
+        <div class="isi-val">${esc(deliveryTypeFa)}</div>
+      </div>
+      <div class="invoice-spec-item">
+        <div class="isi-label"><span>📅</span> <span>مدت اعتبار:</span></div>
+        <div class="isi-val green-bold">${v.duration_days > 0 ? `${nf(v.duration_days)} روز` : 'دائمی / بدون انقضا'}</div>
+      </div>
+    </div>
+
+    ${descText ? `
+      <div class="invoice-desc-box">
+        <div class="idb-title">📝 توضیحات اختصاصی پلن:</div>
+        <div class="idb-content">${textBlock(descText)}</div>
+      </div>
+    ` : ''}
+
+    <div class="invoice-dashed-price-box">
+      <div class="idp-label">مبلغ کل قابل پرداخت:</div>
+      <div class="idp-amount">
+        ${d > 0 ? `<s class="muted-strike" style="font-size:12px;margin-left:6px;color:#94a3b8;">${fmt(origPrice)}</s>` : ''}
+        <b class="idp-val">${fmt(v.price)}</b>
+      </div>
+    </div>
+
+    <div class="invoice-guarantee-banner">
+      🛡️ شامل ۷ روز ضمانت بازگشت ۱۰۰٪ وجه در صورت عدم رضایت
+    </div>
+
+    <div class="invoice-actions">
+      <button class="invoice-btn-primary" data-buy="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails(); closeProductModal();">
+        ⚡ تایید و ثبت سفارش (${fmt(v.price)})
+      </button>
+      <button class="invoice-btn-secondary" data-cart-add="${p.id}" data-cart-variant="${v.id}" onclick="closeVariantDetails(); closeProductModal();">
+        🛒 افزودن به سبد خرید
+      </button>
     </div>
   </div>`;
 
