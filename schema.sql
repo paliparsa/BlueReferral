@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   price_rate_updated_at DATETIME NULL,
   duration_days INT NOT NULL DEFAULT 0,
   discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  description TEXT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
