@@ -1044,9 +1044,11 @@ function openVariantDetails(pid, vid){
   const v = (p.variants || []).find(x => Number(x.id) === vid);
   if(!v) return;
 
+  // Auto-close the open product detail modal to prevent background overlay clutter
+  closeProductModal();
+
   const d = Number(v.discount_percent || 0);
   const origPrice = (v.old_price && Number(v.old_price) > Number(v.price)) ? Number(v.old_price) : (d > 0 ? Math.round(Number(v.price) / (1 - d / 100)) : Number(v.price));
-  const savings = origPrice - Number(v.price);
   
   const descText = (v.description && String(v.description).trim()) || p.short_description || p.full_description || '';
   const deliveryTypeFa = { manual: 'دستی', account: 'اکانت اختصاصی', vpn: 'مولتی لوکیشن • سرعت عالی', code: 'کد دیجیتال', file: 'فایل / متن آماده' }[p.delivery_type] || p.delivery_type_fa || 'تحویل آنی';
@@ -1056,74 +1058,85 @@ function openVariantDetails(pid, vid){
   if(!sheet){
     sheet = document.createElement('div');
     sheet.id = 'variantDetailSheet';
-    sheet.className = 'preview-sheet variant-detail-sheet';
     document.body.appendChild(sheet);
   }
 
-  sheet.innerHTML = `<div class="invoice-modal-inner">
-    <div class="invoice-modal-header">
-      <button class="invoice-close-btn" onclick="closeVariantDetails()" title="بستن">✕</button>
-      <div class="invoice-brand-group">
-        <div class="invoice-brand-info">
-          <h3>فاکتور رسمی خرید ${esc(brandName)}</h3>
-          <p class="invoice-ref-code">کد پیگیری: <b>#BG-${p.id}${v.id}</b></p>
+  sheet.style.cssText = 'position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; background:rgba(2, 6, 15, 0.85); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); padding:16px; direction:rtl; opacity:0; transition:opacity 0.25s ease;';
+
+  sheet.innerHTML = `
+    <div style="width:100%; max-width:440px; max-height:88vh; background:linear-gradient(180deg, #0d1728 0%, #070d18 100%); border:1px solid rgba(0, 242, 254, 0.3); border-radius:26px; padding:20px; display:flex; flex-direction:column; gap:14px; box-shadow:0 24px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 242, 254, 0.15); overflow-y:auto; -webkit-overflow-scrolling:touch; margin:auto; box-sizing:border-box;">
+      
+      <!-- Top Header -->
+      <div style="display:flex; align-items:center; justify-content:space-between; padding-bottom:12px; border-bottom:1px solid rgba(255, 255, 255, 0.08);">
+        <button onclick="closeVariantDetails()" style="width:36px; height:36px; border-radius:50%; background:rgba(255, 255, 255, 0.08); border:1px solid rgba(255, 255, 255, 0.15); color:#94a3b8; font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="بستن">✕</button>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="text-align:right;">
+            <h3 style="font-size:16px; font-weight:800; color:#ffffff; margin:0;">فاکتور رسمی خرید ${esc(brandName)}</h3>
+            <p style="font-size:12px; color:#00f2fe; margin:2px 0 0 0; font-weight:700;">کد پیگیری: <b>#BG-${p.id}${v.id}</b></p>
+          </div>
+          <div style="width:48px; height:48px; min-width:48px; min-height:48px; border-radius:50%; background:rgba(0, 242, 254, 0.1); border:2px solid #00f2fe; box-shadow:0 0 14px rgba(0, 242, 254, 0.35); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:22px; flex-shrink:0;">
+            ${p.image_url ? `<img src="${esc(p.image_url)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="">` : '<span>⚡</span>'}
+          </div>
         </div>
-        <div class="invoice-brand-avatar">
-          ${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : '<span>⚡</span>'}
+      </div>
+
+      <!-- Specs List -->
+      <div style="display:flex; flex-direction:column; gap:10px; padding:4px 0;">
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
+          <span style="color:#94a3b8; font-weight:600; display:flex; align-items:center; gap:6px;"><span>📚</span> <span>سرویس انتخابی:</span></span>
+          <span style="color:#00f2fe; font-weight:800;">${esc(p.name)}</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
+          <span style="color:#94a3b8; font-weight:600; display:flex; align-items:center; gap:6px;"><span>📐</span> <span>نام پلن:</span></span>
+          <span style="color:#ffffff; font-weight:800;">${esc(v.title)}</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
+          <span style="color:#94a3b8; font-weight:600; display:flex; align-items:center; gap:6px;"><span>⚡</span> <span>نوع / خصوصیت:</span></span>
+          <span style="color:#f1f5f9; font-weight:700;">${esc(deliveryTypeFa)}</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
+          <span style="color:#94a3b8; font-weight:600; display:flex; align-items:center; gap:6px;"><span>📅</span> <span>مدت اعتبار:</span></span>
+          <span style="color:#4ade80; font-weight:800;">${v.duration_days > 0 ? `${nf(v.duration_days)} روز` : 'دائمی / بدون انقضا'}</span>
         </div>
       </div>
-    </div>
 
-    <div class="invoice-spec-list">
-      <div class="invoice-spec-item">
-        <div class="isi-label"><span>📚</span> <span>سرویس انتخابی:</span></div>
-        <div class="isi-val cyan-bold">${esc(p.name)}</div>
-      </div>
-      <div class="invoice-spec-item">
-        <div class="isi-label"><span>📐</span> <span>نام پلن:</span></div>
-        <div class="isi-val white-bold">${esc(v.title)}</div>
-      </div>
-      <div class="invoice-spec-item">
-        <div class="isi-label"><span>⚡</span> <span>نوع / خصوصیت:</span></div>
-        <div class="isi-val">${esc(deliveryTypeFa)}</div>
-      </div>
-      <div class="invoice-spec-item">
-        <div class="isi-label"><span>📅</span> <span>مدت اعتبار:</span></div>
-        <div class="isi-val green-bold">${v.duration_days > 0 ? `${nf(v.duration_days)} روز` : 'دائمی / بدون انقضا'}</div>
-      </div>
-    </div>
+      <!-- Custom Variant Description Box -->
+      ${descText ? `
+        <div style="background:rgba(255, 255, 255, 0.03); border:1px solid rgba(255, 255, 255, 0.08); border-radius:14px; padding:12px; max-height:140px; overflow-y:auto;">
+          <div style="font-size:12px; font-weight:800; color:#00f2fe; margin-bottom:6px;">📝 توضیحات اختصاصی پلن:</div>
+          <div style="font-size:12px; line-height:1.65; color:#cbd5e1; word-break:break-word;">${textBlock(descText)}</div>
+        </div>
+      ` : ''}
 
-    ${descText ? `
-      <div class="invoice-desc-box">
-        <div class="idb-title">📝 توضیحات اختصاصی پلن:</div>
-        <div class="idb-content">${textBlock(descText)}</div>
+      <!-- Dashed Payable Price Card -->
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:rgba(0, 242, 254, 0.04); border:1.5px dashed rgba(0, 242, 254, 0.4); border-radius:16px;">
+        <span style="font-size:13px; font-weight:700; color:#cbd5e1;">مبلغ کل قابل پرداخت:</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          ${d > 0 ? `<s style="font-size:12px; color:#94a3b8; margin-left:6px; text-decoration:line-through;">${fmt(origPrice)}</s>` : ''}
+          <b style="font-size:20px; font-weight:900; color:#facc15;">${fmt(v.price)}</b>
+        </div>
       </div>
-    ` : ''}
 
-    <div class="invoice-dashed-price-box">
-      <div class="idp-label">مبلغ کل قابل پرداخت:</div>
-      <div class="idp-amount">
-        ${d > 0 ? `<s class="muted-strike" style="font-size:12px;margin-left:6px;color:#94a3b8;">${fmt(origPrice)}</s>` : ''}
-        <b class="idp-val">${fmt(v.price)}</b>
+      <!-- Guarantee Banner -->
+      <div style="background:rgba(34, 197, 94, 0.08); border:1px solid rgba(34, 197, 94, 0.25); color:#4ade80; font-size:12px; font-weight:700; border-radius:12px; padding:10px 14px; text-align:center; display:flex; align-items:center; justify-content:center; gap:6px;">
+        🛡️ شامل ۷ روز ضمانت بازگشت ۱۰۰٪ وجه در صورت عدم رضایت
       </div>
-    </div>
 
-    <div class="invoice-guarantee-banner">
-      🛡️ شامل ۷ روز ضمانت بازگشت ۱۰۰٪ وجه در صورت عدم رضایت
-    </div>
+      <!-- Action Buttons -->
+      <div style="display:flex; flex-direction:column; gap:8px; padding-top:4px;">
+        <button data-buy="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails()" style="width:100%; padding:14px; background:linear-gradient(135deg, #00f2fe, #1d9bf0); border:none; border-radius:14px; color:#000000; font-weight:900; font-size:14px; cursor:pointer; box-shadow:0 4px 18px rgba(0, 242, 254, 0.4);">
+          ⚡ تایید و ثبت سفارش (${fmt(v.price)})
+        </button>
+        <button data-cart-add="${p.id}" data-cart-variant="${v.id}" onclick="closeVariantDetails()" style="width:100%; padding:13px; background:rgba(255, 255, 255, 0.06); border:1px solid rgba(255, 255, 255, 0.12); border-radius:14px; color:#ffffff; font-weight:800; font-size:13.5px; cursor:pointer;">
+          🛒 افزودن به سبد خرید
+        </button>
+      </div>
 
-    <div class="invoice-actions">
-      <button class="invoice-btn-primary" data-buy="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails(); closeProductModal();">
-        ⚡ تایید و ثبت سفارش (${fmt(v.price)})
-      </button>
-      <button class="invoice-btn-secondary" data-cart-add="${p.id}" data-cart-variant="${v.id}" onclick="closeVariantDetails(); closeProductModal();">
-        🛒 افزودن به سبد خرید
-      </button>
     </div>
-  </div>`;
+  `;
 
   sheet.style.display = 'flex';
-  setTimeout(() => { sheet.classList.add('open'); }, 10);
+  setTimeout(() => { sheet.style.opacity = '1'; }, 10);
   sheet.onclick = (e) => { if(e.target === sheet) closeVariantDetails(); };
   if(typeof haptic === 'function') haptic('light');
 }
@@ -1131,8 +1144,8 @@ function openVariantDetails(pid, vid){
 function closeVariantDetails(){
   const s = $('variantDetailSheet');
   if(s){
-    s.classList.remove('open');
-    setTimeout(() => { s.style.display = 'none'; }, 300);
+    s.style.opacity = '0';
+    setTimeout(() => { s.style.display = 'none'; }, 250);
   }
 }
 
