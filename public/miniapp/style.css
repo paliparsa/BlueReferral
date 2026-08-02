@@ -1901,7 +1901,8 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
     transform: translateY(100%);
     transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
     box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
-    overflow: hidden;
+    /* overflow: hidden removed — it was clipping all scrollable content */
+    overflow: visible;
 }
 .presentation-sheet.open .presentation-inner {
     transform: translateY(0);
@@ -1916,6 +1917,7 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     z-index: 10;
+    flex-shrink: 0;
 }
 .presentation-header h3 {
     margin: 0 16px;
@@ -1929,9 +1931,12 @@ details.section-collapsible[open]>summary .section-chevron{transform:rotate(-90d
 }
 .presentation-body {
     flex: 1;
+    min-height: 0;                          /* critical for flex scroll child */
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;       /* iOS momentum scroll */
+    overscroll-behavior: contain;            /* prevent page scroll leak */
     padding: 16px;
-    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 24px);
 }
 .presentation-section-title {
     font-size: 13px;
@@ -3940,153 +3945,132 @@ body .card-v2-submit-btn:active {
 .od-sticky-actions .btn-v2 {
   flex: 1 !important;
   border-radius: 16px !important;
-  padding: 12px 10px !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
-  text-align: center !important;
-  justify-content: center !important;
-}
+/* ===== Presentation Sheet — Bottom Sheet (fixed, no conflicting override) ===== */
+/* NOTE: The previous block here reimplemented this as a centered modal with a   */
+/* completely different layout model, causing conflicting transforms, broken       */
+/* opacity/display toggle, and an unscrollable body. Removed and replaced below.  */
 
-/* ===== Centered Glassmorphic Modal Popups ===== */
-.presentation-sheet {
-  position: fixed !important;
-  inset: 0 !important;
-  background: rgba(0, 0, 0, 0.7) !important;
-  backdrop-filter: blur(14px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
-  z-index: 99999 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 16px !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transition: opacity 0.25s ease !important;
-}
-
-.presentation-sheet.open {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
-
-.presentation-sheet .presentation-inner {
-  width: 100% !important;
-  max-width: 380px !important;
-  max-height: 82vh !important;
-  overflow-y: auto !important;
-  background: rgba(14, 23, 42, 0.98) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  border-radius: 26px !important;
-  padding: 20px 18px !important;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-  transform: scale(0.92) translateY(12px) !important;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 14px !important;
-}
-
-.presentation-sheet.open .presentation-inner {
-  transform: scale(1) translateY(0) !important;
-}
-
+/* Form element polish that was in the old block — kept here without !important   */
+/* overrides that were fighting the slide-up layout.                              */
 .presentation-sheet .presentation-header {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  padding-bottom: 12px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  width: 100% !important;
-}
-
-.presentation-sheet .presentation-header h3 {
-  font-size: 16px !important;
-  font-weight: 900 !important;
-  color: #ffffff !important;
-  margin: 0 !important;
-  text-align: center !important;
-  flex: 1 !important;
+  flex-shrink: 0;
 }
 
 .presentation-sheet .presentation-header button.ghost {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  color: #cbd5e1 !important;
-  border-radius: 14px !important;
-  font-size: 12.5px !important;
-  font-weight: 800 !important;
-  padding: 7px 16px !important;
-  transition: transform 0.2s ease, background 0.2s ease !important;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  border-radius: 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
 }
 
 .presentation-sheet .presentation-header button.primary {
-  background: linear-gradient(135deg, var(--accent, #1d9bf0), #2563eb) !important;
-  border: none !important;
-  color: #ffffff !important;
-  border-radius: 14px !important;
-  font-size: 12.5px !important;
-  font-weight: 900 !important;
-  padding: 7px 20px !important;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent, #1d9bf0) 40%, transparent) !important;
-  transition: transform 0.2s ease !important;
+  background: linear-gradient(135deg, var(--accent, #1d9bf0), #2563eb);
+  border: none;
+  color: #ffffff;
+  border-radius: 14px;
+  font-size: 12.5px;
+  font-weight: 900;
+  padding: 7px 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(29, 155, 240, 0.35);
+  transition: transform 0.2s ease;
 }
 
 .presentation-sheet .presentation-header button:active {
-  transform: scale(0.95) !important;
+  transform: scale(0.95);
 }
 
-.presentation-sheet .presentation-body {
-  padding-top: 8px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 12px !important;
+.presentation-sheet .presentation-header h3 {
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .presentation-sheet .presentation-section-title {
-  font-size: 12.5px !important;
-  font-weight: 800 !important;
-  color: var(--muted) !important;
-  margin-bottom: 4px !important;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--muted);
+  margin: 20px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .presentation-sheet .form-grid {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 12px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .presentation-sheet label span {
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  color: var(--muted) !important;
-  margin-bottom: 4px !important;
-  display: block !important;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+  display: block;
 }
 
 .presentation-sheet input,
 .presentation-sheet textarea,
 .presentation-sheet select {
-  width: 100% !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 16px !important;
-  padding: 12px 14px !important;
-  color: #ffffff !important;
-  font-size: 13.5px !important;
-  box-sizing: border-box !important;
-  transition: border-color 0.2s ease !important;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: #ffffff;
+  font-size: 13.5px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
 }
 
 .presentation-sheet input:focus,
 .presentation-sheet textarea:focus,
 .presentation-sheet select:focus {
-  border-color: var(--accent) !important;
-  outline: none !important;
+  border-color: var(--accent);
+  outline: none;
+  background: rgba(255, 255, 255, 0.09);
 }
 
+.presentation-sheet textarea {
+  resize: vertical;
+  min-height: 80px;
+}
 
+.presentation-sheet label.switch-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+}
 
+.presentation-sheet label.switch-line span {
+  margin-bottom: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
 
+.presentation-sheet .price-hint-badge {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  background: rgba(29, 155, 240, 0.1);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text);
+  margin-top: -4px;
+}
 
 
 
