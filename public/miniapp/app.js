@@ -1037,6 +1037,19 @@ function buyButtonsForProduct(p){
   return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`;
 }
 
+function addToCart(productId, variantId){
+  productId = Number(productId); variantId = Number(variantId);
+  const p = (state?.shop_products || []).find(x => Number(x.id) === productId);
+  const v = (p?.variants || []).find(x => Number(x.id) === variantId);
+  let cart = [];
+  try { cart = JSON.parse(localStorage.getItem('blue_user_cart') || '[]'); } catch(_) { cart = []; }
+  cart.push({ product_id: productId, variant_id: variantId, added_at: Date.now() });
+  localStorage.setItem('blue_user_cart', JSON.stringify(cart));
+  const name = v ? `${p?.name || ''} - ${v.title}` : (p?.name || 'محصول');
+  showStatus(`🛒 «${name}» با موفقیت به سبد خرید اضافه شد`);
+  closeVariantDetails();
+}
+
 function openVariantDetails(pid, vid){
   pid = Number(pid); vid = Number(vid);
   const p = (state?.shop_products || []).find(x => Number(x.id) === pid);
@@ -1124,7 +1137,7 @@ function openVariantDetails(pid, vid){
         <button data-buy="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails()" style="width:100%; padding:14px; background:linear-gradient(135deg, #00f2fe, #1d9bf0); border:none; border-radius:14px; color:#000000; font-weight:900; font-size:14px; cursor:pointer; box-shadow:0 4px 18px rgba(0, 242, 254, 0.4);">
           ⚡ تایید و ثبت سفارش (${fmt(v.price)})
         </button>
-        <button data-cart-add="${p.id}" data-cart-variant="${v.id}" onclick="closeVariantDetails()" style="width:100%; padding:13px; background:rgba(255, 255, 255, 0.06); border:1px solid rgba(255, 255, 255, 0.12); border-radius:14px; color:#ffffff; font-weight:800; font-size:13.5px; cursor:pointer;">
+        <button onclick="addToCart(${p.id}, ${v.id})" style="width:100%; padding:13px; background:rgba(255, 255, 255, 0.06); border:1px solid rgba(255, 255, 255, 0.12); border-radius:14px; color:#ffffff; font-weight:800; font-size:13.5px; cursor:pointer;">
           🛒 افزودن به سبد خرید
         </button>
       </div>
@@ -1392,22 +1405,8 @@ function showProduct(pid){
             }).join('')}
           </div>
         </div>
+        </div>
       ` : ''}
-
-      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:10px;">
-        <div>
-          <small style="color:var(--muted); font-size:11px; display:block;">مبلغ کل:</small>
-          <b id="mp-price-lbl" style="font-size:20px; color:var(--cyan); font-weight:900;">${fmt((selectedVariant ? selectedVariant.price : p.price) * selectedQty)}</b>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="modal-qty-control" style="display:flex; align-items:center; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:3px;">
-            <button id="m-qty-minus" style="background:none; border:none; color:#fff; width:28px; height:28px; font-size:16px; cursor:pointer;">-</button>
-            <span id="m-qty-val" style="width:24px; text-align:center; font-weight:700; font-size:14px; color:#fff;">1</span>
-            <button id="m-qty-plus" style="background:none; border:none; color:#fff; width:28px; height:28px; font-size:16px; cursor:pointer;">+</button>
-          </div>
-          <button id="m-buy-btn" style="background:linear-gradient(135deg, #00f2fe, #1d9bf0); color:#000; font-weight:900; padding:12px 18px; font-size:13px; border-radius:14px; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(0, 242, 254, 0.3);">⚡ افزودن به سبد خرید</button>
-        </div>
-      </div>
     </div>
   `;
 
@@ -2863,11 +2862,11 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Capture-phase click handler for buy and cart flows.
+// Capture-phase click handler for buy flows.
 document.addEventListener('click',async function(e){
-  const t=e.target.closest('[data-buy],[data-buy-wallet],[data-cart-add]');
+  const t=e.target.closest('[data-buy],[data-buy-wallet]');
   if(!t) return;
-  if(t.dataset.buy || t.dataset.buyWallet || t.dataset.cartAdd){
+  if(t.dataset.buy || t.dataset.buyWallet){
     e.preventDefault(); e.stopPropagation();
     
     // Close both pop-up overlays
@@ -2875,8 +2874,8 @@ document.addEventListener('click',async function(e){
     if(typeof closeProductModal === 'function') closeProductModal();
     if(typeof closePreviewSheet === 'function') closePreviewSheet();
 
-    const pid = Number(t.dataset.buy || t.dataset.buyWallet || t.dataset.cartAdd);
-    const variantId = t.dataset.variant ? Number(t.dataset.variant) : (t.dataset.cartVariant ? Number(t.dataset.cartVariant) : null);
+    const pid = Number(t.dataset.buy || t.dataset.buyWallet);
+    const variantId = t.dataset.variant ? Number(t.dataset.variant) : null;
     const p = (state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
     if(!p) return;
 
@@ -2898,7 +2897,7 @@ document.addEventListener('click',async function(e){
       currentTab = 'orders';
       currentOrderId = newOrderId;
       renderUser();
-      showStatus(t.dataset.cartAdd ? '🛒 سفارش به سبد / لیست سفارش‌ها اضافه شد' : '⚡ سفارش با موفقیت ثبت شد');
+      showStatus('⚡ سفارش با موفقیت ثبت شد');
     }catch(err){
       state.orders = (state.orders||[]).filter(o=>o.id!==tmpId);
       showStatus(err.message||'خطا در ثبت سفارش','error');
