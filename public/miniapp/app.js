@@ -2311,7 +2311,7 @@ function editVariant(id){
       {id:'ev_price_amount',label:'قیمت',type:'number',props:'inputmode="decimal"',value:initialAmt},
       {html:'<div id="ev_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
       {id:'ev_duration',label:'مدت روز',type:'number',value:v.duration_days||0},
-      {id:'ev_discount',label:'درصد تخفیف',type:'number',value:v.discount_percent||0},
+      {id:'ev_discount',label:'درصد تخفیف',type:'number',props:'inputmode="decimal" step="any"',value:v.discount_percent||0},
       {id:'ev_sort',label:'ترتیب نمایش',type:'number',value:v.sort_order||0},
       {id:'ev_active',label:'فعال باشد؟',type:'checkbox',value:Number(v.is_active)}
     ]}
@@ -2377,7 +2377,7 @@ function openAddVariant(productId){
       {id:'av_price_amount',label:'قیمت',type:'number',props:'inputmode="decimal"',value:0},
       {html:'<div id="av_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
       {id:'av_duration',label:'مدت روز',type:'number',value:0},
-      {id:'av_discount',label:'درصد تخفیف',type:'number',value:0},
+      {id:'av_discount',label:'درصد تخفیف',type:'number',props:'inputmode="decimal" step="any"',value:0},
       {id:'av_sort',label:'ترتیب نمایش',type:'number',value:0}
     ]}
   ],async()=>{
