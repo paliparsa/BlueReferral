@@ -1031,10 +1031,97 @@ function buyButtonsForProduct(p){
         const savings = orig - Number(v.price);
         priceHtml = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><s class="muted-strike" style="font-size:0.88em;text-decoration:line-through;color:#9fb0c8;">${fmt(orig)}</s><span style="font-weight:900;color:#ffffff;">${priceText}</span><span class="discount-badge">−${nf(d)}٪</span>${savings>0?`<small class="savings-tag" style="color:#4ade80;font-weight:800;font-size:11px;">(سود: ${fmt(savings)})</small>`:''}</div>`;
       }
-      return `<div class="variant-card"><div class="variant-info"><b style="color:#ffffff;">${esc(v.title)}</b>${priceHtml}</div><div class="variant-card-actions"><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">خرید</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف</button>`:''}</div></div>`;
+      return `<div class="variant-card"><div class="variant-info" data-variant-details="${p.id}:${v.id}" style="cursor:pointer;"><div style="display:flex;align-items:center;gap:6px;"><b style="color:#ffffff;">${esc(v.title)}</b><span class="v-info-icon" style="font-size:13px;opacity:0.8;" title="مشاهده جزئیات پلن">ℹ️</span></div>${priceHtml}</div><div class="variant-card-actions"><button class="ghost" data-variant-details="${p.id}:${v.id}" title="مشاهده جزئیات پلن">ℹ️</button><button class="ghost" data-cart-add="${p.id}" data-cart-variant="${v.id}">🛒</button><button class="primary" data-buy="${p.id}" data-variant="${v.id}">خرید</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}" data-variant="${v.id}">کیف</button>`:''}</div></div>`;
     }).join('')}</div>`;
   }
   return `${walletHint}<div class="actions variant-list"><button class="ghost" data-cart-add="${p.id}">🛒 افزودن به سبد</button><button class="primary pulse" data-buy="${p.id}">ثبت سفارش</button>${bal>0?`<button class="secondary" data-buy-wallet="${p.id}">خرید با کیف پول</button>`:''}</div>`;
+}
+
+function openVariantDetails(pid, vid){
+  pid = Number(pid); vid = Number(vid);
+  const p = (state?.shop_products || []).find(x => Number(x.id) === pid);
+  if(!p) return;
+  const v = (p.variants || []).find(x => Number(x.id) === vid);
+  if(!v) return;
+
+  const bal = Number(state?.user?.balance || 0);
+  const d = Number(v.discount_percent || 0);
+  const origPrice = (v.old_price && Number(v.old_price) > Number(v.price)) ? Number(v.old_price) : (d > 0 ? Math.round(Number(v.price) / (1 - d / 100)) : Number(v.price));
+  const savings = origPrice - Number(v.price);
+  
+  const descText = (v.description && String(v.description).trim()) || p.short_description || p.full_description || 'توضیح بیشتری برای این پلن ثبت نشده است.';
+  const deliveryTypeFa = { manual: 'دستی', account: 'اکانت اختصاصی', vpn: 'VPN / لینک اتصال', code: 'کد دیجیتال', file: 'فایل / متن آماده' }[p.delivery_type] || p.delivery_type_fa || 'تحویل آنی';
+
+  let sheet = $('variantDetailSheet');
+  if(!sheet){
+    sheet = document.createElement('div');
+    sheet.id = 'variantDetailSheet';
+    sheet.className = 'preview-sheet variant-detail-sheet';
+    document.body.appendChild(sheet);
+  }
+
+  sheet.innerHTML = `<div class="variant-detail-inner">
+    <div class="variant-detail-header">
+      <div class="variant-detail-title-group">
+        <div class="variant-detail-thumb">${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : '<span>🛍</span>'}</div>
+        <div>
+          <h3>${esc(v.title)}</h3>
+          <p class="muted">${esc(p.name)}</p>
+        </div>
+      </div>
+      <button class="ghost close-sheet-btn" onclick="closeVariantDetails()">✕</button>
+    </div>
+
+    <div class="variant-detail-body">
+      <div class="variant-detail-pills">
+        <div class="vdp-item">
+          <span class="vdp-icon">📅</span>
+          <div><small>مدت اعتبار</small><b>${v.duration_days > 0 ? `${nf(v.duration_days)} روز` : 'دائمی / بدون انقضا'}</b></div>
+        </div>
+        <div class="vdp-item">
+          <span class="vdp-icon">⚡</span>
+          <div><small>نوع تحویل</small><b>${esc(deliveryTypeFa)}</b></div>
+        </div>
+      </div>
+
+      <div class="variant-detail-price-box">
+        <div class="vd-price-row">
+          <span class="vd-price-lbl">مبلغ قابل پرداخت:</span>
+          <b class="vd-price-main">${fmt(v.price)}</b>
+        </div>
+        ${d > 0 ? `
+          <div class="vd-discount-row">
+            <span class="discount-badge">−${nf(d)}٪ تخفیف</span>
+            <s class="muted-strike">${fmt(origPrice)}</s>
+            ${savings > 0 ? `<span class="savings-tag">سود شما: ${fmt(savings)}</span>` : ''}
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="variant-detail-desc-box">
+        <div class="vd-desc-title">📝 مشخصات و توضیحات این پلن</div>
+        <div class="vd-desc-content">${textBlock(descText)}</div>
+      </div>
+    </div>
+
+    <div class="variant-detail-actions">
+      <button class="primary wide pulse" data-buy="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails()">⚡ ثبت سفارش (${fmt(v.price)})</button>
+      ${bal > 0 ? `<button class="secondary wide" data-buy-wallet="${p.id}" data-variant="${v.id}" onclick="closeVariantDetails()">💰 پرداخت با کیف پول</button>` : ''}
+      <button class="ghost wide" data-cart-add="${p.id}" data-cart-variant="${v.id}" onclick="closeVariantDetails()">🛒 افزودن به سبد خرید</button>
+    </div>
+  </div>`;
+
+  sheet.classList.add('open');
+  sheet.onclick = (e) => { if(e.target === sheet) closeVariantDetails(); };
+  if(typeof haptic === 'function') haptic('light');
+}
+
+function closeVariantDetails(){
+  const s = $('variantDetailSheet');
+  if(s){
+    s.classList.remove('open');
+    setTimeout(() => { s.style.display = 'none'; }, 300);
+  }
 }
 
 /* ===== Share sheet ===== */
@@ -2312,6 +2399,7 @@ function editVariant(id){
       {html:'<div id="ev_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
       {id:'ev_duration',label:'مدت روز',type:'number',value:v.duration_days||0},
       {id:'ev_discount',label:'درصد تخفیف',type:'number',props:'inputmode="decimal" step="any"',value:v.discount_percent||0},
+      {id:'ev_description',label:'توضیحات اختصاصی پلن',type:'textarea',placeholder:'توضیحات کامل این پلن (در پاپ‌آپ کاربر نمایش داده می‌شود)...',value:v.description||''},
       {id:'ev_sort',label:'ترتیب نمایش',type:'number',value:v.sort_order||0},
       {id:'ev_active',label:'فعال باشد؟',type:'checkbox',value:Number(v.is_active)}
     ]}
@@ -2326,6 +2414,7 @@ function editVariant(id){
       price_usd: (c==='USDT'||c==='USD'||c==='STARS')?a:0,
       duration_days:val('ev_duration'),
       discount_percent:val('ev_discount'),
+      description:val('ev_description'),
       sort_order:val('ev_sort'),
       is_active:val('ev_active')?1:0
     });
@@ -2378,6 +2467,7 @@ function openAddVariant(productId){
       {html:'<div id="av_price_hint" class="price-hint-badge" style="grid-column:1/-1;padding:8px 12px;background:rgba(29,155,240,0.1);border-radius:10px;font-size:13px;color:var(--text);margin-top:-4px"></div>'},
       {id:'av_duration',label:'مدت روز',type:'number',value:0},
       {id:'av_discount',label:'درصد تخفیف',type:'number',props:'inputmode="decimal" step="any"',value:0},
+      {id:'av_description',label:'توضیحات اختصاصی پلن',type:'textarea',placeholder:'توضیحات کامل این پلن (در پاپ‌آپ کاربر نمایش داده می‌شود)...'},
       {id:'av_sort',label:'ترتیب نمایش',type:'number',value:0}
     ]}
   ],async()=>{
@@ -2391,6 +2481,7 @@ function openAddVariant(productId){
       price_usd: (c==='USDT'||c==='USD'||c==='STARS')?a:0,
       duration_days:val('av_duration'),
       discount_percent:val('av_discount'),
+      description:val('av_description'),
       sort_order:val('av_sort')
     });
   });
@@ -2550,7 +2641,7 @@ document.addEventListener('click',async(e)=>{
     openCartSheet();
     return;
   }
-  const t=e.target.closest('button,a,[data-admin-tab],[data-settings-subtab],[data-wallet-tab],[data-admin-view-mode],[data-admin-action-sheet],[data-tab],[data-tab-jump],[data-color],[data-cat],[data-shop-sort],[data-shop-toggle],[data-clear-filters],[data-product],[data-product-preview],[data-back-shop],[data-wallet-order],[data-select-card],[data-pay-stars],[data-select-crypto],[data-select-crypto-tab],[data-reset-payment-method],[data-show-crypto],[data-crypto-hash],[data-check-crypto],[data-bulk-action],[data-reorder],[data-chat-user],[data-edit-role],[data-admin-remove-role],[data-contact-wallet],[data-contact-ban],[data-edit-product],[data-admin-toggle-product],[data-admin-delete-product],[data-admin-hard-delete-product],[data-edit-category],[data-admin-delete-category],[data-admin-hard-delete-category],[data-edit-variant],[data-admin-delete-variant],[data-admin-hard-delete-variant],[data-edit-inventory],[data-admin-delete-inventory],[data-admin-hard-delete-inventory],[data-admin-status],[data-admin-order-note],[data-admin-archive-order],[data-admin-delete-order],[data-admin-cleanup],[data-admin-deliver],[data-view-receipt],[data-admin-save-settings],[data-open-url],[data-copy],[data-receipt],[data-customer-note],[data-order-filter],[data-order-open],[data-order-back],[data-hide-order],[data-clear-canceled],[data-cancel],[data-refresh-crypto-rates],[data-admin-backup-create],[data-admin-backup-sendbot],[data-admin-backup-delete],[data-admin-backup-restore-server],[data-admin-backup-upload],[data-admin-load-more-orders],[data-accordion-toggle],[data-accordion-add-variant],[data-edit-coupon],[data-admin-toggle-coupon],[data-admin-delete-coupon]')||e.target;if(t.dataset.settingsSubtab){if(typeof haptic==='function')haptic('light');settingsSubTab=t.dataset.settingsSubtab;document.querySelectorAll('.settings-subtab-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.settingsSubtab===settingsSubTab));document.querySelectorAll('.settings-subtab-pane').forEach(pane=>pane.classList.toggle('hidden',pane.dataset.pane!==settingsSubTab));const settingsTabLabels = { general: '🏪 عمومی', payments: '💳 روش‌های پرداخت', crypto: '🪙 کریپتو & ارزها', appearance: '🎨 ظاهر & تم', gamification: '🎡 پاداش & گردونه' };const lbl=$('activeSettingsTabLabel');if(lbl)lbl.textContent=settingsTabLabels[settingsSubTab]||'';const muted=$('activeSettingsTabMuted');if(muted)muted.textContent=settingsTabLabels[settingsSubTab]||'';return}if(t.dataset.walletTab){haptic('light');walletTab=t.dataset.walletTab;renderWallet();return}if(t.dataset.adminViewMode){adminOrderViewMode=t.dataset.adminViewMode;renderAdmin();return}if(t.dataset.adminActionSheet){const [type,id]=t.dataset.adminActionSheet.split(':');openAdminActionSheet(type,id);return}if(t.dataset.tab){setTab(t.dataset.tab)}if(t.dataset.tabJump){setTab(t.dataset.tabJump)}if(t.id==='openPalette'||t.id==='paletteQuick'){openPalettePopup()}if(t.dataset.color){localStorage.setItem('blue_ref_color',t.dataset.color);applyTheme({...state,theme_color:t.dataset.color});showStatus('رنگ تغییر کرد')}if(t.id==='resetColor'){localStorage.removeItem('blue_ref_color');applyTheme(state);showStatus('رنگ پیش‌فرض برگشت')}if(t.id==='applyCustomColor'){const c=$('userCustomColor')?.value||'#1d9bf0';localStorage.setItem('blue_ref_color',c);applyTheme({...state,theme_color:c});showStatus('رنگ دلخواه اعمال شد')}if(t.dataset.cat){activeCategory=t.dataset.cat;document.querySelectorAll('.cat-pill').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));renderShopSections()}if(t.dataset.shopSort!==undefined){shopSort=t.dataset.shopSort;document.querySelectorAll('[data-shop-sort]').forEach(el=>el.classList.toggle('active',el.dataset.shopSort===shopSort));renderShopSections()}if(t.dataset.shopToggle!==undefined){if(t.dataset.shopToggle==='instock'){shopFilterInStock=!shopFilterInStock;t.textContent=shopFilterInStock?'⚡':'📦'}else if(t.dataset.shopToggle==='featured')shopFilterFeatured=!shopFilterFeatured;else if(t.dataset.shopToggle==='wishlist'){shopFilterWishlist=!shopFilterWishlist;t.textContent=shopFilterWishlist?'❤️':'🤍'}t.classList.toggle('active');renderShopSections()}if(t.dataset.clearFilters!==undefined){searchTerm='';activeCategory='all';shopSort='newest';shopFilterInStock=false;shopFilterFeatured=false;shopFilterWishlist=false;renderShop()}if(t.id==='searchInput')return;if(t.dataset.product)showProduct(t.dataset.product);if(t.dataset.productPreview)showProduct(t.dataset.productPreview);if(t.dataset.backShop!==undefined){currentTab='shop';renderUser()}// BUG-2: [data-buy]/[data-buy-wallet] removed from here — handled exclusively by the capture-phase optimistic handler (avoids double confirm + double API call)
+  const t=e.target.closest('button,a,[data-admin-tab],[data-settings-subtab],[data-wallet-tab],[data-admin-view-mode],[data-admin-action-sheet],[data-tab],[data-tab-jump],[data-color],[data-cat],[data-shop-sort],[data-shop-toggle],[data-clear-filters],[data-product],[data-product-preview],[data-back-shop],[data-variant-details],[data-wallet-order],[data-select-card],[data-pay-stars],[data-select-crypto],[data-select-crypto-tab],[data-reset-payment-method],[data-show-crypto],[data-crypto-hash],[data-check-crypto],[data-bulk-action],[data-reorder],[data-chat-user],[data-edit-role],[data-admin-remove-role],[data-contact-wallet],[data-contact-ban],[data-edit-product],[data-admin-toggle-product],[data-admin-delete-product],[data-admin-hard-delete-product],[data-edit-category],[data-admin-delete-category],[data-admin-hard-delete-category],[data-edit-variant],[data-admin-delete-variant],[data-admin-hard-delete-variant],[data-edit-inventory],[data-admin-delete-inventory],[data-admin-hard-delete-inventory],[data-admin-status],[data-admin-order-note],[data-admin-archive-order],[data-admin-delete-order],[data-admin-cleanup],[data-admin-deliver],[data-view-receipt],[data-admin-save-settings],[data-open-url],[data-copy],[data-receipt],[data-customer-note],[data-order-filter],[data-order-open],[data-order-back],[data-hide-order],[data-clear-canceled],[data-cancel],[data-refresh-crypto-rates],[data-admin-backup-create],[data-admin-backup-sendbot],[data-admin-backup-delete],[data-admin-backup-restore-server],[data-admin-backup-upload],[data-admin-load-more-orders],[data-accordion-toggle],[data-accordion-add-variant],[data-edit-coupon],[data-admin-toggle-coupon],[data-admin-delete-coupon]')||e.target;if(t.dataset.variantDetails){const [pid,vid]=t.dataset.variantDetails.split(':');openVariantDetails(pid,vid);return}if(t.dataset.settingsSubtab){if(typeof haptic==='function')haptic('light');settingsSubTab=t.dataset.settingsSubtab;document.querySelectorAll('.settings-subtab-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.settingsSubtab===settingsSubTab));document.querySelectorAll('.settings-subtab-pane').forEach(pane=>pane.classList.toggle('hidden',pane.dataset.pane!==settingsSubTab));const settingsTabLabels = { general: '🏪 عمومی', payments: '💳 روش‌های پرداخت', crypto: '🪙 کریپتو & ارزها', appearance: '🎨 ظاهر & تم', gamification: '🎡 پاداش & گردونه' };const lbl=$('activeSettingsTabLabel');if(lbl)lbl.textContent=settingsTabLabels[settingsSubTab]||'';const muted=$('activeSettingsTabMuted');if(muted)muted.textContent=settingsTabLabels[settingsSubTab]||'';return}if(t.dataset.walletTab){haptic('light');walletTab=t.dataset.walletTab;renderWallet();return}if(t.dataset.adminViewMode){adminOrderViewMode=t.dataset.adminViewMode;renderAdmin();return}if(t.dataset.adminActionSheet){const [type,id]=t.dataset.adminActionSheet.split(':');openAdminActionSheet(type,id);return}if(t.dataset.tab){setTab(t.dataset.tab)}if(t.dataset.tabJump){setTab(t.dataset.tabJump)}if(t.id==='openPalette'||t.id==='paletteQuick'){openPalettePopup()}if(t.dataset.color){localStorage.setItem('blue_ref_color',t.dataset.color);applyTheme({...state,theme_color:t.dataset.color});showStatus('رنگ تغییر کرد')}if(t.id==='resetColor'){localStorage.removeItem('blue_ref_color');applyTheme(state);showStatus('رنگ پیش‌فرض برگشت')}if(t.id==='applyCustomColor'){const c=$('userCustomColor')?.value||'#1d9bf0';localStorage.setItem('blue_ref_color',c);applyTheme({...state,theme_color:c});showStatus('رنگ دلخواه اعمال شد')}if(t.dataset.cat){activeCategory=t.dataset.cat;document.querySelectorAll('.cat-pill').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));renderShopSections()}if(t.dataset.shopSort!==undefined){shopSort=t.dataset.shopSort;document.querySelectorAll('[data-shop-sort]').forEach(el=>el.classList.toggle('active',el.dataset.shopSort===shopSort));renderShopSections()}if(t.dataset.shopToggle!==undefined){if(t.dataset.shopToggle==='instock'){shopFilterInStock=!shopFilterInStock;t.textContent=shopFilterInStock?'⚡':'📦'}else if(t.dataset.shopToggle==='featured')shopFilterFeatured=!shopFilterFeatured;else if(t.dataset.shopToggle==='wishlist'){shopFilterWishlist=!shopFilterWishlist;t.textContent=shopFilterWishlist?'❤️':'🤍'}t.classList.toggle('active');renderShopSections()}if(t.dataset.clearFilters!==undefined){searchTerm='';activeCategory='all';shopSort='newest';shopFilterInStock=false;shopFilterFeatured=false;shopFilterWishlist=false;renderShop()}if(t.id==='searchInput')return;if(t.dataset.product)showProduct(t.dataset.product);if(t.dataset.productPreview)showProduct(t.dataset.productPreview);if(t.dataset.backShop!==undefined){currentTab='shop';renderUser()}// BUG-2: [data-buy]/[data-buy-wallet] removed from here — handled exclusively by the capture-phase optimistic handler (avoids double confirm + double API call)
 if(t.dataset.walletOrder){openWalletConfirmSheet(t.dataset.walletOrder);return}if(t.dataset.selectCard){await loadAfterAction('select_payment_method',{order_id:t.dataset.selectCard,method:'card',details:{}});currentTab='orders';currentOrderId=t.dataset.selectCard;renderUser();showStatus('کارت به کارت انتخاب شد')}if(t.dataset.selectCryptoTab){await loadAfterAction('select_payment_method',{order_id:t.dataset.selectCryptoTab,method:'crypto',details:{}});currentTab='orders';currentOrderId=t.dataset.selectCryptoTab;renderUser();showStatus('پرداخت رمزارز انتخاب شد');return}if(t.dataset.resetPaymentMethod){const oid=t.dataset.resetPaymentMethod;await loadAfterAction('select_payment_method',{order_id:oid,method:'none',details:{}});const o=orderById(oid);if(o){o.payment_method='';o.payment_method_fa='انتخاب نشده';}currentTab='orders';currentOrderId=oid;renderOrders();showStatus('انتخاب روش پرداخت بازنشانی شد');return}if(t.dataset.payStars){await loadAfterAction('start_stars_invoice',{order_id:t.dataset.payStars});currentTab='orders';currentOrderId=t.dataset.payStars;renderUser();showStatus('فاکتور Stars داخل تلگرام ارسال شد')}if(t.dataset.selectCrypto){const [oid,wid]=t.dataset.selectCrypto.split(':');await loadAfterAction('select_crypto_wallet',{order_id:oid,wallet_id:wid});currentTab='orders';currentOrderId=oid;renderUser();showStatus('کیف پول رمزارز انتخاب شد')}if(t.dataset.showCrypto){showStatus('کمی پایین‌تر کیف پول رمزارز را انتخاب کن')}if(t.dataset.cryptoHash){openDialog('ثبت TXID / Hash',`هش تراکنش رمزارز سفارش #${t.dataset.cryptoHash} را وارد کن.`, 'TXID / Hash', async(txt)=>{await loadAfterAction('submit_crypto_hash',{order_id:t.dataset.cryptoHash,tx_hash:txt});currentTab='orders';currentOrderId=t.dataset.cryptoHash;renderUser();showStatus('هش ثبت شد و در صف بررسی قرار گرفت')})}if(t.dataset.checkCrypto){await loadAfterAction('check_crypto_payment',{order_id:t.dataset.checkCrypto});currentTab='orders';currentOrderId=t.dataset.checkCrypto;renderUser();showStatus('بررسی پرداخت انجام شد')}
   if(t.id==='openQrHome'||t.id==='openQrWallet'){openQrSheet();return}if(t.id==='openPromoSheetBtn'){openPromoSheet();return}if(t.id==='adminOrderSearchBtn'){adminOrderSearch=$('adminOrderSearchInput')?.value||'';adminOrderStatusFilter=$('adminOrderStatusSelect')?.value||'all';adminSearchOrdersNow();return}if(t.id==='adminOrderResetBtn'){adminOrderSearch='';adminOrderStatusFilter='all';adminSearchOrdersNow();return}if(t.id==='bulkClearBtn'){selectedOrderIds.clear();renderAdmin();return}if(t.dataset.bulkAction){bulkOrderAction(t.dataset.bulkAction);return}if(t.dataset.reorder){const [type,id,dir]=t.dataset.reorder.split(':');reorderItem(type,Number(id),dir);return}if(t.dataset.chatUser){openUserChat(t.dataset.chatUser);return}if(t.dataset.editRole){const r=(adminState.admin_roles||[]).find(x=>Number(x.id)===Number(t.dataset.editRole));if(!r)return;openEdit(`ویرایش نقش ${esc(r.display_name||'')}`,[{title:'سطح دسترسی',fields:[{id:'erl_name',label:'نام نمایشی',value:r.display_name||''},{id:'erl_role',label:'نوع دسترسی',type:'select',options:`<option value="full" ${r.role==='full'?'selected':''}>ادمین کامل</option><option value="orders" ${r.role==='orders'?'selected':''}>فقط سفارش‌ها</option><option value="products" ${r.role==='products'?'selected':''}>فقط محصولات</option><option value="finance" ${r.role==='finance'?'selected':''}>فقط مالی</option>`}]}],async()=>adminAction('admin_set_role',{telegram_id:r.telegram_id,role:val('erl_role'),display_name:val('erl_name')}));return}if(t.dataset.adminRemoveRole&&confirm('نقش این کاربر حذف شود؟')){adminAction('admin_remove_role',{telegram_id:Number(t.dataset.adminRemoveRole)});return}
 if(t.dataset.contactWallet){openDialog('افزایش/کاهش موجودی',`مبلغی که می‌خواهید به موجودی کاربر با ID ${t.dataset.contactWallet} اضافه شود را وارد کنید. برای کاهش، عدد منفی وارد کنید.`,'مثلا 50000 یا -20000',async(txt)=>{const amount=Number(txt);if(isNaN(amount)||!amount)return showStatus('مبلغ نامعتبر است','error');const ok=await adminAction('admin_add_balance',{telegram_id:t.dataset.contactWallet,amount});if(ok){showStatus('موجودی تغییر کرد');closeCustomer360();setTimeout(()=>openCustomer360(t.dataset.contactWallet),500)}});return}if(t.dataset.contactBan){if(confirm('آیا از مسدود کردن این کاربر اطمینان دارید؟')){const ok=await adminAction('admin_ban_user',{telegram_id:t.dataset.contactBan});if(ok)showStatus('کاربر مسدود شد')}return}if(t.dataset.adminTab){setAdminTab(t.dataset.adminTab)}if(t.id==='reloadAdmin')loadAdmin();if(t.id==='openCmdPalette'){openCommandPalette();return}if(t.dataset.editProduct)editProduct(t.dataset.editProduct);if(t.dataset.adminToggleProduct)adminAction('admin_toggle_product',{product_id:t.dataset.adminToggleProduct});if(t.dataset.adminDeleteProduct&&confirm('محصول غیرفعال شود؟'))adminAction('admin_delete_product',{product_id:t.dataset.adminDeleteProduct});if(t.dataset.adminHardDeleteProduct&&confirm('حذف کامل محصول؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_product',{product_id:t.dataset.adminHardDeleteProduct});if(t.dataset.editCategory)editCategory(t.dataset.editCategory);if(t.dataset.adminDeleteCategory&&confirm('دسته غیرفعال شود؟'))adminAction('admin_delete_category',{category_id:t.dataset.adminDeleteCategory});if(t.dataset.adminHardDeleteCategory&&confirm('حذف کامل دسته؟ محصولات بدون دسته می‌شوند.'))adminAction('admin_hard_delete_category',{category_id:t.dataset.adminHardDeleteCategory});if(t.dataset.editVariant)editVariant(t.dataset.editVariant);if(t.dataset.adminDeleteVariant&&confirm('پلن غیرفعال شود؟'))adminAction('admin_delete_variant',{variant_id:t.dataset.adminDeleteVariant});if(t.dataset.adminHardDeleteVariant&&confirm('حذف کامل پلن؟ اگر سفارش داشته باشد انجام نمی‌شود.'))adminAction('admin_hard_delete_variant',{variant_id:t.dataset.adminHardDeleteVariant});if(t.dataset.editInventory)editInventory(t.dataset.editInventory);if(t.dataset.adminDeleteInventory&&confirm('حذف امن آیتم؟'))adminAction('admin_delete_inventory',{inventory_id:t.dataset.adminDeleteInventory});if(t.dataset.adminHardDeleteInventory&&confirm('حذف کامل آیتم؟'))adminAction('admin_hard_delete_inventory',{inventory_id:t.dataset.adminHardDeleteInventory});if(t.dataset.adminStatus){const [id,status]=t.dataset.adminStatus.split(':');adminAction('admin_order_status',{order_id:id,status})}if(t.dataset.adminOrderNote){const id=t.dataset.adminOrderNote;const o=(adminState.orders||[]).find(x=>Number(x.id)===Number(id));if(o)openEdit(`یادداشت داخلی #${id}`,[{title:'یادداشت داخلی (مخفی)',fields:[{id:'adm_note',label:'متن یادداشت',type:'textarea',placeholder:'فقط شما می‌بینید...',value:o.admin_note||''}]}],async()=>adminAction('admin_order_note',{order_id:id,note:val('adm_note')}))}if(t.dataset.adminArchiveOrder&&confirm('این سفارش آرشیو شود؟'))adminAction('admin_archive_order',{order_id:t.dataset.adminArchiveOrder});if(t.dataset.adminDeleteOrder&&confirm('حذف کامل سفارش؟ این عملیات قابل برگشت نیست.'))adminAction('admin_delete_order',{order_id:t.dataset.adminDeleteOrder});if(t.dataset.adminCleanup&&confirm('پاکسازی گروهی سفارش‌های لغو/رد شده انجام شود؟'))adminAction('admin_cleanup_orders',{older_days:t.dataset.adminCleanup==='all'?null:t.dataset.adminCleanup});if(t.dataset.adminDeliver){const oid=t.dataset.adminDeliver;openDialog('تحویل سفارش',`متن تحویل سفارش #${oid} را وارد کن.`, 'ایمیل/پسورد، لینک ساب یا کد', async(txt)=>{const ok=await adminAction('admin_deliver_order',{order_id:oid,delivery:txt});if(ok){currentAdminTab='orders';showStatus('تحویل ثبت شد و برای کاربر ارسال شد')}})}if(t.dataset.viewReceipt!==undefined){loadReceiptImage(t.dataset.viewReceipt)}if(t.dataset.adminSaveSettings!==undefined){syncPaymentBuilders();adminAction('admin_save_settings',{brand_name:val('as_brand_name'),default_base_currency:val('as_default_base_currency'),theme_color:val('as_theme'),button_colors_enabled:val('as_btn_enabled')?1:0,require_contact_auth:val('as_require_contact')?1:0,notify_new_user:val('as_notify_new')?1:0,resend_api_key:val('as_resend_api_key'),resend_from_email:val('as_resend_from_email'),require_email_verification:val('as_require_email_verif')?1:0,button_colors:{primary:val('as_primary'),secondary:val('as_secondary'),success:val('as_success'),warning:val('as_warning'),danger:val('as_danger')},payment_instructions:val('as_payment'),payment_methods_enabled:{wallet:val('as_pay_wallet')?1:0,card:val('as_pay_card')?1:0,stars:val('as_pay_stars')?1:0,crypto:val('as_pay_crypto')?1:0},card_accounts_text:val('as_cards'),stars_rate_toman:val('as_stars_rate'),crypto_wallets_text:val('as_crypto_wallets'),crypto_manual_rates_text:val('as_crypto_rates'),crypto_rate_source:val('as_crypto_source'),crypto_rate_provider_priority:'wallex,ramzinex,nobitex',crypto_rate_markup_percent:val('as_crypto_markup'),crypto_rate_refresh_interval_seconds:val('as_crypto_refresh_interval'),crypto_notify_rate_fail:val('as_crypto_notify')?1:0,spin_referrals_per_chance:val('as_spin_every'),spin_rewards_text:val('as_spin_rewards')})}
