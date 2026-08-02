@@ -1044,9 +1044,6 @@ function openVariantDetails(pid, vid){
   const v = (p.variants || []).find(x => Number(x.id) === vid);
   if(!v) return;
 
-  // Auto-close the open product detail modal to prevent background overlay clutter
-  closeProductModal();
-
   const d = Number(v.discount_percent || 0);
   const origPrice = (v.old_price && Number(v.old_price) > Number(v.price)) ? Number(v.old_price) : (d > 0 ? Math.round(Number(v.price) / (1 - d / 100)) : Number(v.price));
   
@@ -2866,30 +2863,46 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Capture-phase click handler for toggle and optimistic buy flows.
+// Capture-phase click handler for buy and cart flows.
 document.addEventListener('click',async function(e){
-  const t=e.target.closest('[data-buy],[data-buy-wallet]');
+  const t=e.target.closest('[data-buy],[data-buy-wallet],[data-cart-add]');
   if(!t) return;
-  // Optimistic buy handler
-  if(t.dataset.buy||t.dataset.buyWallet){
+  if(t.dataset.buy || t.dataset.buyWallet || t.dataset.cartAdd){
     e.preventDefault(); e.stopPropagation();
-    if(!confirm('آیا از ثبت سفارش خود مطمئن هستید؟')) return;
-    closePreviewSheet();
-    const pid = Number(t.dataset.buy||t.dataset.buyWallet);
-    const variantId = t.dataset.variant?Number(t.dataset.variant):null;
+    
+    // Close both pop-up overlays
+    if(typeof closeVariantDetails === 'function') closeVariantDetails();
+    if(typeof closeProductModal === 'function') closeProductModal();
+    if(typeof closePreviewSheet === 'function') closePreviewSheet();
+
+    const pid = Number(t.dataset.buy || t.dataset.buyWallet || t.dataset.cartAdd);
+    const variantId = t.dataset.variant ? Number(t.dataset.variant) : (t.dataset.cartVariant ? Number(t.dataset.cartVariant) : null);
     const p = (state.shop_products||[]).find(x=>Number(x.id)===Number(pid));
+    if(!p) return;
+
     const tmpId = 'tmp_'+Date.now();
     const price = variantId ? ((p.variants||[]).find(v=>Number(v.id)===variantId)?.price||p.price) : p.price;
     const tmpOrder = {id: tmpId, display_name: p?.name||'سفارش', status:'pending_payment', final_amount:price, created_at:new Date().toISOString(), image_url:p?.image_url};
     state.orders = state.orders || [];
     state.orders.unshift(tmpOrder);
+    
+    currentTab = 'orders';
+    currentOrderId = tmpId;
     renderUser();
+    
     try{
-      await api('create_order',{product_id:pid,variant_id:variantId,use_wallet:t.dataset.buyWallet?1:0});
-      state = await api('me'); applyTheme(state); currentTab='orders'; currentOrderId = state.order?.id||null; renderUser();
+      const res = await api('create_order',{product_id:pid, variant_id:variantId, use_wallet:t.dataset.buyWallet?1:0});
+      state = await api('me');
+      applyTheme(state);
+      const newOrderId = res?.order_id || state.orders?.[0]?.id || null;
+      currentTab = 'orders';
+      currentOrderId = newOrderId;
+      renderUser();
+      showStatus(t.dataset.cartAdd ? '🛒 سفارش به سبد / لیست سفارش‌ها اضافه شد' : '⚡ سفارش با موفقیت ثبت شد');
     }catch(err){
       state.orders = (state.orders||[]).filter(o=>o.id!==tmpId);
-      showStatus(err.message||'خطا در ثبت سفارش','error'); renderUser();
+      showStatus(err.message||'خطا در ثبت سفارش','error');
+      renderUser();
     }
   }
 }, true);
