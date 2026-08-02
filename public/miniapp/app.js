@@ -1111,7 +1111,8 @@ function openVariantDetails(pid, vid){
     </div>
   </div>`;
 
-  sheet.classList.add('open');
+  sheet.style.display = 'flex';
+  setTimeout(() => { sheet.classList.add('open'); }, 10);
   sheet.onclick = (e) => { if(e.target === sheet) closeVariantDetails(); };
   if(typeof haptic === 'function') haptic('light');
 }
